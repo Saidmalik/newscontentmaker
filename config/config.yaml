@@ -1,0 +1,70 @@
+# ============================================
+# UZ News Bot — Configuration
+# ============================================
+# ВАЖНО: Инструкции по контенту и стилю — в config/preferences.yaml
+# Здесь только технические настройки.
+
+# RSS Sources
+sources:
+  - name: "Kun.uz"
+    url: "https://kun.uz/ru/news/rss"
+    category: "general"
+  - name: "UPL.uz"
+    url: "https://upl.uz/rss.xml"
+    category: "general"
+  - name: "Gazeta.uz"
+    url: "https://www.gazeta.uz/ru/rss/"
+    category: "general"
+
+# News collection & filtering
+filter:
+  max_news_per_run: 100
+  top_news_count: 15
+  min_importance_score: 6
+
+# Keyword filter — БЕСПЛАТНАЯ фильтрация без Claude API
+# min_score: минимум совпадений ключевых слов чтобы новость сохранилась
+# 0 = сохранять все | 1 = минимум 1 ключевое слово (рекомендуется)
+keyword_filter:
+  min_score: 1
+
+# Claude API models (меняй для экономии токенов)
+# Фильтрация: claude-3-haiku-20240307 (дешевле, быстрее)
+# Контент: claude-sonnet-4-5 (качественнее)
+models:
+  filter_model: "claude-haiku-4-5"        # Для фильтрации новостей (дёшево)
+  content_model: "claude-sonnet-4-5"       # Для генерации контента (качество)
+
+# Content generation settings
+content:
+  language: "ru"
+  instagram_caption_max_length: 2200
+  hashtags_count: 12
+  tts_max_duration_seconds: 55
+
+# ElevenLabs settings
+elevenlabs:
+  model_id: "eleven_multilingual_v2"
+  # Настройки голоса — меняй здесь или через API
+  # Диапазоны: stability 0-1, similarity_boost 0-1, style 0-1, speed 0.7-1.2
+  voice_settings:
+    stability: 0.5
+    similarity_boost: 0.75
+    style: 0.0
+    use_speaker_boost: true
+    speed: 1.0          # 1.0 = нормальный, <1.0 = медленнее, >1.0 = быстрее
+  output_format: "mp3_44100_128"
+
+# Storage settings
+storage:
+  database_path: "data/news_bot.db"
+  audio_output_dir: "output/audio"
+  content_output_dir: "output/content"
+  retention_days: 30
+  # Автоматически удалять отфильтрованные AI новости из БД после N дней
+  cleanup_filtered_after_days: 3
+
+# Telegram settings
+telegram:
+  parse_mode: "HTML"
+  max_message_length: 4096

@@ -340,11 +340,74 @@ async def api_delete(news_id: int, request: Request):
     return {"id": news_id, "deleted": True}
 
 
+# ── API: ELEVENLABS CREDITS ───────────────────────────────────────────────
+
+def _get_el_credits_sync(api_key: str) -> int:
+    """Returns remaining characters for an ElevenLabs account. -1 on error."""
+    try:
+        r = req_lib.get(
+            "https://api.elevenlabs.io/v1/user",
+            headers={"xi-api-key": api_key},
+            timeout=10,
+        )
+        if r.ok:
+            sub = r.json().get("subscription", {})
+            return sub.get("character_limit", 0) - sub.get("character_count", 0)
+    except Exception:
+        pass
+    return -1
+
+
+async def _pick_el_account() -> tuple[str, str, int]:
+    """Auto-select ElevenLabs account with most remaining credits.
+    Returns (api_key, voice_id, account_number).
+    """
+    best = (-2, "", "", 0)
+    for acc in [1, 2]:
+        api_key  = os.environ.get(f"ELEVENLABS_API_KEY_{acc}", "")
+        voice_id = os.environ.get(f"ELEVENLABS_VOICE_ID_{acc}", "")
+        if not api_key or not voice_id:
+            continue
+        credits = await asyncio.to_thread(_get_el_credits_sync, api_key)
+        log(f"ElevenLabs acc{acc}: {credits} chars remaining")
+        if credits > best[0]:
+            best = (credits, api_key, voice_id, acc)
+
+    if not best[1]:
+        raise HTTPException(
+            status_code=500,
+            detail="Нет настроенных ElevenLabs аккаунтов. Добавьте ELEVENLABS_API_KEY_1 и ELEVENLABS_VOICE_ID_1."
+        )
+    if best[0] == 0:
+        raise HTTPException(
+            status_code=402,
+            detail="На обоих аккаунтах ElevenLabs закончились кредиты. Пополните баланс."
+        )
+    return best[1], best[2], best[3]
+
+
+@app.get("/api/elevenlabs/credits")
+async def api_el_credits(request: Request):
+    """Return remaining characters for each configured ElevenLabs account."""
+    require_auth(request)
+    result = {}
+    for acc in [1, 2]:
+        api_key = os.environ.get(f"ELEVENLABS_API_KEY_{acc}", "")
+        if not api_key:
+            continue
+        credits = await asyncio.to_thread(_get_el_credits_sync, api_key)
+        result[str(acc)] = credits
+    return result
+
+
 # ── API: ELEVENLABS SPEAK ─────────────────────────────────────────────────
 
 @app.get("/api/news/{news_id}/speak")
-async def api_speak(news_id: int, request: Request, account: int = 1):
-    """Generate MP3 via ElevenLabs and return as download."""
+async def api_speak(news_id: int, request: Request, account: int = 0):
+    """Generate MP3 via ElevenLabs.
+    account=0 (default) → auto-pick account with most credits.
+    account=1 or 2      → force specific account.
+    """
     require_auth(request)
 
     conn = sqlite3.connect(DB_PATH)
@@ -355,26 +418,28 @@ async def api_speak(news_id: int, request: Request, account: int = 1):
     if not row or not row["tts_script"]:
         raise HTTPException(status_code=404, detail="Нет TTS скрипта. Сначала нажмите Generate.")
 
-    script  = row["tts_script"]
-    api_key = os.environ.get(f"ELEVENLABS_API_KEY_{account}", "")
-    voice_id = os.environ.get(f"ELEVENLABS_VOICE_ID_{account}", "")
+    script = row["tts_script"]
 
-    if not api_key or not voice_id:
-        raise HTTPException(
-            status_code=500,
-            detail=f"ELEVENLABS_API_KEY_{account} или ELEVENLABS_VOICE_ID_{account} не заданы в переменных."
-        )
+    # Resolve account
+    if account == 0:
+        api_key, voice_id, used_acc = await _pick_el_account()
+    else:
+        api_key  = os.environ.get(f"ELEVENLABS_API_KEY_{account}", "")
+        voice_id = os.environ.get(f"ELEVENLABS_VOICE_ID_{account}", "")
+        used_acc = account
+        if not api_key or not voice_id:
+            raise HTTPException(
+                status_code=500,
+                detail=f"ELEVENLABS_API_KEY_{account} или ELEVENLABS_VOICE_ID_{account} не заданы."
+            )
 
-    # Load voice settings from preferences.yaml
+    # Load voice settings
     with open(PREFS_PATH, encoding="utf-8") as f:
         prefs = yaml.safe_load(f)
     el = prefs.get("elevenlabs", {})
     voice_settings = el.get("voice_settings", {
-        "stability": 0.45,
-        "similarity_boost": 0.80,
-        "style": 0.35,
-        "speed": 1.05,
-        "use_speaker_boost": True,
+        "stability": 0.45, "similarity_boost": 0.80,
+        "style": 0.35, "speed": 1.05, "use_speaker_boost": True,
     })
     model_id = el.get("model_id", "eleven_multilingual_v2")
 
@@ -384,7 +449,10 @@ async def api_speak(news_id: int, request: Request, account: int = 1):
     return Response(
         content=audio,
         media_type="audio/mpeg",
-        headers={"Content-Disposition": f'attachment; filename="tts_{news_id}_acc{account}.mp3"'},
+        headers={
+            "Content-Disposition": f'attachment; filename="tts_{news_id}_acc{used_acc}.mp3"',
+            "X-EL-Account": str(used_acc),
+        },
     )
 
 

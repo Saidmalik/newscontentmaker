@@ -156,6 +156,7 @@ body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-se
   <div class="header-inner">
     <h1>📰 UZ News Bot</h1>
     <div class="header-right">
+      <div id="elCredits" style="display:flex;gap:.35rem;align-items:center;flex-wrap:wrap"></div>
       <div class="score-lbl">Score ≥
         <input type="number" id="minScore" value="1" min="0" max="20" onchange="load()">
       </div>
@@ -266,9 +267,10 @@ function cardHtml(n){
   // Speak dropdown
   const speakBtn = hasTTS ? `
     <div class="speak-wrap">
-      <button class="btn btn-teal speak-main" onclick="speak(${n.id},1)">🎙 Озвучить</button>
+      <button class="btn btn-teal speak-main" onclick="speak(${n.id},0)">🎙 Озвучить</button>
       <button class="btn btn-teal speak-arrow" onclick="toggleSpeak(${n.id})">▾</button>
       <div class="speak-menu" id="speak-menu-${n.id}">
+        <button class="speak-opt" onclick="speak(${n.id},0);closeSpeak(${n.id})">🤖 Авто (больше кредитов)</button>
         <button class="speak-opt" onclick="speak(${n.id},1);closeSpeak(${n.id})">Аккаунт 1</button>
         <button class="speak-opt" onclick="speak(${n.id},2);closeSpeak(${n.id})">Аккаунт 2</button>
       </div>
@@ -461,6 +463,27 @@ async function copyText(elId){
 }
 
 load();
+loadCredits();
+
+/* ── ElevenLabs Credits ── */
+async function loadCredits(){
+  try {
+    const data = await req("GET", "/api/elevenlabs/credits");
+    if(!data) return;
+    const el = document.getElementById("elCredits");
+    el.innerHTML = "";
+    for(const [acc, chars] of Object.entries(data)){
+      const ok = chars > 500;
+      const warn = chars > 0 && chars <= 500;
+      const color = ok ? "#16a34a" : warn ? "#d97706" : "#dc2626";
+      const label = chars < 0 ? "N/A" : chars >= 1000 ? Math.round(chars/1000)+"k" : chars;
+      el.innerHTML += `<span title="Аккаунт ${acc}: ${chars < 0 ? "ошибка" : chars+" символов"}"
+        style="font-size:.7rem;padding:.18rem .5rem;border-radius:4px;background:#f1f5f9;
+               border:1px solid ${color};color:${color};font-weight:600;white-space:nowrap">
+        🎙${acc} ${label}</span>`;
+    }
+  } catch(_) {}
+}
 </script>
 </body>
 </html>

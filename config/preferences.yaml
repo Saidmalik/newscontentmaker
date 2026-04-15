@@ -54,6 +54,20 @@ news_filter:
   min_importance_score: 6
 
 
+# ── ELEVENLABS НАСТРОЙКИ ──────────────────────────────────────────────
+# API ключи и voice_id задаются через Railway Variables:
+#   ELEVENLABS_API_KEY_1 / ELEVENLABS_VOICE_ID_1   — аккаунт 1
+#   ELEVENLABS_API_KEY_2 / ELEVENLABS_VOICE_ID_2   — аккаунт 2 (если есть)
+elevenlabs:
+  model_id: "eleven_multilingual_v2"
+  output_format: "mp3_44100_128"
+  voice_settings:
+    stability: 0.45         # 0-1. Ниже = живее и эмоциональнее
+    similarity_boost: 0.80  # 0-1. Близость к оригинальному голосу
+    style: 0.35             # 0-1. Выразительность стиля
+    speed: 1.05             # 0.7-1.2. Скорость речи (1.0 = норм)
+    use_speaker_boost: true # Улучшение качества голоса
+
 # ── ИНСТРУКЦИИ ПО СТИЛЮ КОНТЕНТА ─────────────────────────────────────
 
 content_style:

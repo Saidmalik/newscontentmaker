@@ -5,308 +5,187 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>UZ News Bot</title>
 <style>
-  *, *::before, *::after { box-sizing: border-box; }
+*, *::before, *::after { box-sizing: border-box; }
+:root {
+  --bg: #f1f5f9; --card: #fff; --border: #e2e8f0;
+  --text: #0f172a; --muted: #64748b;
+  --primary: #2563eb; --primary-h: #1d4ed8;
+  --success: #16a34a; --success-h: #15803d;
+  --purple: #7c3aed; --danger: #dc2626;
+  --radius: 12px;
+}
+body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+       background:var(--bg); color:var(--text); font-size:14px; line-height:1.5; }
 
-  :root {
-    --bg: #f1f5f9;
-    --card: #ffffff;
-    --border: #e2e8f0;
-    --text: #0f172a;
-    --muted: #64748b;
-    --primary: #2563eb;
-    --primary-h: #1d4ed8;
-    --success: #16a34a;
-    --success-h: #15803d;
-    --danger: #dc2626;
-    --radius: 12px;
-  }
+/* Header */
+.header { background:#fff; border-bottom:1px solid var(--border);
+          position:sticky; top:0; z-index:100; }
+.header-inner { max-width:880px; margin:0 auto; padding:.6rem 1rem;
+                display:flex; align-items:center; gap:.75rem; flex-wrap:wrap; }
+.header h1 { margin:0; font-size:1rem; font-weight:700; }
+.header-right { display:flex; align-items:center; gap:.4rem; margin-left:auto; flex-wrap:wrap; }
+.score-lbl { display:flex; align-items:center; gap:.3rem; color:var(--muted);
+             font-size:.78rem; white-space:nowrap; }
+.score-lbl input { width:48px; padding:.28rem .4rem; border:1px solid var(--border);
+                   border-radius:6px; font-size:.8rem; }
 
-  body {
-    margin: 0;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    background: var(--bg);
-    color: var(--text);
-    font-size: 14px;
-    line-height: 1.5;
-  }
+/* Tabs */
+.tabs { max-width:880px; margin:.8rem auto .2rem; padding:0 1rem;
+        display:flex; gap:.3rem; }
+.tab { padding:.3rem .9rem; border:1px solid var(--border); border-radius:20px;
+       background:#fff; font-size:.78rem; cursor:pointer; color:var(--muted);
+       transition:all .15s; }
+.tab.active { background:var(--primary); color:#fff; border-color:var(--primary); font-weight:600; }
+.tab:hover:not(.active) { background:var(--bg); }
 
-  /* ── Header ── */
-  .header {
-    background: white;
-    border-bottom: 1px solid var(--border);
-    position: sticky;
-    top: 0;
-    z-index: 100;
-  }
-  .header-inner {
-    max-width: 860px;
-    margin: 0 auto;
-    padding: .65rem 1rem;
-    display: flex;
-    align-items: center;
-    gap: .75rem;
-    flex-wrap: wrap;
-  }
-  .header h1 {
-    margin: 0;
-    font-size: 1rem;
-    font-weight: 700;
-    color: var(--text);
-    white-space: nowrap;
-  }
-  .header-right {
-    display: flex;
-    align-items: center;
-    gap: .5rem;
-    margin-left: auto;
-    flex-wrap: wrap;
-  }
-  .score-label {
-    display: flex;
-    align-items: center;
-    gap: .35rem;
-    color: var(--muted);
-    font-size: .78rem;
-    white-space: nowrap;
-  }
-  .score-label input {
-    width: 52px;
-    padding: .3rem .45rem;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    font-size: .82rem;
-    color: var(--text);
-  }
+/* Sort */
+.sort-row { max-width:880px; margin:0 auto .3rem; padding:0 1rem;
+            display:flex; align-items:center; gap:.4rem; }
+.sort-btn { padding:.22rem .65rem; border:1px solid var(--border); border-radius:5px;
+            background:#fff; font-size:.73rem; cursor:pointer; color:var(--muted); }
+.sort-btn.active { background:var(--text); color:#fff; border-color:var(--text); }
 
-  /* ── Buttons ── */
-  .btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: .38rem .85rem;
-    border: none;
-    border-radius: 7px;
-    font-size: .78rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: background .13s, opacity .13s;
-    white-space: nowrap;
-  }
-  .btn:disabled { opacity: .5; cursor: not-allowed; }
-  .btn-primary  { background: var(--primary); color: white; }
-  .btn-primary:hover:not(:disabled) { background: var(--primary-h); }
-  .btn-success  { background: var(--success); color: white; }
-  .btn-success:hover:not(:disabled) { background: var(--success-h); }
-  .btn-ghost    { background: transparent; border: 1px solid var(--border); color: var(--text); }
-  .btn-ghost:hover:not(:disabled) { background: var(--bg); }
-  .btn-danger   { background: transparent; border: 1px solid #fca5a5; color: var(--danger); }
-  .btn-danger:hover:not(:disabled) { background: #fef2f2; }
+/* Stats pills */
+.stats { max-width:880px; margin:0 auto .4rem; padding:0 1rem;
+         display:flex; gap:.4rem; flex-wrap:wrap; }
+.pill { background:#fff; border:1px solid var(--border); border-radius:20px;
+        padding:.18rem .7rem; font-size:.73rem; color:var(--muted); }
+.pill strong { color:var(--text); }
 
-  /* ── Stats bar ── */
-  .stats {
-    max-width: 860px;
-    margin: .85rem auto .4rem;
-    padding: 0 1rem;
-    display: flex;
-    gap: .5rem;
-    flex-wrap: wrap;
-  }
-  .pill {
-    background: white;
-    border: 1px solid var(--border);
-    border-radius: 20px;
-    padding: .22rem .75rem;
-    font-size: .75rem;
-    color: var(--muted);
-  }
-  .pill strong { color: var(--text); }
+/* Buttons */
+.btn { display:inline-flex; align-items:center; gap:3px; padding:.32rem .75rem;
+       border:none; border-radius:7px; font-size:.76rem; font-weight:500;
+       cursor:pointer; transition:background .12s,opacity .12s; white-space:nowrap; }
+.btn:disabled { opacity:.45; cursor:not-allowed; }
+.btn-primary  { background:var(--primary); color:#fff; }
+.btn-primary:hover:not(:disabled)  { background:var(--primary-h); }
+.btn-success  { background:var(--success); color:#fff; }
+.btn-success:hover:not(:disabled)  { background:var(--success-h); }
+.btn-purple   { background:var(--purple); color:#fff; }
+.btn-purple:hover:not(:disabled)   { background:#6d28d9; }
+.btn-ghost    { background:transparent; border:1px solid var(--border); color:var(--text); }
+.btn-ghost:hover:not(:disabled)    { background:var(--bg); }
+.btn-danger   { background:transparent; border:1px solid #fca5a5; color:var(--danger); }
+.btn-danger:hover:not(:disabled)   { background:#fef2f2; }
+.btn-teal     { background:#0d9488; color:#fff; }
+.btn-teal:hover:not(:disabled)     { background:#0f766e; }
 
-  /* ── List ── */
-  .list {
-    max-width: 860px;
-    margin: 0 auto;
-    padding: .4rem 1rem 3rem;
-    display: flex;
-    flex-direction: column;
-    gap: .65rem;
-  }
+/* List */
+.list { max-width:880px; margin:0 auto; padding:.3rem 1rem 3rem;
+        display:flex; flex-direction:column; gap:.6rem; }
 
-  /* ── Card ── */
-  .card {
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: .9rem 1rem;
-  }
-  .card.is-approved {
-    border-left: 3px solid var(--success);
-  }
+/* Card */
+.card { background:var(--card); border:1px solid var(--border);
+        border-radius:var(--radius); padding:.85rem 1rem; }
+.card.is-approved { border-left:3px solid var(--success); }
 
-  .card-head {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: .5rem;
-    margin-bottom: .4rem;
-  }
-  .card-tags {
-    display: flex;
-    align-items: center;
-    gap: .3rem;
-    flex-wrap: wrap;
-    flex: 1;
-    min-width: 0;
-  }
+.card-head { display:flex; align-items:flex-start; justify-content:space-between;
+             gap:.4rem; margin-bottom:.35rem; }
+.card-tags { display:flex; align-items:center; gap:.28rem; flex-wrap:wrap; flex:1; min-width:0; }
+.tag { display:inline-block; padding:.1rem .42rem; border-radius:4px;
+       font-size:.67rem; font-weight:500; white-space:nowrap;
+       background:#f1f5f9; color:var(--muted); }
+.tag-src      { background:#eff6ff; color:#1d4ed8; }
+.tag-approved { background:#f0fdf4; color:#15803d; }
+.tag-sent     { background:#faf5ff; color:#7c3aed; }
 
-  .tag {
-    display: inline-block;
-    padding: .12rem .45rem;
-    border-radius: 4px;
-    font-size: .68rem;
-    font-weight: 500;
-    white-space: nowrap;
-    background: #f1f5f9;
-    color: var(--muted);
-  }
-  .tag-src      { background: #eff6ff; color: #1d4ed8; }
-  .tag-approved { background: #f0fdf4; color: #15803d; }
-  .tag-sent     { background: #faf5ff; color: #7c3aed; }
+.score { display:inline-flex; align-items:center; justify-content:center;
+         min-width:30px; height:21px; padding:0 5px; border-radius:5px;
+         font-size:.68rem; font-weight:700; flex-shrink:0; }
+.s0   { background:#f1f5f9; color:#94a3b8; }
+.s-lo { background:#fef3c7; color:#92400e; }
+.s-md { background:#dbeafe; color:#1e40af; }
+.s-hi { background:#dcfce7; color:#166534; }
 
-  .score {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 30px;
-    height: 22px;
-    padding: 0 6px;
-    border-radius: 5px;
-    font-size: .7rem;
-    font-weight: 700;
-    flex-shrink: 0;
-  }
-  .s0   { background: #f1f5f9; color: #94a3b8; }
-  .s-lo { background: #fef3c7; color: #92400e; }
-  .s-md { background: #dbeafe; color: #1e40af; }
-  .s-hi { background: #dcfce7; color: #166534; }
+.card-title { font-size:.9rem; font-weight:600; line-height:1.4; margin:.18rem 0 .5rem; }
+.card-title a { color:var(--text); text-decoration:none; }
+.card-title a:hover { color:var(--primary); text-decoration:underline; }
 
-  .card-title {
-    font-size: .92rem;
-    font-weight: 600;
-    line-height: 1.4;
-    margin: .2rem 0 .55rem;
-  }
-  .card-title a {
-    color: var(--text);
-    text-decoration: none;
-  }
-  .card-title a:hover { color: var(--primary); text-decoration: underline; }
+/* TTS block */
+.tts-wrap { background:#f8fafc; border:1px solid var(--border);
+            border-radius:8px; padding:.6rem .75rem; margin:.1rem 0 .5rem; }
+.tts-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:.3rem; }
+.tts-label { font-size:.65rem; font-weight:700; text-transform:uppercase;
+             letter-spacing:.06em; color:var(--muted); }
+.tts-body { font-size:.82rem; line-height:1.65; color:#374151;
+            white-space:pre-wrap; word-break:break-word; }
 
-  /* ── TTS block ── */
-  .tts-wrap {
-    background: #f8fafc;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: .65rem .8rem;
-    margin-bottom: .65rem;
-  }
-  .tts-top {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: .35rem;
-  }
-  .tts-top span {
-    font-size: .67rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: .06em;
-    color: var(--muted);
-  }
-  .tts-body {
-    font-size: .83rem;
-    line-height: 1.65;
-    color: #374151;
-    white-space: pre-wrap;
-    word-break: break-word;
-  }
+/* GPT Review block */
+.gpt-wrap { background:#faf5ff; border:1px solid #ddd6fe;
+            border-radius:8px; padding:.6rem .75rem; margin:.1rem 0 .5rem; }
+.gpt-comment { font-size:.78rem; color:#6d28d9; font-style:italic;
+               margin-bottom:.4rem; line-height:1.5; }
 
-  /* ── Actions ── */
-  .card-actions {
-    display: flex;
-    gap: .35rem;
-    flex-wrap: wrap;
-  }
+/* Actions */
+.card-actions { display:flex; gap:.3rem; flex-wrap:wrap; margin-top:.5rem; }
 
-  /* ── Spinner ── */
-  .spin {
-    display: inline-block;
-    width: 11px;
-    height: 11px;
-    border: 2px solid rgba(255,255,255,.35);
-    border-top-color: white;
-    border-radius: 50%;
-    animation: rot .55s linear infinite;
-  }
-  .spin-dark {
-    border-color: rgba(0,0,0,.15);
-    border-top-color: var(--muted);
-  }
-  @keyframes rot { to { transform: rotate(360deg); } }
+/* Account dropdown */
+.speak-wrap { position:relative; display:inline-flex; }
+.speak-main { border-radius:7px 0 0 7px !important; }
+.speak-arrow { padding:.32rem .5rem !important; border-radius:0 7px 7px 0 !important;
+               border-left:1px solid rgba(255,255,255,.3) !important; }
+.speak-menu { position:absolute; top:calc(100% + 4px); left:0; background:#fff;
+              border:1px solid var(--border); border-radius:8px; box-shadow:0 4px 16px rgba(0,0,0,.1);
+              min-width:130px; z-index:50; overflow:hidden; display:none; }
+.speak-menu.open { display:block; }
+.speak-opt { display:block; width:100%; padding:.45rem .8rem; border:none;
+             background:none; text-align:left; font-size:.78rem; cursor:pointer; color:var(--text); }
+.speak-opt:hover { background:var(--bg); }
 
-  /* ── Toast ── */
-  .toast {
-    position: fixed;
-    bottom: 1.4rem;
-    right: 1.4rem;
-    background: #1e293b;
-    color: white;
-    padding: .6rem 1.1rem;
-    border-radius: 8px;
-    font-size: .82rem;
-    opacity: 0;
-    transform: translateY(8px);
-    transition: opacity .18s, transform .18s;
-    z-index: 999;
-    pointer-events: none;
-    max-width: 280px;
-  }
-  .toast.on   { opacity: 1; transform: translateY(0); }
-  .toast.err  { background: #dc2626; }
+/* Spinner */
+.spin { display:inline-block; width:11px; height:11px;
+        border:2px solid rgba(255,255,255,.3); border-top-color:#fff;
+        border-radius:50%; animation:rot .5s linear infinite; }
+@keyframes rot { to { transform:rotate(360deg); } }
 
-  /* ── Empty / loading ── */
-  .empty {
-    text-align: center;
-    padding: 3rem 1rem;
-    color: var(--muted);
-  }
+/* Toast */
+.toast { position:fixed; bottom:1.3rem; right:1.3rem; background:#1e293b;
+         color:#fff; padding:.55rem 1rem; border-radius:8px; font-size:.8rem;
+         opacity:0; transform:translateY(8px); transition:opacity .18s,transform .18s;
+         z-index:999; pointer-events:none; max-width:280px; }
+.toast.on  { opacity:1; transform:translateY(0); }
+.toast.err { background:var(--danger); }
+
+/* Empty */
+.empty { text-align:center; padding:3rem 1rem; color:var(--muted); }
 </style>
 </head>
 <body>
 
 <header class="header">
   <div class="header-inner">
-    <h1>UZ News Bot</h1>
+    <h1>📰 UZ News Bot</h1>
     <div class="header-right">
-      <label class="score-label">
-        Score ≥
+      <div class="score-lbl">Score ≥
         <input type="number" id="minScore" value="1" min="0" max="20" onchange="load()">
-      </label>
-      <button class="btn btn-ghost" onclick="load()">↻ Refresh</button>
+      </div>
+      <button class="btn btn-ghost" onclick="load()">↻</button>
       <button class="btn btn-primary" id="collectBtn" onclick="collectNow()">Collect Now</button>
     </div>
   </div>
 </header>
 
+<div class="tabs" id="tabs">
+  <button class="tab active" data-tab="all"      onclick="setTab('all')">Все</button>
+  <button class="tab"        data-tab="new"      onclick="setTab('new')">Новые</button>
+  <button class="tab"        data-tab="approved" onclick="setTab('approved')">Одобренные</button>
+</div>
+
+<div class="sort-row">
+  <span style="font-size:.73rem;color:var(--muted)">Сорт:</span>
+  <button class="sort-btn active" id="sort-score" onclick="setSort('score')">★ Score</button>
+  <button class="sort-btn"        id="sort-date"  onclick="setSort('date')">🕐 Дата</button>
+</div>
+
 <div class="stats" id="stats"></div>
-<div class="list"  id="list"><div class="empty">Loading…</div></div>
+<div class="list"  id="list"><div class="empty">Загрузка…</div></div>
 <div class="toast" id="toast"></div>
 
 <script>
 "use strict";
+let data = [], curTab = "all", curSort = "score";
 
-let data = [];
-
-/* ── HTTP helper ── */
+/* ── HTTP ── */
 async function req(method, path) {
   const r = await fetch(path, { method });
   if (r.status === 401) { location.href = "/login"; return null; }
@@ -316,74 +195,108 @@ async function req(method, path) {
 }
 
 /* ── Toast ── */
-function toast(msg, err = false) {
+function toast(msg, err=false) {
   const el = document.getElementById("toast");
   el.textContent = msg;
-  el.className = "toast on" + (err ? " err" : "");
+  el.className = "toast on" + (err?" err":"");
   clearTimeout(el._t);
-  el._t = setTimeout(() => el.classList.remove("on"), 3200);
+  el._t = setTimeout(()=>el.classList.remove("on"), 3500);
 }
 
-/* ── Score badge class ── */
-function scoreClass(s) {
-  if (!s)   return "s0";
-  if (s<=2) return "s-lo";
-  if (s<=4) return "s-md";
-  return "s-hi";
-}
-
-/* ── Date formatter ── */
-function fmtDate(str) {
-  if (!str) return "";
+/* ── Helpers ── */
+function esc(s){ return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+function scoreClass(s){ if(!s)return"s0"; if(s<=2)return"s-lo"; if(s<=4)return"s-md"; return"s-hi"; }
+function fmtDate(str){
+  if(!str) return "";
   try {
     const d = new Date(str);
-    if (!isNaN(d)) {
-      return d.toLocaleDateString("ru-RU",{day:"2-digit",month:"2-digit"}) + " " +
-             d.toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"});
-    }
+    if(!isNaN(d)) return d.toLocaleDateString("ru-RU",{day:"2-digit",month:"2-digit"})+" "+d.toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"});
   } catch(_) {}
   return str.slice(0,16).replace("T"," ");
 }
 
-/* ── HTML escape ── */
-function esc(s) {
-  return String(s||"")
-    .replace(/&/g,"&amp;").replace(/</g,"&lt;")
-    .replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+/* ── Tab / Sort ── */
+function setTab(t){
+  curTab = t;
+  document.querySelectorAll(".tab").forEach(b => b.classList.toggle("active", b.dataset.tab===t));
+  load();
+}
+function setSort(s){
+  curSort = s;
+  document.getElementById("sort-score").classList.toggle("active", s==="score");
+  document.getElementById("sort-date").classList.toggle("active",  s==="date");
+  load();
 }
 
-/* ── Render one card ── */
-function cardHtml(n) {
-  const approved = n.approved === 1;
-  const hasTTS   = !!n.tts_script;
-  const sent     = n.sent_tg  === 1;
+/* ── Card HTML ── */
+function cardHtml(n){
+  const approved = n.approved===1, hasTTS = !!n.tts_script,
+        hasReview = !!n.reviewed_script, sent = n.sent_tg===1;
 
   const tags = [
     `<span class="tag tag-src">${esc(n.source||"")}</span>`,
     n.published ? `<span class="tag">${fmtDate(n.published)}</span>` : "",
     approved    ? `<span class="tag tag-approved">✓ Approved</span>` : "",
-    sent        ? `<span class="tag tag-sent">Sent TG</span>`        : "",
+    sent        ? `<span class="tag tag-sent">Sent TG</span>` : "",
   ].filter(Boolean).join("");
 
+  // TTS block
   const ttsBlock = hasTTS ? `
     <div class="tts-wrap">
-      <div class="tts-top">
-        <span>TTS Script</span>
-        <button class="btn btn-ghost" style="padding:.2rem .6rem;font-size:.72rem"
-                onclick="copyTTS(${n.id})">Copy</button>
+      <div class="tts-head">
+        <span class="tts-label">TTS (Claude)</span>
+        <button class="btn btn-ghost" style="padding:.18rem .55rem;font-size:.7rem"
+                onclick="copyText('tts-${n.id}')">Copy</button>
       </div>
       <div class="tts-body" id="tts-${n.id}">${esc(n.tts_script)}</div>
     </div>` : "";
 
-  const actions = hasTTS
-    ? `<button class="btn btn-success" id="apr-${n.id}"
-               onclick="approve(${n.id})" ${approved?"disabled":""}>
-         ${approved ? "✓ Approved" : "Approve"}
-       </button>
-       <button class="btn btn-ghost" id="reg-${n.id}" onclick="regen(${n.id})">Regenerate</button>
-       <button class="btn btn-danger" onclick="del(${n.id})">Delete</button>`
-    : `<button class="btn btn-primary" id="gen-${n.id}" onclick="generate(${n.id})">Generate TTS</button>
-       <button class="btn btn-danger"  onclick="del(${n.id})">Delete</button>`;
+  // GPT Review block
+  const gptBlock = hasReview ? `
+    <div class="gpt-wrap">
+      <div class="tts-head">
+        <span class="tts-label" style="color:#7c3aed">GPT Review</span>
+        <button class="btn btn-ghost" style="padding:.18rem .55rem;font-size:.7rem"
+                onclick="copyText('gpt-${n.id}')">Copy</button>
+      </div>
+      ${n.gpt_comment ? `<div class="gpt-comment">💬 ${esc(n.gpt_comment)}</div>` : ""}
+      <div class="tts-body" id="gpt-${n.id}">${esc(n.reviewed_script)}</div>
+    </div>` : "";
+
+  // Speak dropdown
+  const speakBtn = hasTTS ? `
+    <div class="speak-wrap">
+      <button class="btn btn-teal speak-main" onclick="speak(${n.id},1)">🎙 Озвучить</button>
+      <button class="btn btn-teal speak-arrow" onclick="toggleSpeak(${n.id})">▾</button>
+      <div class="speak-menu" id="speak-menu-${n.id}">
+        <button class="speak-opt" onclick="speak(${n.id},1);closeSpeak(${n.id})">Аккаунт 1</button>
+        <button class="speak-opt" onclick="speak(${n.id},2);closeSpeak(${n.id})">Аккаунт 2</button>
+      </div>
+    </div>` : "";
+
+  // Action buttons
+  let actions = "";
+  if (!hasTTS) {
+    actions = `
+      <button class="btn btn-primary" id="gen-${n.id}" onclick="generate(${n.id})">Generate TTS</button>
+      <button class="btn btn-danger"  onclick="del(${n.id})">Delete</button>`;
+  } else if (hasReview) {
+    actions = `
+      <button class="btn btn-success" id="apr-${n.id}" onclick="approve(${n.id})" ${approved?"disabled":""}>
+        ${approved?"✓ Approved":"Одобрить оригинал"}</button>
+      <button class="btn btn-purple"  onclick="approveReviewed(${n.id})">Одобрить GPT-версию</button>
+      ${speakBtn}
+      <button class="btn btn-ghost"   id="reg-${n.id}" onclick="regen(${n.id})">Перегенерировать</button>
+      <button class="btn btn-danger"  onclick="del(${n.id})">Delete</button>`;
+  } else {
+    actions = `
+      <button class="btn btn-success" id="apr-${n.id}" onclick="approve(${n.id})" ${approved?"disabled":""}>
+        ${approved?"✓ Approved":"Approve"}</button>
+      <button class="btn btn-purple"  id="rev-${n.id}" onclick="review(${n.id})">Проверить GPT</button>
+      ${speakBtn}
+      <button class="btn btn-ghost"   id="reg-${n.id}" onclick="regen(${n.id})">Regenerate</button>
+      <button class="btn btn-danger"  onclick="del(${n.id})">Delete</button>`;
+  }
 
   return `
     <div class="card ${approved?"is-approved":""}" id="card-${n.id}">
@@ -391,140 +304,158 @@ function cardHtml(n) {
         <div class="card-tags">${tags}</div>
         <span class="score ${scoreClass(n.score)}">★ ${n.score}</span>
       </div>
-      <div class="card-title">
-        <a href="${esc(n.url)}" target="_blank" rel="noopener">${esc(n.title)}</a>
-      </div>
-      ${ttsBlock}
+      <div class="card-title"><a href="${esc(n.url)}" target="_blank" rel="noopener">${esc(n.title)}</a></div>
+      ${ttsBlock}${gptBlock}
       <div class="card-actions">${actions}</div>
     </div>`;
 }
 
-/* ── Replace card in DOM ── */
-function replaceCard(id) {
-  const n = data.find(x => x.id === id);
-  if (!n) return;
-  const el = document.getElementById("card-" + id);
-  if (!el) return;
+function replaceCard(id){
+  const n = data.find(x=>x.id===id); if(!n) return;
+  const el = document.getElementById("card-"+id); if(!el) return;
   const tmp = document.createElement("div");
   tmp.innerHTML = cardHtml(n);
   el.replaceWith(tmp.firstElementChild);
 }
 
-/* ── Load news ── */
-async function load() {
-  const min = parseInt(document.getElementById("minScore").value) || 0;
+/* ── Load ── */
+async function load(){
+  const min = parseInt(document.getElementById("minScore").value)||0;
   try {
-    data = await req("GET", `/api/news?min_score=${min}&limit=100`);
-    if (!data) return;
+    data = await req("GET", `/api/news?min_score=${min}&limit=100&tab=${curTab}&sort=${curSort}`);
+    if(!data) return;
 
-    const total    = data.length;
-    const approved = data.filter(n => n.approved).length;
-    const withTTS  = data.filter(n => n.tts_script).length;
-
+    const total = data.length, approved = data.filter(n=>n.approved).length,
+          withTTS = data.filter(n=>n.tts_script).length;
     document.getElementById("stats").innerHTML =
       `<div class="pill">Всего: <strong>${total}</strong></div>
        <div class="pill">С TTS: <strong>${withTTS}</strong></div>
-       <div class="pill">Approved: <strong>${approved}</strong></div>`;
+       <div class="pill">Одобрено: <strong>${approved}</strong></div>`;
 
     const list = document.getElementById("list");
-    list.innerHTML = data.length
-      ? data.map(cardHtml).join("")
-      : `<div class="empty">Нет новостей. Попробуй снизить Score или нажми "Collect Now".</div>`;
-  } catch(e) {
-    toast("Ошибка загрузки: " + e.message, true);
-  }
+    list.innerHTML = data.length ? data.map(cardHtml).join("") :
+      `<div class="empty">Нет новостей. Попробуй другой таб или нажми "Collect Now".</div>`;
+  } catch(e) { toast("Ошибка: "+e.message, true); }
 }
 
-/* ── Collect now ── */
-async function collectNow() {
+/* ── Collect ── */
+async function collectNow(){
   const btn = document.getElementById("collectBtn");
-  btn.disabled = true;
-  btn.innerHTML = `<span class="spin"></span> Collecting…`;
+  btn.disabled=true; btn.innerHTML=`<span class="spin"></span> Collecting…`;
   try {
-    await req("POST", "/api/collect");
+    await req("POST","/api/collect");
     toast("Сбор запущен — обновление через ~15с");
     setTimeout(load, 15000);
-  } catch(e) {
-    toast("Ошибка: " + e.message, true);
-  } finally {
-    setTimeout(() => { btn.disabled = false; btn.textContent = "Collect Now"; }, 12000);
-  }
+  } catch(e){ toast("Ошибка: "+e.message, true); }
+  finally { setTimeout(()=>{btn.disabled=false;btn.textContent="Collect Now";},12000); }
 }
 
-/* ── Generate TTS ── */
-async function generate(id) {
-  const btn = document.getElementById("gen-" + id);
-  if (btn) { btn.disabled = true; btn.innerHTML = `<span class="spin"></span> Генерирую…`; }
+/* ── Generate ── */
+async function generate(id){
+  const btn=document.getElementById("gen-"+id);
+  if(btn){btn.disabled=true;btn.innerHTML=`<span class="spin"></span> Генерирую…`;}
   try {
-    const res = await req("POST", `/api/news/${id}/generate`);
-    if (!res) return;
-    const n = data.find(x => x.id === id);
-    if (n) n.tts_script = res.tts_script;
-    replaceCard(id);
-    toast("TTS создан");
-  } catch(e) {
-    toast("Ошибка: " + e.message, true);
-    if (btn) { btn.disabled = false; btn.textContent = "Generate TTS"; }
-  }
+    const res = await req("POST",`/api/news/${id}/generate`);
+    if(!res) return;
+    const n=data.find(x=>x.id===id); if(n) n.tts_script=res.tts_script;
+    replaceCard(id); toast("TTS создан");
+  } catch(e){ toast("Ошибка: "+e.message,true); if(btn){btn.disabled=false;btn.textContent="Generate TTS";} }
 }
 
 /* ── Approve ── */
-async function approve(id) {
+async function approve(id){
   try {
-    await req("POST", `/api/news/${id}/approve`);
-    const n = data.find(x => x.id === id);
-    if (n) n.approved = 1;
-    replaceCard(id);
-    toast("Одобрено ✓");
-  } catch(e) {
-    toast("Ошибка: " + e.message, true);
-  }
+    await req("POST",`/api/news/${id}/approve`);
+    const n=data.find(x=>x.id===id); if(n) n.approved=1;
+    replaceCard(id); toast("Одобрено ✓");
+  } catch(e){ toast("Ошибка: "+e.message,true); }
+}
+
+/* ── Approve GPT version ── */
+async function approveReviewed(id){
+  try {
+    await req("POST",`/api/news/${id}/approve-reviewed`);
+    const n=data.find(x=>x.id===id);
+    if(n){ n.approved=1; n.tts_script=n.reviewed_script; }
+    replaceCard(id); toast("GPT-версия одобрена ✓");
+  } catch(e){ toast("Ошибка: "+e.message,true); }
+}
+
+/* ── GPT Review ── */
+async function review(id){
+  const btn=document.getElementById("rev-"+id);
+  if(btn){btn.disabled=true;btn.innerHTML=`<span class="spin"></span> GPT проверяет…`;}
+  try {
+    const res = await req("POST",`/api/news/${id}/review`);
+    if(!res) return;
+    const n=data.find(x=>x.id===id);
+    if(n){ n.reviewed_script=res.reviewed_script; n.gpt_comment=res.comment; }
+    replaceCard(id); toast("GPT проверил ✓");
+  } catch(e){ toast("Ошибка: "+e.message,true); if(btn){btn.disabled=false;btn.textContent="Проверить GPT";} }
 }
 
 /* ── Regenerate ── */
-async function regen(id) {
-  const btn = document.getElementById("reg-" + id);
-  if (btn) { btn.disabled = true; btn.textContent = "Генерирую…"; }
+async function regen(id){
+  const btn=document.getElementById("reg-"+id);
+  if(btn){btn.disabled=true;btn.textContent="Генерирую…";}
   try {
-    const res = await req("POST", `/api/news/${id}/regenerate`);
-    if (!res) return;
-    const n = data.find(x => x.id === id);
-    if (n) { n.tts_script = res.tts_script; n.approved = 0; }
-    replaceCard(id);
-    toast("TTS перегенерирован");
-  } catch(e) {
-    toast("Ошибка: " + e.message, true);
-    if (btn) { btn.disabled = false; btn.textContent = "Regenerate"; }
-  }
+    const res = await req("POST",`/api/news/${id}/regenerate`);
+    if(!res) return;
+    const n=data.find(x=>x.id===id);
+    if(n){n.tts_script=res.tts_script;n.approved=0;n.reviewed_script=null;n.gpt_comment=null;}
+    replaceCard(id); toast("Перегенерировано");
+  } catch(e){ toast("Ошибка: "+e.message,true); if(btn){btn.disabled=false;btn.textContent="Regenerate";} }
 }
 
 /* ── Delete ── */
-async function del(id) {
-  if (!confirm("Удалить эту новость?")) return;
+async function del(id){
+  if(!confirm("Удалить эту новость?")) return;
   try {
-    await req("DELETE", `/api/news/${id}`);
-    data = data.filter(x => x.id !== id);
-    document.getElementById("card-" + id)?.remove();
+    await req("DELETE",`/api/news/${id}`);
+    data=data.filter(x=>x.id!==id);
+    document.getElementById("card-"+id)?.remove();
     toast("Удалено");
-  } catch(e) {
-    toast("Ошибка: " + e.message, true);
-  }
+  } catch(e){ toast("Ошибка: "+e.message,true); }
 }
 
-/* ── Copy TTS ── */
-async function copyTTS(id) {
-  const el = document.getElementById("tts-" + id);
-  if (!el) return;
+/* ── Speak (ElevenLabs) ── */
+async function speak(id, account){
+  toast(`Генерирую аудио (Акк ${account})…`);
+  try {
+    const url = `/api/news/${id}/speak?account=${account}`;
+    const r = await fetch(url);
+    if(r.status===401){location.href="/login";return;}
+    if(!r.ok) throw new Error(await r.text());
+    const blob = await r.blob();
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `tts_${id}_acc${account}.mp3`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    toast("MP3 скачан ✓");
+  } catch(e){ toast("ElevenLabs ошибка: "+e.message,true); }
+}
+function toggleSpeak(id){
+  document.getElementById("speak-menu-"+id)?.classList.toggle("open");
+}
+function closeSpeak(id){
+  document.getElementById("speak-menu-"+id)?.classList.remove("open");
+}
+document.addEventListener("click", e=>{
+  if(!e.target.closest(".speak-wrap"))
+    document.querySelectorAll(".speak-menu").forEach(m=>m.classList.remove("open"));
+});
+
+/* ── Copy ── */
+async function copyText(elId){
+  const el=document.getElementById(elId); if(!el) return;
   try {
     await navigator.clipboard.writeText(el.textContent);
-    toast("Скопировано в буфер");
-  } catch(_) {
-    const r = document.createRange();
-    r.selectNode(el);
-    window.getSelection().removeAllRanges();
-    window.getSelection().addRange(r);
-    document.execCommand("copy");
-    window.getSelection().removeAllRanges();
+    toast("Скопировано");
+  } catch(_){
+    const r=document.createRange();r.selectNode(el);
+    window.getSelection().removeAllRanges();window.getSelection().addRange(r);
+    document.execCommand("copy");window.getSelection().removeAllRanges();
     toast("Скопировано");
   }
 }

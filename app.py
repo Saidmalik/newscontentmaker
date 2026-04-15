@@ -1,13 +1,20 @@
 """
 app.py — FastAPI web application for UZ News Bot.
 
-Deploy on Railway:
-  - Set DB_PATH=/data/news.db (Railway Volume mounted at /data)
-  - Set APP_PASSWORD=your_password
-  - Set TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, ANTHROPIC_API_KEY
+Railway env vars needed:
+  DB_PATH=/data/news.db
+  APP_PASSWORD=...
+  TELEGRAM_BOT_TOKEN=...
+  TELEGRAM_CHAT_ID=...
+  ANTHROPIC_API_KEY=...
+  OPENAI_API_KEY=...            (для GPT-review, опционально)
+  ELEVENLABS_API_KEY_1=...
+  ELEVENLABS_VOICE_ID_1=...
+  ELEVENLABS_API_KEY_2=...      (второй аккаунт, опционально)
+  ELEVENLABS_VOICE_ID_2=...
 
-Schedule (UTC): 01:00, 05:00, 09:00, 13:00, 16:00
-= Uzbekistan time: 06:00, 10:00, 14:00, 18:00, 21:00
+Schedule UTC: 01:00, 05:00, 09:00, 13:00, 16:00
+= Узбекистан: 06:00, 10:00, 14:00, 18:00, 21:00
 """
 
 import os
@@ -16,12 +23,13 @@ import hashlib
 import sqlite3
 import asyncio
 import yaml
+import requests as req_lib
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request, BackgroundTasks
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from dotenv import load_dotenv
@@ -29,15 +37,12 @@ from dotenv import load_dotenv
 BASE_DIR = Path(__file__).parent
 load_dotenv(BASE_DIR / ".env")
 
-# Import core functions from existing module
 sys.path.insert(0, str(BASE_DIR / "src"))
 from auto_collect import (
-    init_db, load_config, fetch_source, cleanup_old_news,
-    get_unsent_news, mark_sent, format_news_for_telegram,
-    send_telegram, log, run as collect_run,
+    init_db, log, run as collect_run,
 )
 
-DB_PATH = Path(os.environ.get("DB_PATH", str(BASE_DIR / "data" / "news.db")))
+DB_PATH   = Path(os.environ.get("DB_PATH", str(BASE_DIR / "data" / "news.db")))
 PREFS_PATH = BASE_DIR / "config" / "preferences.yaml"
 APP_PASSWORD = os.environ.get("APP_PASSWORD", "")
 
@@ -45,16 +50,17 @@ APP_PASSWORD = os.environ.get("APP_PASSWORD", "")
 # ── MIGRATIONS ────────────────────────────────────────────────────────────
 
 def run_migrations(conn: sqlite3.Connection):
-    """Add new columns if they don't exist yet."""
     for sql in [
         "ALTER TABLE news ADD COLUMN tts_script TEXT",
         "ALTER TABLE news ADD COLUMN approved INTEGER DEFAULT 0",
         "ALTER TABLE news ADD COLUMN generated_at TEXT",
+        "ALTER TABLE news ADD COLUMN reviewed_script TEXT",
+        "ALTER TABLE news ADD COLUMN gpt_comment TEXT",
     ]:
         try:
             conn.execute(sql)
         except sqlite3.OperationalError:
-            pass  # Column already exists
+            pass
     conn.execute("PRAGMA journal_mode=WAL")
     conn.commit()
 
@@ -74,14 +80,69 @@ def require_auth(request: Request):
         raise HTTPException(status_code=401, detail="Unauthorized")
 
 
+# ── TELEGRAM NOTIFY ───────────────────────────────────────────────────────
+
+def _tg_notify(text: str):
+    """Send a plain-text message to TELEGRAM_CHAT_ID."""
+    token   = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+    chat_id = os.environ.get("TELEGRAM_CHAT_ID", "")
+    if not token or not chat_id:
+        return
+    try:
+        req_lib.post(
+            f"https://api.telegram.org/bot{token}/sendMessage",
+            json={"chat_id": chat_id, "text": text},
+            timeout=10,
+        )
+    except Exception as e:
+        log(f"TG notify error: {e}")
+
+
 # ── SCHEDULER ─────────────────────────────────────────────────────────────
 
 async def scheduled_collect():
     log("=== Scheduled collect ===")
     try:
+        # Snapshot existing IDs before run
+        conn = sqlite3.connect(DB_PATH)
+        before_ids = {r[0] for r in conn.execute("SELECT id FROM news").fetchall()}
+        conn.close()
+
         await asyncio.to_thread(collect_run, notify=True, show_local=False)
+
+        # Find new items
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        if before_ids:
+            placeholders = ",".join("?" * len(before_ids))
+            new_rows = conn.execute(
+                f"SELECT id, title, score FROM news WHERE id NOT IN ({placeholders}) ORDER BY score DESC",
+                tuple(before_ids),
+            ).fetchall()
+        else:
+            new_rows = conn.execute(
+                "SELECT id, title, score FROM news ORDER BY score DESC"
+            ).fetchall()
+        conn.close()
+
+        new_items = [dict(r) for r in new_rows]
+        new_count = len(new_items)
+        now_uzt   = datetime.utcnow() + timedelta(hours=5)
+
+        if new_count > 0:
+            top = new_items[:3]
+            msg = f"✅ {now_uzt.strftime('%H:%M')} | Собрано: +{new_count} новостей\n\n"
+            for item in top:
+                t = item["title"][:55] + ("…" if len(item["title"]) > 55 else "")
+                msg += f"★{item['score']}  {t}\n"
+        else:
+            msg = f"🔁 {now_uzt.strftime('%H:%M')} | Новых новостей нет"
+
+        _tg_notify(msg)
+
     except Exception as e:
         log(f"Scheduler error: {e}")
+        _tg_notify(f"❌ Ошибка сбора: {str(e)[:120]}")
 
 
 scheduler = AsyncIOScheduler(timezone="UTC")
@@ -89,13 +150,11 @@ scheduler = AsyncIOScheduler(timezone="UTC")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Init DB + migrate
     init_db()
     conn = sqlite3.connect(DB_PATH)
     run_migrations(conn)
     conn.close()
 
-    # 06:00, 10:00, 14:00, 18:00, 21:00 Uzbekistan = 01:00, 05:00, 09:00, 13:00, 16:00 UTC
     for hour in [1, 5, 9, 13, 16]:
         scheduler.add_job(scheduled_collect, "cron", hour=hour, minute=0)
     scheduler.start()
@@ -120,9 +179,8 @@ app.mount("/static", StaticFiles(directory=static_dir), name="static")
 _LOGIN_HTML = """<!DOCTYPE html>
 <html lang="ru">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>UZ News Bot — Login</title>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>UZ News Bot</title>
 <style>
   *{box-sizing:border-box}
   body{font-family:system-ui,sans-serif;display:flex;align-items:center;
@@ -141,58 +199,46 @@ _LOGIN_HTML = """<!DOCTYPE html>
 </head>
 <body>
 <div class="card">
-  <h2>UZ News Bot</h2>
-  {error}
+  <h2>UZ News Bot</h2>{error}
   <form method="POST" action="/login">
     <input type="password" name="password" placeholder="Password" autofocus>
     <button type="submit">Enter</button>
   </form>
-</div>
-</body>
-</html>"""
+</div></body></html>"""
 
 
 @app.get("/login", response_class=HTMLResponse)
 async def login_page(error: str = ""):
-    err_html = '<div class="err">Wrong password</div>' if error else ""
-    return HTMLResponse(_LOGIN_HTML.replace("{error}", err_html))
+    err = '<div class="err">Неверный пароль</div>' if error else ""
+    return HTMLResponse(_LOGIN_HTML.replace("{error}", err))
 
 
 @app.post("/login")
 async def login(request: Request):
     form = await request.form()
-    password = str(form.get("password", ""))
-    if hashlib.sha256(password.encode()).hexdigest() == _token():
-        response = RedirectResponse("/", status_code=302)
-        response.set_cookie(
-            "auth_token", _token(),
-            max_age=30 * 24 * 3600,
-            httponly=True,
-            samesite="lax",
-        )
-        return response
+    pwd  = str(form.get("password", ""))
+    if hashlib.sha256(pwd.encode()).hexdigest() == _token():
+        resp = RedirectResponse("/", status_code=302)
+        resp.set_cookie("auth_token", _token(), max_age=30*24*3600, httponly=True, samesite="lax")
+        return resp
     return RedirectResponse("/login?error=1", status_code=302)
 
 
 @app.post("/logout")
 async def logout():
-    response = RedirectResponse("/login", status_code=302)
-    response.delete_cookie("auth_token")
-    return response
+    resp = RedirectResponse("/login", status_code=302)
+    resp.delete_cookie("auth_token")
+    return resp
 
 
-# ── MAIN PAGE ─────────────────────────────────────────────────────────────
+# ── PAGES ─────────────────────────────────────────────────────────────────
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
     if APP_PASSWORD and not check_auth(request):
         return RedirectResponse("/login")
-    index_path = static_dir / "index.html"
-    with open(index_path, encoding="utf-8") as f:
+    with open(static_dir / "index.html", encoding="utf-8") as f:
         return HTMLResponse(f.read())
-
-
-# ── HEALTH ────────────────────────────────────────────────────────────────
 
 @app.get("/health")
 async def health():
@@ -202,20 +248,36 @@ async def health():
 # ── API: NEWS ─────────────────────────────────────────────────────────────
 
 @app.get("/api/news")
-async def api_news(request: Request, min_score: int = 0, limit: int = 100):
+async def api_news(
+    request: Request,
+    min_score: int = 0,
+    limit: int = 100,
+    tab: str = "all",      # all | new | approved
+    sort: str = "score",   # score | date
+):
     require_auth(request)
+
+    where = ["score >= ?"]
+    params: list = [min_score]
+
+    if tab == "new":
+        where.append("approved = 0")
+    elif tab == "approved":
+        where.append("approved = 1")
+
+    order = "score DESC, collected DESC" if sort == "score" else "collected DESC"
+
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     rows = conn.execute(
-        """
-        SELECT id, title, url, source, published, score,
-               tts_script, approved, generated_at, collected, sent_tg
-        FROM news
-        WHERE score >= ?
-        ORDER BY score DESC, collected DESC
-        LIMIT ?
-        """,
-        (min_score, limit),
+        f"""SELECT id, title, url, source, published, score,
+                   tts_script, approved, generated_at, collected, sent_tg,
+                   reviewed_script, gpt_comment
+            FROM news
+            WHERE {' AND '.join(where)}
+            ORDER BY {order}
+            LIMIT ?""",
+        (*params, limit),
     ).fetchall()
     conn.close()
     return [dict(r) for r in rows]
@@ -238,7 +300,7 @@ async def api_generate(news_id: int, request: Request):
 async def api_regenerate(news_id: int, request: Request):
     require_auth(request)
     conn = sqlite3.connect(DB_PATH)
-    conn.execute("UPDATE news SET approved=0 WHERE id=?", (news_id,))
+    conn.execute("UPDATE news SET approved=0, reviewed_script=NULL, gpt_comment=NULL WHERE id=?", (news_id,))
     conn.commit()
     conn.close()
     return await _do_generate(news_id)
@@ -254,6 +316,20 @@ async def api_approve(news_id: int, request: Request):
     return {"id": news_id, "approved": True}
 
 
+@app.post("/api/news/{news_id}/approve-reviewed")
+async def api_approve_reviewed(news_id: int, request: Request):
+    """Replace tts_script with GPT-reviewed version and approve."""
+    require_auth(request)
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute(
+        "UPDATE news SET tts_script=reviewed_script, approved=1 WHERE id=?",
+        (news_id,),
+    )
+    conn.commit()
+    conn.close()
+    return {"id": news_id, "approved": True, "used": "reviewed"}
+
+
 @app.delete("/api/news/{news_id}")
 async def api_delete(news_id: int, request: Request):
     require_auth(request)
@@ -264,28 +340,152 @@ async def api_delete(news_id: int, request: Request):
     return {"id": news_id, "deleted": True}
 
 
-# ── TTS GENERATION ────────────────────────────────────────────────────────
+# ── API: ELEVENLABS SPEAK ─────────────────────────────────────────────────
+
+@app.get("/api/news/{news_id}/speak")
+async def api_speak(news_id: int, request: Request, account: int = 1):
+    """Generate MP3 via ElevenLabs and return as download."""
+    require_auth(request)
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    row = conn.execute("SELECT tts_script FROM news WHERE id=?", (news_id,)).fetchone()
+    conn.close()
+
+    if not row or not row["tts_script"]:
+        raise HTTPException(status_code=404, detail="Нет TTS скрипта. Сначала нажмите Generate.")
+
+    script  = row["tts_script"]
+    api_key = os.environ.get(f"ELEVENLABS_API_KEY_{account}", "")
+    voice_id = os.environ.get(f"ELEVENLABS_VOICE_ID_{account}", "")
+
+    if not api_key or not voice_id:
+        raise HTTPException(
+            status_code=500,
+            detail=f"ELEVENLABS_API_KEY_{account} или ELEVENLABS_VOICE_ID_{account} не заданы в переменных."
+        )
+
+    # Load voice settings from preferences.yaml
+    with open(PREFS_PATH, encoding="utf-8") as f:
+        prefs = yaml.safe_load(f)
+    el = prefs.get("elevenlabs", {})
+    voice_settings = el.get("voice_settings", {
+        "stability": 0.45,
+        "similarity_boost": 0.80,
+        "style": 0.35,
+        "speed": 1.05,
+        "use_speaker_boost": True,
+    })
+    model_id = el.get("model_id", "eleven_multilingual_v2")
+
+    audio = await asyncio.to_thread(
+        _elevenlabs_sync, script, api_key, voice_id, voice_settings, model_id
+    )
+    return Response(
+        content=audio,
+        media_type="audio/mpeg",
+        headers={"Content-Disposition": f'attachment; filename="tts_{news_id}_acc{account}.mp3"'},
+    )
+
+
+def _elevenlabs_sync(
+    text: str, api_key: str, voice_id: str, voice_settings: dict, model_id: str
+) -> bytes:
+    r = req_lib.post(
+        f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}",
+        headers={"xi-api-key": api_key, "Content-Type": "application/json"},
+        json={"text": text, "model_id": model_id, "voice_settings": voice_settings},
+        timeout=60,
+    )
+    if not r.ok:
+        raise HTTPException(status_code=502, detail=f"ElevenLabs error {r.status_code}: {r.text[:200]}")
+    return r.content
+
+
+# ── API: GPT REVIEW ───────────────────────────────────────────────────────
+
+@app.post("/api/news/{news_id}/review")
+async def api_review(news_id: int, request: Request):
+    """Send TTS script to ChatGPT for review. Returns comment + improved version."""
+    require_auth(request)
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    row = conn.execute("SELECT tts_script FROM news WHERE id=?", (news_id,)).fetchone()
+    conn.close()
+
+    if not row or not row["tts_script"]:
+        raise HTTPException(status_code=404, detail="Нет TTS скрипта. Сначала нажмите Generate.")
+
+    api_key = os.environ.get("OPENAI_API_KEY", "")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="OPENAI_API_KEY не задан.")
+
+    script = row["tts_script"]
+
+    with open(PREFS_PATH, encoding="utf-8") as f:
+        prefs = yaml.safe_load(f)
+    tts_rules = prefs.get("content_style", {}).get("tts_rules", "")
+
+    from openai import AsyncOpenAI
+    client = AsyncOpenAI(api_key=api_key)
+
+    prompt = (
+        "Ты редактор TikTok/Reels контента на русском языке для аудитории Узбекистана.\n"
+        "Проверь этот TTS-скрипт по правилам ниже и улучши его.\n\n"
+        f"ПРАВИЛА:\n{tts_rules}\n\n"
+        f"СКРИПТ:\n{script}\n\n"
+        "Ответь строго в таком формате (без лишних слов):\n"
+        "КОММЕНТАРИЙ: [2-3 предложения: что работает, что слабо, что изменил]\n"
+        "УЛУЧШЕННЫЙ СКРИПТ:\n[готовый текст]"
+    )
+
+    response = await client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": prompt}],
+        max_tokens=800,
+        temperature=0.7,
+    )
+
+    text = response.choices[0].message.content.strip()
+
+    comment, improved = "", text
+    if "УЛУЧШЕННЫЙ СКРИПТ:" in text:
+        parts    = text.split("УЛУЧШЕННЫЙ СКРИПТ:", 1)
+        comment  = parts[0].replace("КОММЕНТАРИЙ:", "").strip()
+        improved = parts[1].strip()
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute(
+        "UPDATE news SET reviewed_script=?, gpt_comment=? WHERE id=?",
+        (improved, comment, news_id),
+    )
+    conn.commit()
+    conn.close()
+
+    return {"id": news_id, "comment": comment, "reviewed_script": improved}
+
+
+# ── TTS GENERATION (Claude) ───────────────────────────────────────────────
 
 async def _do_generate(news_id: int) -> dict:
-    # Load news item
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     row = conn.execute("SELECT * FROM news WHERE id=?", (news_id,)).fetchone()
     conn.close()
     if not row:
-        raise HTTPException(status_code=404, detail="News not found")
+        raise HTTPException(status_code=404, detail="Новость не найдена")
     item = dict(row)
 
-    # Load TTS rules from preferences.yaml
     with open(PREFS_PATH, encoding="utf-8") as f:
         prefs = yaml.safe_load(f)
-    style = prefs.get("content_style", {})
+    style    = prefs.get("content_style", {})
     tts_rules = style.get("tts_rules", "")
     tts_outro = style.get("tts_outro_rules", "")
 
     api_key = os.environ.get("ANTHROPIC_API_KEY", "")
     if not api_key:
-        raise HTTPException(status_code=500, detail="ANTHROPIC_API_KEY not set")
+        raise HTTPException(status_code=500, detail="ANTHROPIC_API_KEY не задан.")
 
     import anthropic
     client = anthropic.AsyncAnthropic(api_key=api_key)
@@ -298,21 +498,20 @@ async def _do_generate(news_id: int) -> dict:
         f"Заголовок: {item['title']}\n"
         f"Источник: {item.get('source', '')}\n"
         f"Описание: {item.get('summary', '') or ''}\n\n"
-        "Верни ТОЛЬКО готовый скрипт — без пояснений, без заголовков. "
+        "Верни ТОЛЬКО готовый скрипт. Без пояснений, без заголовков. "
         "Только текст который будет произнесён голосом."
     )
 
-    message = await client.messages.create(
+    msg = await client.messages.create(
         model="claude-sonnet-4-5",
         max_tokens=600,
         messages=[{"role": "user", "content": prompt}],
     )
-    script = message.content[0].text.strip()
+    script = msg.content[0].text.strip()
 
-    # Save to DB
     conn = sqlite3.connect(DB_PATH)
     conn.execute(
-        "UPDATE news SET tts_script=?, generated_at=? WHERE id=?",
+        "UPDATE news SET tts_script=?, generated_at=?, reviewed_script=NULL, gpt_comment=NULL WHERE id=?",
         (script, datetime.now().isoformat(), news_id),
     )
     conn.commit()

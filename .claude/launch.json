@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "FastAPI Web Server",
+      "runtimeExecutable": "uvicorn",
+      "runtimeArgs": ["app:app", "--reload", "--host", "0.0.0.0", "--port", "8000"],
+      "port": 8000
+    },
+    {
+      "name": "RSS Collector (one-shot)",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["src/auto_collect.py", "--local"],
+      "port": null
+    }
+  ]
+}

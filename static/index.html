@@ -11,8 +11,7 @@
   --text: #0f172a; --muted: #64748b;
   --primary: #2563eb; --primary-h: #1d4ed8;
   --success: #16a34a; --success-h: #15803d;
-  --purple: #7c3aed; --danger: #dc2626;
-  --radius: 12px;
+  --orange: #ea580c; --radius: 12px;
 }
 body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
        background:var(--bg); color:var(--text); font-size:14px; line-height:1.5; }
@@ -33,8 +32,7 @@ body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-se
 .tabs { max-width:880px; margin:.8rem auto .2rem; padding:0 1rem;
         display:flex; gap:.3rem; }
 .tab { padding:.3rem .9rem; border:1px solid var(--border); border-radius:20px;
-       background:#fff; font-size:.78rem; cursor:pointer; color:var(--muted);
-       transition:all .15s; }
+       background:#fff; font-size:.78rem; cursor:pointer; color:var(--muted); transition:all .15s; }
 .tab.active { background:var(--primary); color:#fff; border-color:var(--primary); font-weight:600; }
 .tab:hover:not(.active) { background:var(--bg); }
 
@@ -57,18 +55,16 @@ body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-se
        border:none; border-radius:7px; font-size:.76rem; font-weight:500;
        cursor:pointer; transition:background .12s,opacity .12s; white-space:nowrap; }
 .btn:disabled { opacity:.45; cursor:not-allowed; }
-.btn-primary  { background:var(--primary); color:#fff; }
-.btn-primary:hover:not(:disabled)  { background:var(--primary-h); }
-.btn-success  { background:var(--success); color:#fff; }
-.btn-success:hover:not(:disabled)  { background:var(--success-h); }
-.btn-purple   { background:var(--purple); color:#fff; }
-.btn-purple:hover:not(:disabled)   { background:#6d28d9; }
-.btn-ghost    { background:transparent; border:1px solid var(--border); color:var(--text); }
-.btn-ghost:hover:not(:disabled)    { background:var(--bg); }
-.btn-danger   { background:transparent; border:1px solid #fca5a5; color:var(--danger); }
-.btn-danger:hover:not(:disabled)   { background:#fef2f2; }
-.btn-teal     { background:#0d9488; color:#fff; }
-.btn-teal:hover:not(:disabled)     { background:#0f766e; }
+.btn-primary { background:var(--primary); color:#fff; }
+.btn-primary:hover:not(:disabled) { background:var(--primary-h); }
+.btn-success { background:var(--success); color:#fff; }
+.btn-success:hover:not(:disabled) { background:var(--success-h); }
+.btn-ghost   { background:transparent; border:1px solid var(--border); color:var(--text); }
+.btn-ghost:hover:not(:disabled)   { background:var(--bg); }
+.btn-danger  { background:transparent; border:1px solid #fca5a5; color:#dc2626; }
+.btn-danger:hover:not(:disabled)  { background:#fef2f2; }
+.btn-teal    { background:#0d9488; color:#fff; }
+.btn-teal:hover:not(:disabled)    { background:#0f766e; }
 
 /* List */
 .list { max-width:880px; margin:0 auto; padding:.3rem 1rem 3rem;
@@ -101,25 +97,36 @@ body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-se
 .card-title a { color:var(--text); text-decoration:none; }
 .card-title a:hover { color:var(--primary); text-decoration:underline; }
 
-/* TTS block */
-.tts-wrap { background:#f8fafc; border:1px solid var(--border);
-            border-radius:8px; padding:.6rem .75rem; margin:.1rem 0 .5rem; }
-.tts-head { display:flex; align-items:center; justify-content:space-between;
-            gap:.4rem; margin-bottom:.3rem; flex-wrap:wrap; }
-.tts-label { font-size:.65rem; font-weight:700; text-transform:uppercase;
-             letter-spacing:.06em; color:var(--muted); }
-.tts-dirty { font-size:.65rem; color:#d97706; display:none; }
-.tts-body { width:100%; font-size:.82rem; line-height:1.65; color:#374151;
-            font-family:inherit; border:none; background:transparent; resize:vertical;
-            outline:none; min-height:80px; padding:0; }
-.tts-body:focus { background:#fff; border-radius:4px; padding:.3rem; margin:-.3rem;
-                  box-shadow:0 0 0 2px rgba(37,99,235,.2); }
+/* Content blocks */
+.block-wrap { border-radius:8px; padding:.6rem .75rem; margin:.3rem 0; }
+.block-tts  { background:#f8fafc; border:1px solid var(--border); }
+.block-desc { background:#f0fdf4; border:1px solid #bbf7d0; }
+.block-prev { background:#fff7ed; border:1px solid #fed7aa; }
 
-/* GPT Review block */
-.gpt-wrap { background:#faf5ff; border:1px solid #ddd6fe;
-            border-radius:8px; padding:.6rem .75rem; margin:.1rem 0 .5rem; }
-.gpt-comment { font-size:.78rem; color:#6d28d9; font-style:italic;
-               margin-bottom:.4rem; line-height:1.5; }
+.block-head { display:flex; align-items:center; justify-content:space-between;
+              gap:.4rem; margin-bottom:.35rem; flex-wrap:wrap; }
+.block-label { font-size:.65rem; font-weight:700; text-transform:uppercase;
+               letter-spacing:.06em; color:var(--muted); }
+.tts-label-color  { color:#475569; }
+.desc-label-color { color:#15803d; }
+.prev-label-color { color:#c2410c; }
+
+.dirty-flag { font-size:.65rem; color:#d97706; display:none; }
+
+.block-textarea { width:100%; font-size:.82rem; line-height:1.65; color:#374151;
+                  font-family:inherit; border:none; background:transparent; resize:vertical;
+                  outline:none; min-height:70px; padding:0; }
+.block-textarea:focus { background:#fff; border-radius:4px; padding:.3rem; margin:-.3rem;
+                        box-shadow:0 0 0 2px rgba(37,99,235,.2); }
+
+/* Preview pills */
+.prev-list { display:flex; flex-direction:column; gap:.28rem; }
+.prev-item { background:#fff; border:1px solid #fed7aa; border-radius:6px;
+             padding:.38rem .65rem; font-size:.78rem; font-weight:700;
+             color:#c2410c; cursor:pointer; letter-spacing:.03em;
+             display:flex; align-items:center; justify-content:space-between; gap:.4rem; }
+.prev-item:hover { background:#ffedd5; }
+.prev-copy-hint { font-size:.62rem; font-weight:400; color:#d97706; opacity:.7; }
 
 /* Actions */
 .card-actions { display:flex; gap:.3rem; flex-wrap:wrap; margin-top:.5rem; align-items:center; }
@@ -139,9 +146,9 @@ body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-se
 .toast { position:fixed; bottom:1.3rem; right:1.3rem; background:#1e293b;
          color:#fff; padding:.55rem 1rem; border-radius:8px; font-size:.8rem;
          opacity:0; transform:translateY(8px); transition:opacity .18s,transform .18s;
-         z-index:999; pointer-events:none; max-width:280px; }
+         z-index:999; pointer-events:none; max-width:300px; }
 .toast.on  { opacity:1; transform:translateY(0); }
-.toast.err { background:var(--danger); }
+.toast.err { background:#dc2626; }
 
 /* Empty */
 .empty { text-align:center; padding:3rem 1rem; color:var(--muted); }
@@ -188,7 +195,12 @@ async function req(method, path) {
   const r = await fetch(path, { method });
   if (r.status === 401) { location.href = "/login"; return null; }
   if (r.status === 204)  return null;
-  if (!r.ok) throw new Error(await r.text());
+  if (!r.ok) {
+    let msg = "";
+    try { const j = await r.json(); msg = j.detail || JSON.stringify(j); }
+    catch(_) { msg = await r.text(); }
+    throw new Error(msg);
+  }
   return r.json();
 }
 
@@ -198,7 +210,7 @@ function toast(msg, err=false) {
   el.textContent = msg;
   el.className = "toast on" + (err?" err":"");
   clearTimeout(el._t);
-  el._t = setTimeout(()=>el.classList.remove("on"), 3500);
+  el._t = setTimeout(()=>el.classList.remove("on"), 3800);
 }
 
 /* ── Helpers ── */
@@ -208,7 +220,8 @@ function fmtDate(str){
   if(!str) return "";
   try {
     const d = new Date(str);
-    if(!isNaN(d)) return d.toLocaleDateString("ru-RU",{day:"2-digit",month:"2-digit"})+" "+d.toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"});
+    if(!isNaN(d)) return d.toLocaleDateString("ru-RU",{day:"2-digit",month:"2-digit"})
+                        +" "+d.toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"});
   } catch(_) {}
   return str.slice(0,16).replace("T"," ");
 }
@@ -216,7 +229,7 @@ function fmtDate(str){
 /* ── Tab / Sort ── */
 function setTab(t){
   curTab = t;
-  document.querySelectorAll(".tab").forEach(b => b.classList.toggle("active", b.dataset.tab===t));
+  document.querySelectorAll(".tab").forEach(b=>b.classList.toggle("active",b.dataset.tab===t));
   load();
 }
 function setSort(s){
@@ -228,8 +241,9 @@ function setSort(s){
 
 /* ── Card HTML ── */
 function cardHtml(n){
-  const approved = n.approved===1, hasTTS = !!n.tts_script,
-        hasReview = !!n.reviewed_script, sent = n.sent_tg===1;
+  const approved = n.approved===1, hasTTS = !!n.tts_script, sent = n.sent_tg===1;
+  const hasDesc  = !!n.description;
+  const previews = Array.isArray(n.preview_titles) ? n.preview_titles : [];
 
   const tags = [
     `<span class="tag tag-src">${esc(n.source||"")}</span>`,
@@ -238,12 +252,12 @@ function cardHtml(n){
     sent        ? `<span class="tag tag-sent">Sent TG</span>` : "",
   ].filter(Boolean).join("");
 
-  // TTS block — editable textarea
+  /* TTS block */
   const ttsBlock = hasTTS ? `
-    <div class="tts-wrap">
-      <div class="tts-head">
-        <span class="tts-label">TTS (Claude)</span>
-        <span class="tts-dirty" id="dirty-${n.id}">● не сохранено</span>
+    <div class="block-wrap block-tts">
+      <div class="block-head">
+        <span class="block-label tts-label-color">🎙 TTS (Claude)</span>
+        <span class="dirty-flag" id="dirty-tts-${n.id}">● не сохранено</span>
         <div style="display:flex;gap:.3rem">
           <button class="btn btn-ghost" style="padding:.18rem .5rem;font-size:.7rem"
                   onclick="saveTTS(${n.id})">Сохранить</button>
@@ -251,24 +265,42 @@ function cardHtml(n){
                   onclick="copyTA('tts-${n.id}')">Copy</button>
         </div>
       </div>
-      <textarea class="tts-body" id="tts-${n.id}"
-                oninput="markDirty(${n.id})" rows="5">${esc(n.tts_script)}</textarea>
+      <textarea class="block-textarea" id="tts-${n.id}"
+                oninput="markDirty('tts',${n.id})" rows="6">${esc(n.tts_script)}</textarea>
     </div>` : "";
 
-  // GPT Review block — also editable
-  const gptBlock = hasReview ? `
-    <div class="gpt-wrap">
-      <div class="tts-head">
-        <span class="tts-label" style="color:#7c3aed">GPT Review</span>
-        <button class="btn btn-ghost" style="padding:.18rem .5rem;font-size:.7rem"
-                onclick="copyTA('gpt-${n.id}')">Copy</button>
+  /* Description block */
+  const descBlock = hasDesc ? `
+    <div class="block-wrap block-desc">
+      <div class="block-head">
+        <span class="block-label desc-label-color">📝 Описание</span>
+        <span class="dirty-flag" id="dirty-desc-${n.id}">● не сохранено</span>
+        <div style="display:flex;gap:.3rem">
+          <button class="btn btn-ghost" style="padding:.18rem .5rem;font-size:.7rem"
+                  onclick="saveDesc(${n.id})">Сохранить</button>
+          <button class="btn btn-ghost" style="padding:.18rem .5rem;font-size:.7rem"
+                  onclick="copyTA('desc-${n.id}')">Copy</button>
+        </div>
       </div>
-      ${n.gpt_comment ? `<div class="gpt-comment">💬 ${esc(n.gpt_comment)}</div>` : ""}
-      <textarea class="tts-body" id="gpt-${n.id}" rows="5"
-                style="background:transparent">${esc(n.reviewed_script)}</textarea>
+      <textarea class="block-textarea" id="desc-${n.id}"
+                oninput="markDirty('desc',${n.id})" rows="5">${esc(n.description)}</textarea>
     </div>` : "";
 
-  // Simple account select + speak button
+  /* Preview titles block */
+  const prevItems = previews.map((p,i)=>`
+    <div class="prev-item" onclick="copyPreview(this)">
+      <span>${esc(p)}</span>
+      <span class="prev-copy-hint">нажми — скопировать</span>
+    </div>`).join("");
+  const prevBlock = previews.length ? `
+    <div class="block-wrap block-prev">
+      <div class="block-head">
+        <span class="block-label prev-label-color">🖼 Превью (3 варианта)</span>
+      </div>
+      <div class="prev-list">${prevItems}</div>
+    </div>` : "";
+
+  /* Speak button */
   const speakBtn = hasTTS ? `
     <select class="el-select" id="el-acc-${n.id}">
       <option value="0">🤖 Авто</option>
@@ -277,28 +309,19 @@ function cardHtml(n){
     </select>
     <button class="btn btn-teal" id="speak-btn-${n.id}" onclick="speak(${n.id})">🎙 Озвучить</button>` : "";
 
-  // Action buttons
+  /* Action buttons */
   let actions = "";
   if (!hasTTS) {
     actions = `
-      <button class="btn btn-primary" id="gen-${n.id}" onclick="generate(${n.id})">Generate TTS</button>
-      <button class="btn btn-danger"  onclick="del(${n.id})">Delete</button>`;
-  } else if (hasReview) {
-    actions = `
-      <button class="btn btn-success" id="apr-${n.id}" onclick="approve(${n.id})" ${approved?"disabled":""}>
-        ${approved?"✓ Approved":"Одобрить оригинал"}</button>
-      <button class="btn btn-purple"  onclick="approveReviewed(${n.id})">Одобрить GPT-версию</button>
-      ${speakBtn}
-      <button class="btn btn-ghost"   id="reg-${n.id}" onclick="regen(${n.id})">Regenerate</button>
+      <button class="btn btn-primary" id="gen-${n.id}" onclick="generate(${n.id})">✨ Generate</button>
       <button class="btn btn-danger"  onclick="del(${n.id})">Delete</button>`;
   } else {
     actions = `
       <button class="btn btn-success" id="apr-${n.id}" onclick="approve(${n.id})" ${approved?"disabled":""}>
-        ${approved?"✓ Approved":"Approve"}</button>
-      <button class="btn btn-purple"  id="rev-${n.id}" onclick="review(${n.id})">Проверить GPT</button>
+        ${approved?"✓ Approved":"Одобрить"}</button>
       ${speakBtn}
-      <button class="btn btn-ghost"   id="reg-${n.id}" onclick="regen(${n.id})">Regenerate</button>
-      <button class="btn btn-danger"  onclick="del(${n.id})">Delete</button>`;
+      <button class="btn btn-ghost" id="reg-${n.id}" onclick="regen(${n.id})">↺ Regenerate</button>
+      <button class="btn btn-danger" onclick="del(${n.id})">Delete</button>`;
   }
 
   return `
@@ -307,18 +330,21 @@ function cardHtml(n){
         <div class="card-tags">${tags}</div>
         <span class="score ${scoreClass(n.score)}">★ ${n.score}</span>
       </div>
-      <div class="card-title"><a href="${esc(n.url)}" target="_blank" rel="noopener">${esc(n.title)}</a></div>
-      ${ttsBlock}${gptBlock}
+      <div class="card-title">
+        <a href="${esc(n.url)}" target="_blank" rel="noopener">${esc(n.title)}</a>
+      </div>
+      ${ttsBlock}${descBlock}${prevBlock}
       <div class="card-actions">${actions}</div>
     </div>`;
 }
 
 function replaceCard(id){
-  const n = data.find(x=>x.id===id); if(!n) return;
-  const el = document.getElementById("card-"+id); if(!el) return;
-  const tmp = document.createElement("div");
-  tmp.innerHTML = cardHtml(n);
+  const n=data.find(x=>x.id===id); if(!n) return;
+  const el=document.getElementById("card-"+id); if(!el) return;
+  const tmp=document.createElement("div");
+  tmp.innerHTML=cardHtml(n);
   el.replaceWith(tmp.firstElementChild);
+  loadCredits(); // refresh account selects
 }
 
 /* ── Load ── */
@@ -327,29 +353,27 @@ async function load(){
   try {
     data = await req("GET", `/api/news?min_score=${min}&limit=100&tab=${curTab}&sort=${curSort}`);
     if(!data) return;
-
-    const total = data.length, approved = data.filter(n=>n.approved).length,
-          withTTS = data.filter(n=>n.tts_script).length;
+    const total=data.length, approved=data.filter(n=>n.approved).length,
+          withTTS=data.filter(n=>n.tts_script).length;
     document.getElementById("stats").innerHTML =
       `<div class="pill">Всего: <strong>${total}</strong></div>
        <div class="pill">С TTS: <strong>${withTTS}</strong></div>
        <div class="pill">Одобрено: <strong>${approved}</strong></div>`;
-
-    const list = document.getElementById("list");
-    list.innerHTML = data.length ? data.map(cardHtml).join("") :
+    const list=document.getElementById("list");
+    list.innerHTML=data.length?data.map(cardHtml).join(""):
       `<div class="empty">Нет новостей. Попробуй другой таб или нажми "Collect Now".</div>`;
-  } catch(e) { toast("Ошибка: "+e.message, true); }
+  } catch(e){ toast("Ошибка: "+e.message, true); }
 }
 
 /* ── Collect ── */
 async function collectNow(){
-  const btn = document.getElementById("collectBtn");
+  const btn=document.getElementById("collectBtn");
   btn.disabled=true; btn.innerHTML=`<span class="spin"></span> Collecting…`;
   try {
     await req("POST","/api/collect");
     toast("Сбор запущен — обновление через ~15с");
-    setTimeout(load, 15000);
-  } catch(e){ toast("Ошибка: "+e.message, true); }
+    setTimeout(load,15000);
+  } catch(e){ toast("Ошибка: "+e.message,true); }
   finally { setTimeout(()=>{btn.disabled=false;btn.textContent="Collect Now";},12000); }
 }
 
@@ -358,11 +382,16 @@ async function generate(id){
   const btn=document.getElementById("gen-"+id);
   if(btn){btn.disabled=true;btn.innerHTML=`<span class="spin"></span> Генерирую…`;}
   try {
-    const res = await req("POST",`/api/news/${id}/generate`);
+    const res=await req("POST",`/api/news/${id}/generate`);
     if(!res) return;
-    const n=data.find(x=>x.id===id); if(n) n.tts_script=res.tts_script;
-    replaceCard(id); toast("TTS создан");
-  } catch(e){ toast("Ошибка: "+e.message,true); if(btn){btn.disabled=false;btn.textContent="Generate TTS";} }
+    const n=data.find(x=>x.id===id);
+    if(n){
+      n.tts_script=res.tts_script;
+      n.description=res.description;
+      n.preview_titles=res.preview_titles||[];
+    }
+    replaceCard(id); toast("TTS + Описание + Превью готовы ✓");
+  } catch(e){ toast("Ошибка: "+e.message,true); if(btn){btn.disabled=false;btn.textContent="✨ Generate";} }
 }
 
 /* ── Approve ── */
@@ -374,40 +403,22 @@ async function approve(id){
   } catch(e){ toast("Ошибка: "+e.message,true); }
 }
 
-/* ── Approve GPT version ── */
-async function approveReviewed(id){
-  try {
-    await req("POST",`/api/news/${id}/approve-reviewed`);
-    const n=data.find(x=>x.id===id);
-    if(n){ n.approved=1; n.tts_script=n.reviewed_script; }
-    replaceCard(id); toast("GPT-версия одобрена ✓");
-  } catch(e){ toast("Ошибка: "+e.message,true); }
-}
-
-/* ── GPT Review ── */
-async function review(id){
-  const btn=document.getElementById("rev-"+id);
-  if(btn){btn.disabled=true;btn.innerHTML=`<span class="spin"></span> GPT проверяет…`;}
-  try {
-    const res = await req("POST",`/api/news/${id}/review`);
-    if(!res) return;
-    const n=data.find(x=>x.id===id);
-    if(n){ n.reviewed_script=res.reviewed_script; n.gpt_comment=res.comment; }
-    replaceCard(id); toast("GPT проверил ✓");
-  } catch(e){ toast("Ошибка: "+e.message,true); if(btn){btn.disabled=false;btn.textContent="Проверить GPT";} }
-}
-
 /* ── Regenerate ── */
 async function regen(id){
   const btn=document.getElementById("reg-"+id);
   if(btn){btn.disabled=true;btn.textContent="Генерирую…";}
   try {
-    const res = await req("POST",`/api/news/${id}/regenerate`);
+    const res=await req("POST",`/api/news/${id}/regenerate`);
     if(!res) return;
     const n=data.find(x=>x.id===id);
-    if(n){n.tts_script=res.tts_script;n.approved=0;n.reviewed_script=null;n.gpt_comment=null;}
-    replaceCard(id); toast("Перегенерировано");
-  } catch(e){ toast("Ошибка: "+e.message,true); if(btn){btn.disabled=false;btn.textContent="Regenerate";} }
+    if(n){
+      n.tts_script=res.tts_script;
+      n.description=res.description;
+      n.preview_titles=res.preview_titles||[];
+      n.approved=0;
+    }
+    replaceCard(id); toast("Перегенерировано ✓");
+  } catch(e){ toast("Ошибка: "+e.message,true); if(btn){btn.disabled=false;btn.textContent="↺ Regenerate";} }
 }
 
 /* ── Delete ── */
@@ -421,131 +432,124 @@ async function del(id){
   } catch(e){ toast("Ошибка: "+e.message,true); }
 }
 
-/* ── Save TTS edits ── */
-function markDirty(id){
-  const d = document.getElementById("dirty-"+id);
-  if(d) d.style.display = "inline";
+/* ── Dirty flags ── */
+function markDirty(type, id){
+  const d=document.getElementById(`dirty-${type}-${id}`);
+  if(d) d.style.display="inline";
 }
+
+/* ── Save TTS ── */
 async function saveTTS(id, silent=false){
-  const ta = document.getElementById("tts-"+id);
-  if(!ta) return;
-  const text = ta.value.trim();
+  const ta=document.getElementById("tts-"+id); if(!ta) return;
+  const text=ta.value.trim();
   if(!text){ toast("Текст пустой",true); return; }
   try {
-    await fetch(`/api/news/${id}/tts`, {
-      method:"PATCH",
-      headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({tts_script: text})
+    await fetch(`/api/news/${id}/tts`,{
+      method:"PATCH",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({tts_script:text})
     });
-    const d = document.getElementById("dirty-"+id);
-    if(d) d.style.display = "none";
-    const n = data.find(x=>x.id===id);
-    if(n) n.tts_script = text;
-    if(!silent) toast("Сохранено ✓");
-  } catch(e){ toast("Ошибка сохранения: "+e.message,true); }
+    const d=document.getElementById("dirty-tts-"+id);
+    if(d) d.style.display="none";
+    const n=data.find(x=>x.id===id); if(n) n.tts_script=text;
+    if(!silent) toast("TTS сохранён ✓");
+  } catch(e){ toast("Ошибка: "+e.message,true); }
+}
+
+/* ── Save Description ── */
+async function saveDesc(id){
+  const ta=document.getElementById("desc-"+id); if(!ta) return;
+  const text=ta.value.trim();
+  if(!text){ toast("Текст пустой",true); return; }
+  try {
+    await fetch(`/api/news/${id}/description`,{
+      method:"PATCH",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({description:text})
+    });
+    const d=document.getElementById("dirty-desc-"+id);
+    if(d) d.style.display="none";
+    const n=data.find(x=>x.id===id); if(n) n.description=text;
+    toast("Описание сохранено ✓");
+  } catch(e){ toast("Ошибка: "+e.message,true); }
 }
 
 /* ── Copy textarea ── */
 async function copyTA(elId){
-  const el = document.getElementById(elId); if(!el) return;
-  try {
-    await navigator.clipboard.writeText(el.value || el.textContent);
-    toast("Скопировано");
-  } catch(_){
-    el.select?.();
-    document.execCommand("copy");
-    toast("Скопировано");
-  }
+  const el=document.getElementById(elId); if(!el) return;
+  try { await navigator.clipboard.writeText(el.value||el.textContent); }
+  catch(_){ el.select?.(); document.execCommand("copy"); }
+  toast("Скопировано ✓");
 }
 
-/* ── Speak (ElevenLabs) — reads account from select ── */
+/* ── Copy preview pill ── */
+async function copyPreview(el){
+  const text=el.querySelector("span")?.textContent?.trim()||el.textContent.trim();
+  try { await navigator.clipboard.writeText(text); }
+  catch(_){ const r=document.createRange();r.selectNode(el);
+    window.getSelection().removeAllRanges();window.getSelection().addRange(r);
+    document.execCommand("copy");window.getSelection().removeAllRanges(); }
+  toast("Превью скопировано ✓");
+}
+
+/* ── Speak (ElevenLabs) ── */
 async function speak(id){
-  // Save any unsaved edits first
-  const dirty = document.getElementById("dirty-"+id);
-  if(dirty && dirty.style.display !== "none") await saveTTS(id, true);
-
-  const sel = document.getElementById("el-acc-"+id);
-  const account = sel ? parseInt(sel.value) : 0;
-  const accLabel = account === 0 ? "авто" : `акк ${account}`;
-
-  const btn = document.getElementById("speak-btn-"+id);
-  if(btn){ btn.disabled=true; btn.innerHTML=`<span class="spin"></span>`; }
-  toast(`Генерирую аудио (${accLabel})…`);
+  const dirty=document.getElementById("dirty-tts-"+id);
+  if(dirty && dirty.style.display!=="none") await saveTTS(id,true);
+  const sel=document.getElementById("el-acc-"+id);
+  const account=sel?parseInt(sel.value):0;
+  const btn=document.getElementById("speak-btn-"+id);
+  if(btn){btn.disabled=true;btn.innerHTML=`<span class="spin"></span>`;}
+  toast(`Генерирую аудио…`);
   try {
-    const url = `/api/news/${id}/speak?account=${account}`;
-    const r = await fetch(url);
+    const r=await fetch(`/api/news/${id}/speak?account=${account}`);
     if(r.status===401){location.href="/login";return;}
     if(!r.ok) throw new Error(await r.text());
-    const usedAcc = r.headers.get("X-EL-Account") || account;
-    const blob = await r.blob();
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = `tts_${id}_acc${usedAcc}.mp3`;
-    a.click();
-    URL.revokeObjectURL(a.href);
+    const usedAcc=r.headers.get("X-EL-Account")||account;
+    const blob=await r.blob();
+    const a=document.createElement("a");
+    a.href=URL.createObjectURL(blob);
+    a.download=`tts_${id}_acc${usedAcc}.mp3`;
+    a.click(); URL.revokeObjectURL(a.href);
     toast(`MP3 скачан (Акк ${usedAcc}) ✓`);
-    loadCredits(); // Refresh credits after use
+    loadCredits();
   } catch(e){ toast("ElevenLabs: "+e.message,true); }
-  finally { if(btn){ btn.disabled=false; btn.innerHTML="🎙 Озвучить"; } }
+  finally { if(btn){btn.disabled=false;btn.innerHTML="🎙 Озвучить";} }
 }
-document.addEventListener("click", e=>{
-  if(!e.target.closest(".speak-wrap"))
-    document.querySelectorAll(".speak-menu").forEach(m=>m.classList.remove("open"));
-});
-
-/* ── Copy ── */
-async function copyText(elId){
-  const el=document.getElementById(elId); if(!el) return;
-  try {
-    await navigator.clipboard.writeText(el.textContent);
-    toast("Скопировано");
-  } catch(_){
-    const r=document.createRange();r.selectNode(el);
-    window.getSelection().removeAllRanges();window.getSelection().addRange(r);
-    document.execCommand("copy");window.getSelection().removeAllRanges();
-    toast("Скопировано");
-  }
-}
-
-load();
-loadCredits();
 
 /* ── ElevenLabs Credits ── */
-let creditsCache = {};
-function fmtCredits(n){ return n<0?"Err": n>=1000? Math.round(n/1000)+"k chars": n+" chars"; }
+let creditsCache={};
+function fmtCredits(n){ return n<0?"Err":n>=1000?Math.round(n/1000)+"k chars":n+" chars"; }
 
 async function loadCredits(){
   try {
-    const d = await req("GET", "/api/elevenlabs/credits");
+    const d=await req("GET","/api/elevenlabs/credits");
     if(!d) return;
-    creditsCache = d;
-
-    // Header badges
-    const el = document.getElementById("elCredits");
-    el.innerHTML = "";
-    for(const [acc, chars] of Object.entries(d)){
-      const color = chars>500?"#16a34a":chars>0?"#d97706":"#dc2626";
-      el.innerHTML += `<span title="Аккаунт ${acc}: ${fmtCredits(chars)}"
+    creditsCache=d;
+    const el=document.getElementById("elCredits");
+    el.innerHTML="";
+    for(const [acc,chars] of Object.entries(d)){
+      const color=chars>500?"#16a34a":chars>0?"#d97706":"#dc2626";
+      el.innerHTML+=`<span title="Аккаунт ${acc}: ${fmtCredits(chars)}"
         style="font-size:.7rem;padding:.18rem .5rem;border-radius:4px;background:#f1f5f9;
                border:1px solid ${color};color:${color};font-weight:600;white-space:nowrap">
         🎙${acc} ${fmtCredits(chars)}</span>`;
     }
-
-    // Update all account selects in cards
-    document.querySelectorAll(".el-select").forEach(sel => {
+    document.querySelectorAll(".el-select").forEach(sel=>{
       for(const opt of sel.options){
-        if(opt.value === "1" && d["1"] !== undefined){
-          opt.text = `Акк 1 — ${fmtCredits(d["1"])}`;
-          opt.disabled = d["1"] === 0;
+        if(opt.value==="1"&&d["1"]!==undefined){
+          opt.text=`Акк 1 — ${fmtCredits(d["1"])}`;
+          opt.disabled=d["1"]===0;
         }
-        if(opt.value === "2" && d["2"] !== undefined){
-          opt.text = `Акк 2 — ${fmtCredits(d["2"])}`;
-          opt.disabled = d["2"] === 0;
+        if(opt.value==="2"&&d["2"]!==undefined){
+          opt.text=`Акк 2 — ${fmtCredits(d["2"])}`;
+          opt.disabled=d["2"]===0;
         }
       }
     });
-  } catch(_) {}
+  } catch(_){}
 }
+
+load();
+loadCredits();
 </script>
 </body>
 </html>

@@ -18,7 +18,9 @@ Schedule UTC: 01:00, 05:00, 09:00, 13:00, 16:00
 """
 
 import os
+import re
 import sys
+import json
 import hashlib
 import sqlite3
 import asyncio
@@ -70,6 +72,8 @@ def run_migrations(conn: sqlite3.Connection):
         "ALTER TABLE news ADD COLUMN generated_at TEXT",
         "ALTER TABLE news ADD COLUMN reviewed_script TEXT",
         "ALTER TABLE news ADD COLUMN gpt_comment TEXT",
+        "ALTER TABLE news ADD COLUMN description TEXT",
+        "ALTER TABLE news ADD COLUMN preview_titles TEXT",
     ]:
         try:
             conn.execute(sql)
@@ -286,7 +290,7 @@ async def api_news(
     rows = conn.execute(
         f"""SELECT id, title, url, source, published, score,
                    tts_script, approved, generated_at, collected, sent_tg,
-                   reviewed_script, gpt_comment
+                   reviewed_script, gpt_comment, description, preview_titles
             FROM news
             WHERE {' AND '.join(where)}
             ORDER BY {order}
@@ -294,7 +298,15 @@ async def api_news(
         (*params, limit),
     ).fetchall()
     conn.close()
-    return [dict(r) for r in rows]
+    result = []
+    for r in rows:
+        d = dict(r)
+        try:
+            d["preview_titles"] = json.loads(d["preview_titles"]) if d.get("preview_titles") else []
+        except Exception:
+            d["preview_titles"] = []
+        result.append(d)
+    return result
 
 
 @app.post("/api/collect")
@@ -499,80 +511,43 @@ def _elevenlabs_sync(
     return r.content
 
 
-# ── API: GPT REVIEW ───────────────────────────────────────────────────────
-
-@app.post("/api/news/{news_id}/review")
-async def api_review(news_id: int, request: Request):
-    """Send TTS script to ChatGPT for review. Returns comment + improved version."""
+@app.patch("/api/news/{news_id}/description")
+async def api_update_description(news_id: int, request: Request):
+    """Save manually edited description."""
     require_auth(request)
-
+    body = await request.json()
+    description = (body.get("description") or "").strip()
+    if not description:
+        raise HTTPException(status_code=400, detail="description is empty")
     conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    row = conn.execute("SELECT tts_script FROM news WHERE id=?", (news_id,)).fetchone()
-    conn.close()
-
-    if not row or not row["tts_script"]:
-        raise HTTPException(status_code=404, detail="Нет TTS скрипта. Сначала нажмите Generate.")
-
-    api_key = os.environ.get("OPENAI_API_KEY", "")
-    if not api_key:
-        raise HTTPException(status_code=500, detail="OPENAI_API_KEY не задан.")
-
-    script = row["tts_script"]
-    system = _load_system_prompt()
-
-    from openai import AsyncOpenAI, APIStatusError, APIConnectionError, AuthenticationError
-    client = AsyncOpenAI(api_key=api_key)
-
-    # GPT acts as editor: receives Claude's draft + full instructions, returns improved version
-    user_prompt = (
-        "Вот черновик TTS-скрипта который написал Claude.\n"
-        "Твоя задача: улучшить его строго по инструкции выше.\n\n"
-        f"ЧЕРНОВИК:\n{script}\n\n"
-        "Ответь строго в таком формате:\n"
-        "КОММЕНТАРИЙ: [1-2 предложения: что было слабо и что конкретно изменил]\n"
-        "УЛУЧШЕННЫЙ СКРИПТ:\n[готовый текст — только то что будет озвучено]"
-    )
-
-    try:
-        response = await client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": system},
-                {"role": "user", "content": user_prompt},
-            ],
-            max_tokens=800,
-            temperature=0.6,
-        )
-    except AuthenticationError as e:
-        raise HTTPException(status_code=502, detail=f"OpenAI: неверный API ключ — {str(e)[:200]}")
-    except APIConnectionError as e:
-        raise HTTPException(status_code=502, detail=f"OpenAI: ошибка соединения — {str(e)[:200]}")
-    except APIStatusError as e:
-        raise HTTPException(status_code=502, detail=f"OpenAI error {e.status_code}: {e.message[:200]}")
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=f"OpenAI: неизвестная ошибка — {type(e).__name__}: {str(e)[:200]}")
-
-    text = response.choices[0].message.content.strip()
-
-    comment, improved = "", text
-    if "УЛУЧШЕННЫЙ СКРИПТ:" in text:
-        parts    = text.split("УЛУЧШЕННЫЙ СКРИПТ:", 1)
-        comment  = parts[0].replace("КОММЕНТАРИЙ:", "").strip()
-        improved = parts[1].strip()
-
-    conn = sqlite3.connect(DB_PATH)
-    conn.execute(
-        "UPDATE news SET reviewed_script=?, gpt_comment=? WHERE id=?",
-        (improved, comment, news_id),
-    )
+    conn.execute("UPDATE news SET description=? WHERE id=?", (description, news_id))
     conn.commit()
     conn.close()
+    return {"id": news_id, "saved": True}
 
-    return {"id": news_id, "comment": comment, "reviewed_script": improved}
 
+# ── TTS + DESCRIPTION + PREVIEW GENERATION (Claude) ──────────────────────
 
-# ── TTS GENERATION (Claude) ───────────────────────────────────────────────
+def _parse_generate_response(text: str) -> tuple[str, str, list[str]]:
+    """Parse Claude's structured response into (tts, description, previews)."""
+    tts = description = ""
+    previews: list[str] = []
+
+    m_tts  = re.search(r"===TTS===(.*?)(?====ОПИСАНИЕ===)", text, re.DOTALL)
+    m_desc = re.search(r"===ОПИСАНИЕ===(.*?)(?====ПРЕВЬЮ===)", text, re.DOTALL)
+    m_prev = re.search(r"===ПРЕВЬЮ===(.*?)$", text, re.DOTALL)
+
+    tts         = m_tts.group(1).strip()  if m_tts  else text.strip()
+    description = m_desc.group(1).strip() if m_desc else ""
+
+    if m_prev:
+        for line in m_prev.group(1).strip().splitlines():
+            line = re.sub(r"^\d+[\.\)]\s*", "", line.strip()).strip()
+            if line and not line.startswith("["):
+                previews.append(line)
+
+    return tts, description, previews[:3]
+
 
 async def _do_generate(news_id: int) -> dict:
     conn = sqlite3.connect(DB_PATH)
@@ -593,29 +568,44 @@ async def _do_generate(news_id: int) -> dict:
     client = anthropic.AsyncAnthropic(api_key=api_key)
 
     prompt = (
-        "Напиши TTS скрипт для этой новости строго по инструкции выше.\n\n"
+        "Напиши для этой новости три части строго по инструкции выше.\n\n"
         "НОВОСТЬ:\n"
         f"Заголовок: {item['title']}\n"
         f"Источник: {item.get('source', '')}\n"
         f"Описание: {item.get('summary', '') or ''}\n\n"
-        "Верни ТОЛЬКО готовый скрипт. Без пояснений, без заголовков. "
-        "Только текст который будет произнесён голосом."
+        "Ответь ТОЛЬКО в этом формате (без пояснений):\n\n"
+        "===TTS===\n"
+        "[TTS скрипт — 30-35 секунд озвучки, строго по правилам]\n\n"
+        "===ОПИСАНИЕ===\n"
+        "[Описание для поста — детальнее TTS, абзацы с отступами, цифры, почему важно, вопрос]\n\n"
+        "===ПРЕВЬЮ===\n"
+        "1. [3-5 слов КАПСОМ — вариант 1]\n"
+        "2. [3-5 слов КАПСОМ — вариант 2]\n"
+        "3. [3-5 слов КАПСОМ — вариант 3]"
     )
 
     msg = await client.messages.create(
         model="claude-sonnet-4-5",
-        max_tokens=600,
+        max_tokens=1200,
         system=system,
         messages=[{"role": "user", "content": prompt}],
     )
-    script = msg.content[0].text.strip()
+    raw = msg.content[0].text.strip()
+    script, description, previews = _parse_generate_response(raw)
 
     conn = sqlite3.connect(DB_PATH)
     conn.execute(
-        "UPDATE news SET tts_script=?, generated_at=?, reviewed_script=NULL, gpt_comment=NULL WHERE id=?",
-        (script, datetime.now().isoformat(), news_id),
+        "UPDATE news SET tts_script=?, description=?, preview_titles=?, "
+        "generated_at=?, reviewed_script=NULL, gpt_comment=NULL WHERE id=?",
+        (script, description, json.dumps(previews, ensure_ascii=False),
+         datetime.now().isoformat(), news_id),
     )
     conn.commit()
     conn.close()
 
-    return {"id": news_id, "tts_script": script}
+    return {
+        "id": news_id,
+        "tts_script": script,
+        "description": description,
+        "preview_titles": previews,
+    }

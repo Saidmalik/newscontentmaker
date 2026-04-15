@@ -521,7 +521,7 @@ async def api_review(news_id: int, request: Request):
     script = row["tts_script"]
     system = _load_system_prompt()
 
-    from openai import AsyncOpenAI
+    from openai import AsyncOpenAI, APIStatusError, APIConnectionError, AuthenticationError
     client = AsyncOpenAI(api_key=api_key)
 
     # GPT acts as editor: receives Claude's draft + full instructions, returns improved version
@@ -534,15 +534,24 @@ async def api_review(news_id: int, request: Request):
         "УЛУЧШЕННЫЙ СКРИПТ:\n[готовый текст — только то что будет озвучено]"
     )
 
-    response = await client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": system},
-            {"role": "user", "content": user_prompt},
-        ],
-        max_tokens=800,
-        temperature=0.6,
-    )
+    try:
+        response = await client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user", "content": user_prompt},
+            ],
+            max_tokens=800,
+            temperature=0.6,
+        )
+    except AuthenticationError as e:
+        raise HTTPException(status_code=502, detail=f"OpenAI: неверный API ключ — {str(e)[:200]}")
+    except APIConnectionError as e:
+        raise HTTPException(status_code=502, detail=f"OpenAI: ошибка соединения — {str(e)[:200]}")
+    except APIStatusError as e:
+        raise HTTPException(status_code=502, detail=f"OpenAI error {e.status_code}: {e.message[:200]}")
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"OpenAI: неизвестная ошибка — {type(e).__name__}: {str(e)[:200]}")
 
     text = response.choices[0].message.content.strip()
 

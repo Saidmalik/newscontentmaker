@@ -290,6 +290,21 @@ async def api_collect(request: Request, background_tasks: BackgroundTasks):
     return {"status": "started"}
 
 
+@app.patch("/api/news/{news_id}/tts")
+async def api_update_tts(news_id: int, request: Request):
+    """Save manually edited TTS script."""
+    require_auth(request)
+    body = await request.json()
+    script = (body.get("tts_script") or "").strip()
+    if not script:
+        raise HTTPException(status_code=400, detail="tts_script is empty")
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute("UPDATE news SET tts_script=? WHERE id=?", (script, news_id))
+    conn.commit()
+    conn.close()
+    return {"id": news_id, "saved": True}
+
+
 @app.post("/api/news/{news_id}/generate")
 async def api_generate(news_id: int, request: Request):
     require_auth(request)
@@ -510,7 +525,15 @@ async def api_review(news_id: int, request: Request):
 
     response = await client.chat.completions.create(
         model="gpt-4o-mini",
-        messages=[{"role": "user", "content": prompt}],
+        messages=[
+            {"role": "system", "content": (
+                "Ты редактор TikTok/Reels контента на русском языке для аудитории Узбекистана. "
+                "Знаешь формулу вирусного контента: УДАР → ЧТО → ПОЧЕМУ → УСИЛЕНИЕ → ВОПРОС. "
+                "Пишешь живым разговорным языком, близко к человеку. "
+                "Никогда не используешь скобки, хэштеги, символы — это ломает TTS."
+            )},
+            {"role": "user", "content": prompt},
+        ],
         max_tokens=800,
         temperature=0.7,
     )
@@ -547,9 +570,10 @@ async def _do_generate(news_id: int) -> dict:
 
     with open(PREFS_PATH, encoding="utf-8") as f:
         prefs = yaml.safe_load(f)
-    style    = prefs.get("content_style", {})
-    tts_rules = style.get("tts_rules", "")
-    tts_outro = style.get("tts_outro_rules", "")
+    style         = prefs.get("content_style", {})
+    tts_rules     = style.get("tts_rules", "")
+    tts_outro     = style.get("tts_outro_rules", "")
+    system_prompt = prefs.get("claude_system_prompt", "").strip()
 
     api_key = os.environ.get("ANTHROPIC_API_KEY", "")
     if not api_key:
@@ -557,6 +581,12 @@ async def _do_generate(news_id: int) -> dict:
 
     import anthropic
     client = anthropic.AsyncAnthropic(api_key=api_key)
+
+    # Use claude_system_prompt from preferences.yaml if set
+    system = system_prompt or (
+        "Ты редактор и сценарист для новостного Instagram-аккаунта об Узбекистане. "
+        "Пиши разговорным языком. Никогда не добавляй хэштеги, скобки, символы."
+    )
 
     prompt = (
         "Напиши TTS скрипт для этой новости строго по правилам ниже.\n\n"
@@ -573,6 +603,7 @@ async def _do_generate(news_id: int) -> dict:
     msg = await client.messages.create(
         model="claude-sonnet-4-5",
         max_tokens=600,
+        system=system,
         messages=[{"role": "user", "content": prompt}],
     )
     script = msg.content[0].text.strip()

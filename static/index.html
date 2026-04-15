@@ -104,11 +104,16 @@ body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-se
 /* TTS block */
 .tts-wrap { background:#f8fafc; border:1px solid var(--border);
             border-radius:8px; padding:.6rem .75rem; margin:.1rem 0 .5rem; }
-.tts-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:.3rem; }
+.tts-head { display:flex; align-items:center; justify-content:space-between;
+            gap:.4rem; margin-bottom:.3rem; flex-wrap:wrap; }
 .tts-label { font-size:.65rem; font-weight:700; text-transform:uppercase;
              letter-spacing:.06em; color:var(--muted); }
-.tts-body { font-size:.82rem; line-height:1.65; color:#374151;
-            white-space:pre-wrap; word-break:break-word; }
+.tts-dirty { font-size:.65rem; color:#d97706; display:none; }
+.tts-body { width:100%; font-size:.82rem; line-height:1.65; color:#374151;
+            font-family:inherit; border:none; background:transparent; resize:vertical;
+            outline:none; min-height:80px; padding:0; }
+.tts-body:focus { background:#fff; border-radius:4px; padding:.3rem; margin:-.3rem;
+                  box-shadow:0 0 0 2px rgba(37,99,235,.2); }
 
 /* GPT Review block */
 .gpt-wrap { background:#faf5ff; border:1px solid #ddd6fe;
@@ -117,20 +122,12 @@ body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-se
                margin-bottom:.4rem; line-height:1.5; }
 
 /* Actions */
-.card-actions { display:flex; gap:.3rem; flex-wrap:wrap; margin-top:.5rem; }
+.card-actions { display:flex; gap:.3rem; flex-wrap:wrap; margin-top:.5rem; align-items:center; }
 
-/* Account dropdown */
-.speak-wrap { position:relative; display:inline-flex; }
-.speak-main { border-radius:7px 0 0 7px !important; }
-.speak-arrow { padding:.32rem .5rem !important; border-radius:0 7px 7px 0 !important;
-               border-left:1px solid rgba(255,255,255,.3) !important; }
-.speak-menu { position:absolute; top:calc(100% + 4px); left:0; background:#fff;
-              border:1px solid var(--border); border-radius:8px; box-shadow:0 4px 16px rgba(0,0,0,.1);
-              min-width:130px; z-index:50; overflow:hidden; display:none; }
-.speak-menu.open { display:block; }
-.speak-opt { display:block; width:100%; padding:.45rem .8rem; border:none;
-             background:none; text-align:left; font-size:.78rem; cursor:pointer; color:var(--text); }
-.speak-opt:hover { background:var(--bg); }
+/* ElevenLabs account select */
+.el-select { padding:.32rem .5rem; border:1px solid var(--border); border-radius:7px;
+             font-size:.76rem; background:#fff; color:var(--text); cursor:pointer;
+             max-width:160px; }
 
 /* Spinner */
 .spin { display:inline-block; width:11px; height:11px;
@@ -241,40 +238,44 @@ function cardHtml(n){
     sent        ? `<span class="tag tag-sent">Sent TG</span>` : "",
   ].filter(Boolean).join("");
 
-  // TTS block
+  // TTS block — editable textarea
   const ttsBlock = hasTTS ? `
     <div class="tts-wrap">
       <div class="tts-head">
         <span class="tts-label">TTS (Claude)</span>
-        <button class="btn btn-ghost" style="padding:.18rem .55rem;font-size:.7rem"
-                onclick="copyText('tts-${n.id}')">Copy</button>
+        <span class="tts-dirty" id="dirty-${n.id}">● не сохранено</span>
+        <div style="display:flex;gap:.3rem">
+          <button class="btn btn-ghost" style="padding:.18rem .5rem;font-size:.7rem"
+                  onclick="saveTTS(${n.id})">Сохранить</button>
+          <button class="btn btn-ghost" style="padding:.18rem .5rem;font-size:.7rem"
+                  onclick="copyTA('tts-${n.id}')">Copy</button>
+        </div>
       </div>
-      <div class="tts-body" id="tts-${n.id}">${esc(n.tts_script)}</div>
+      <textarea class="tts-body" id="tts-${n.id}"
+                oninput="markDirty(${n.id})" rows="5">${esc(n.tts_script)}</textarea>
     </div>` : "";
 
-  // GPT Review block
+  // GPT Review block — also editable
   const gptBlock = hasReview ? `
     <div class="gpt-wrap">
       <div class="tts-head">
         <span class="tts-label" style="color:#7c3aed">GPT Review</span>
-        <button class="btn btn-ghost" style="padding:.18rem .55rem;font-size:.7rem"
-                onclick="copyText('gpt-${n.id}')">Copy</button>
+        <button class="btn btn-ghost" style="padding:.18rem .5rem;font-size:.7rem"
+                onclick="copyTA('gpt-${n.id}')">Copy</button>
       </div>
       ${n.gpt_comment ? `<div class="gpt-comment">💬 ${esc(n.gpt_comment)}</div>` : ""}
-      <div class="tts-body" id="gpt-${n.id}">${esc(n.reviewed_script)}</div>
+      <textarea class="tts-body" id="gpt-${n.id}" rows="5"
+                style="background:transparent">${esc(n.reviewed_script)}</textarea>
     </div>` : "";
 
-  // Speak dropdown
+  // Simple account select + speak button
   const speakBtn = hasTTS ? `
-    <div class="speak-wrap">
-      <button class="btn btn-teal speak-main" onclick="speak(${n.id},0)">🎙 Озвучить</button>
-      <button class="btn btn-teal speak-arrow" onclick="toggleSpeak(${n.id})">▾</button>
-      <div class="speak-menu" id="speak-menu-${n.id}">
-        <button class="speak-opt" onclick="speak(${n.id},0);closeSpeak(${n.id})">🤖 Авто (больше кредитов)</button>
-        <button class="speak-opt" onclick="speak(${n.id},1);closeSpeak(${n.id})">Аккаунт 1</button>
-        <button class="speak-opt" onclick="speak(${n.id},2);closeSpeak(${n.id})">Аккаунт 2</button>
-      </div>
-    </div>` : "";
+    <select class="el-select" id="el-acc-${n.id}">
+      <option value="0">🤖 Авто</option>
+      <option value="1">Акк 1</option>
+      <option value="2">Акк 2</option>
+    </select>
+    <button class="btn btn-teal" id="speak-btn-${n.id}" onclick="speak(${n.id})">🎙 Озвучить</button>` : "";
 
   // Action buttons
   let actions = "";
@@ -288,7 +289,7 @@ function cardHtml(n){
         ${approved?"✓ Approved":"Одобрить оригинал"}</button>
       <button class="btn btn-purple"  onclick="approveReviewed(${n.id})">Одобрить GPT-версию</button>
       ${speakBtn}
-      <button class="btn btn-ghost"   id="reg-${n.id}" onclick="regen(${n.id})">Перегенерировать</button>
+      <button class="btn btn-ghost"   id="reg-${n.id}" onclick="regen(${n.id})">Regenerate</button>
       <button class="btn btn-danger"  onclick="del(${n.id})">Delete</button>`;
   } else {
     actions = `
@@ -420,28 +421,72 @@ async function del(id){
   } catch(e){ toast("Ошибка: "+e.message,true); }
 }
 
-/* ── Speak (ElevenLabs) ── */
-async function speak(id, account){
-  toast(`Генерирую аудио (Акк ${account})…`);
+/* ── Save TTS edits ── */
+function markDirty(id){
+  const d = document.getElementById("dirty-"+id);
+  if(d) d.style.display = "inline";
+}
+async function saveTTS(id, silent=false){
+  const ta = document.getElementById("tts-"+id);
+  if(!ta) return;
+  const text = ta.value.trim();
+  if(!text){ toast("Текст пустой",true); return; }
+  try {
+    await fetch(`/api/news/${id}/tts`, {
+      method:"PATCH",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({tts_script: text})
+    });
+    const d = document.getElementById("dirty-"+id);
+    if(d) d.style.display = "none";
+    const n = data.find(x=>x.id===id);
+    if(n) n.tts_script = text;
+    if(!silent) toast("Сохранено ✓");
+  } catch(e){ toast("Ошибка сохранения: "+e.message,true); }
+}
+
+/* ── Copy textarea ── */
+async function copyTA(elId){
+  const el = document.getElementById(elId); if(!el) return;
+  try {
+    await navigator.clipboard.writeText(el.value || el.textContent);
+    toast("Скопировано");
+  } catch(_){
+    el.select?.();
+    document.execCommand("copy");
+    toast("Скопировано");
+  }
+}
+
+/* ── Speak (ElevenLabs) — reads account from select ── */
+async function speak(id){
+  // Save any unsaved edits first
+  const dirty = document.getElementById("dirty-"+id);
+  if(dirty && dirty.style.display !== "none") await saveTTS(id, true);
+
+  const sel = document.getElementById("el-acc-"+id);
+  const account = sel ? parseInt(sel.value) : 0;
+  const accLabel = account === 0 ? "авто" : `акк ${account}`;
+
+  const btn = document.getElementById("speak-btn-"+id);
+  if(btn){ btn.disabled=true; btn.innerHTML=`<span class="spin"></span>`; }
+  toast(`Генерирую аудио (${accLabel})…`);
   try {
     const url = `/api/news/${id}/speak?account=${account}`;
     const r = await fetch(url);
     if(r.status===401){location.href="/login";return;}
     if(!r.ok) throw new Error(await r.text());
+    const usedAcc = r.headers.get("X-EL-Account") || account;
     const blob = await r.blob();
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = `tts_${id}_acc${account}.mp3`;
+    a.download = `tts_${id}_acc${usedAcc}.mp3`;
     a.click();
     URL.revokeObjectURL(a.href);
-    toast("MP3 скачан ✓");
-  } catch(e){ toast("ElevenLabs ошибка: "+e.message,true); }
-}
-function toggleSpeak(id){
-  document.getElementById("speak-menu-"+id)?.classList.toggle("open");
-}
-function closeSpeak(id){
-  document.getElementById("speak-menu-"+id)?.classList.remove("open");
+    toast(`MP3 скачан (Акк ${usedAcc}) ✓`);
+    loadCredits(); // Refresh credits after use
+  } catch(e){ toast("ElevenLabs: "+e.message,true); }
+  finally { if(btn){ btn.disabled=false; btn.innerHTML="🎙 Озвучить"; } }
 }
 document.addEventListener("click", e=>{
   if(!e.target.closest(".speak-wrap"))
@@ -466,22 +511,39 @@ load();
 loadCredits();
 
 /* ── ElevenLabs Credits ── */
+let creditsCache = {};
+function fmtCredits(n){ return n<0?"Err": n>=1000? Math.round(n/1000)+"k chars": n+" chars"; }
+
 async function loadCredits(){
   try {
-    const data = await req("GET", "/api/elevenlabs/credits");
-    if(!data) return;
+    const d = await req("GET", "/api/elevenlabs/credits");
+    if(!d) return;
+    creditsCache = d;
+
+    // Header badges
     const el = document.getElementById("elCredits");
     el.innerHTML = "";
-    for(const [acc, chars] of Object.entries(data)){
-      const ok = chars > 500;
-      const warn = chars > 0 && chars <= 500;
-      const color = ok ? "#16a34a" : warn ? "#d97706" : "#dc2626";
-      const label = chars < 0 ? "N/A" : chars >= 1000 ? Math.round(chars/1000)+"k" : chars;
-      el.innerHTML += `<span title="Аккаунт ${acc}: ${chars < 0 ? "ошибка" : chars+" символов"}"
+    for(const [acc, chars] of Object.entries(d)){
+      const color = chars>500?"#16a34a":chars>0?"#d97706":"#dc2626";
+      el.innerHTML += `<span title="Аккаунт ${acc}: ${fmtCredits(chars)}"
         style="font-size:.7rem;padding:.18rem .5rem;border-radius:4px;background:#f1f5f9;
                border:1px solid ${color};color:${color};font-weight:600;white-space:nowrap">
-        🎙${acc} ${label}</span>`;
+        🎙${acc} ${fmtCredits(chars)}</span>`;
     }
+
+    // Update all account selects in cards
+    document.querySelectorAll(".el-select").forEach(sel => {
+      for(const opt of sel.options){
+        if(opt.value === "1" && d["1"] !== undefined){
+          opt.text = `Акк 1 — ${fmtCredits(d["1"])}`;
+          opt.disabled = d["1"] === 0;
+        }
+        if(opt.value === "2" && d["2"] !== undefined){
+          opt.text = `Акк 2 — ${fmtCredits(d["2"])}`;
+          opt.disabled = d["2"] === 0;
+        }
+      }
+    });
   } catch(_) {}
 }
 </script>

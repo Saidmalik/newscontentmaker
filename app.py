@@ -42,9 +42,23 @@ from auto_collect import (
     init_db, log, run as collect_run,
 )
 
-DB_PATH   = Path(os.environ.get("DB_PATH", str(BASE_DIR / "data" / "news.db")))
-PREFS_PATH = BASE_DIR / "config" / "preferences.yaml"
-APP_PASSWORD = os.environ.get("APP_PASSWORD", "")
+DB_PATH        = Path(os.environ.get("DB_PATH", str(BASE_DIR / "data" / "news.db")))
+PREFS_PATH     = BASE_DIR / "config" / "preferences.yaml"
+SYSPROMPT_PATH = BASE_DIR / "config" / "system_prompt.md"
+APP_PASSWORD   = os.environ.get("APP_PASSWORD", "")
+
+
+def _load_system_prompt() -> str:
+    """Load content instructions from config/system_prompt.md.
+    Falls back to claude_system_prompt in preferences.yaml."""
+    if SYSPROMPT_PATH.exists():
+        return SYSPROMPT_PATH.read_text(encoding="utf-8").strip()
+    try:
+        with open(PREFS_PATH, encoding="utf-8") as f:
+            prefs = yaml.safe_load(f)
+        return prefs.get("claude_system_prompt", "").strip()
+    except Exception:
+        return ""
 
 
 # ── MIGRATIONS ────────────────────────────────────────────────────────────
@@ -505,37 +519,29 @@ async def api_review(news_id: int, request: Request):
         raise HTTPException(status_code=500, detail="OPENAI_API_KEY не задан.")
 
     script = row["tts_script"]
-
-    with open(PREFS_PATH, encoding="utf-8") as f:
-        prefs = yaml.safe_load(f)
-    tts_rules = prefs.get("content_style", {}).get("tts_rules", "")
+    system = _load_system_prompt()
 
     from openai import AsyncOpenAI
     client = AsyncOpenAI(api_key=api_key)
 
-    prompt = (
-        "Ты редактор TikTok/Reels контента на русском языке для аудитории Узбекистана.\n"
-        "Проверь этот TTS-скрипт по правилам ниже и улучши его.\n\n"
-        f"ПРАВИЛА:\n{tts_rules}\n\n"
-        f"СКРИПТ:\n{script}\n\n"
-        "Ответь строго в таком формате (без лишних слов):\n"
-        "КОММЕНТАРИЙ: [2-3 предложения: что работает, что слабо, что изменил]\n"
-        "УЛУЧШЕННЫЙ СКРИПТ:\n[готовый текст]"
+    # GPT acts as editor: receives Claude's draft + full instructions, returns improved version
+    user_prompt = (
+        "Вот черновик TTS-скрипта который написал Claude.\n"
+        "Твоя задача: улучшить его строго по инструкции выше.\n\n"
+        f"ЧЕРНОВИК:\n{script}\n\n"
+        "Ответь строго в таком формате:\n"
+        "КОММЕНТАРИЙ: [1-2 предложения: что было слабо и что конкретно изменил]\n"
+        "УЛУЧШЕННЫЙ СКРИПТ:\n[готовый текст — только то что будет озвучено]"
     )
 
     response = await client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[
-            {"role": "system", "content": (
-                "Ты редактор TikTok/Reels контента на русском языке для аудитории Узбекистана. "
-                "Знаешь формулу вирусного контента: УДАР → ЧТО → ПОЧЕМУ → УСИЛЕНИЕ → ВОПРОС. "
-                "Пишешь живым разговорным языком, близко к человеку. "
-                "Никогда не используешь скобки, хэштеги, символы — это ломает TTS."
-            )},
-            {"role": "user", "content": prompt},
+            {"role": "system", "content": system},
+            {"role": "user", "content": user_prompt},
         ],
         max_tokens=800,
-        temperature=0.7,
+        temperature=0.6,
     )
 
     text = response.choices[0].message.content.strip()
@@ -568,12 +574,7 @@ async def _do_generate(news_id: int) -> dict:
         raise HTTPException(status_code=404, detail="Новость не найдена")
     item = dict(row)
 
-    with open(PREFS_PATH, encoding="utf-8") as f:
-        prefs = yaml.safe_load(f)
-    style         = prefs.get("content_style", {})
-    tts_rules     = style.get("tts_rules", "")
-    tts_outro     = style.get("tts_outro_rules", "")
-    system_prompt = prefs.get("claude_system_prompt", "").strip()
+    system = _load_system_prompt()
 
     api_key = os.environ.get("ANTHROPIC_API_KEY", "")
     if not api_key:
@@ -582,16 +583,8 @@ async def _do_generate(news_id: int) -> dict:
     import anthropic
     client = anthropic.AsyncAnthropic(api_key=api_key)
 
-    # Use claude_system_prompt from preferences.yaml if set
-    system = system_prompt or (
-        "Ты редактор и сценарист для новостного Instagram-аккаунта об Узбекистане. "
-        "Пиши разговорным языком. Никогда не добавляй хэштеги, скобки, символы."
-    )
-
     prompt = (
-        "Напиши TTS скрипт для этой новости строго по правилам ниже.\n\n"
-        f"ПРАВИЛА TTS:\n{tts_rules}\n\n"
-        f"ПРАВИЛА АУТРО:\n{tts_outro}\n\n"
+        "Напиши TTS скрипт для этой новости строго по инструкции выше.\n\n"
         "НОВОСТЬ:\n"
         f"Заголовок: {item['title']}\n"
         f"Источник: {item.get('source', '')}\n"

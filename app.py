@@ -265,23 +265,47 @@ async def health():
 
 # ── API: NEWS ─────────────────────────────────────────────────────────────
 
+def _score_to_priority(score: int) -> str:
+    if score >= 6: return "hot"
+    if score >= 3: return "good"
+    return "reserve"
+
+
+@app.get("/api/news/counts")
+async def api_news_counts(request: Request):
+    require_auth(request)
+    conn = sqlite3.connect(DB_PATH)
+    rows = conn.execute("SELECT score FROM news WHERE score >= 1").fetchall()
+    conn.close()
+    counts = {"all": 0, "hot": 0, "good": 0, "reserve": 0}
+    for (score,) in rows:
+        p = _score_to_priority(score)
+        counts[p] += 1
+        counts["all"] += 1
+    return counts
+
+
 @app.get("/api/news")
 async def api_news(
     request: Request,
-    min_score: int = 0,
-    limit: int = 100,
-    tab: str = "all",      # all | new | approved
-    sort: str = "score",   # score | date
+    min_score: int = 1,
+    limit: int = 150,
+    tab: str = "all",    # all | hot | good | reserve | approved
+    sort: str = "score", # score | date
 ):
     require_auth(request)
 
     where = ["score >= ?"]
     params: list = [min_score]
 
-    if tab == "new":
-        where.append("approved = 0")
-    elif tab == "approved":
+    if tab == "approved":
         where.append("approved = 1")
+    elif tab == "hot":
+        where.append("score >= 6")
+    elif tab == "good":
+        where.append("score >= 3 AND score < 6")
+    elif tab == "reserve":
+        where.append("score >= 1 AND score < 3")
 
     order = "score DESC, collected DESC" if sort == "score" else "collected DESC"
 
@@ -305,6 +329,7 @@ async def api_news(
             d["preview_titles"] = json.loads(d["preview_titles"]) if d.get("preview_titles") else []
         except Exception:
             d["preview_titles"] = []
+        d["priority"] = _score_to_priority(d["score"])
         result.append(d)
     return result
 

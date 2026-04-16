@@ -5,202 +5,378 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>UZ News Bot</title>
 <style>
-*, *::before, *::after { box-sizing: border-box; }
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 :root {
-  --bg: #f1f5f9; --card: #fff; --border: #e2e8f0;
-  --text: #0f172a; --muted: #64748b;
-  --primary: #2563eb; --primary-h: #1d4ed8;
-  --success: #16a34a; --success-h: #15803d;
-  --orange: #ea580c; --radius: 12px;
+  --bg:      #111;
+  --surface: #1a1a1a;
+  --card:    #1e1e1e;
+  --border:  #2a2a2a;
+  --border2: #333;
+  --text:    #e8e8e8;
+  --muted:   #888;
+  --dim:     #555;
+  --hot:     #ef4444;
+  --hot-bg:  rgba(239,68,68,.12);
+  --hot-bd:  rgba(239,68,68,.28);
+  --good:    #f97316;
+  --good-bg: rgba(249,115,22,.12);
+  --good-bd: rgba(249,115,22,.28);
+  --rsv:     #6b7280;
+  --rsv-bg:  rgba(107,114,128,.1);
+  --rsv-bd:  rgba(107,114,128,.22);
+  --accent:  #f97316;
+  --green:   #22c55e;
 }
-body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
-       background:var(--bg); color:var(--text); font-size:14px; line-height:1.5; }
+html, body { height: 100%; overflow: hidden; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: var(--bg); color: var(--text);
+  font-size: 13px; line-height: 1.5;
+  display: flex; flex-direction: column;
+}
 
-/* Header */
-.header { background:#fff; border-bottom:1px solid var(--border);
-          position:sticky; top:0; z-index:100; }
-.header-inner { max-width:880px; margin:0 auto; padding:.6rem 1rem;
-                display:flex; align-items:center; gap:.75rem; flex-wrap:wrap; }
-.header h1 { margin:0; font-size:1rem; font-weight:700; }
-.header-right { display:flex; align-items:center; gap:.4rem; margin-left:auto; flex-wrap:wrap; }
-.score-lbl { display:flex; align-items:center; gap:.3rem; color:var(--muted);
-             font-size:.78rem; white-space:nowrap; }
-.score-lbl input { width:48px; padding:.28rem .4rem; border:1px solid var(--border);
-                   border-radius:6px; font-size:.8rem; }
+/* scrollbar */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
 
-/* Tabs */
-.tabs { max-width:880px; margin:.8rem auto .2rem; padding:0 1rem;
-        display:flex; gap:.3rem; }
-.tab { padding:.3rem .9rem; border:1px solid var(--border); border-radius:20px;
-       background:#fff; font-size:.78rem; cursor:pointer; color:var(--muted); transition:all .15s; }
-.tab.active { background:var(--primary); color:#fff; border-color:var(--primary); font-weight:600; }
-.tab:hover:not(.active) { background:var(--bg); }
+/* ── LAYOUT ── */
+.layout { display: flex; flex: 1; overflow: hidden; }
 
-/* Sort */
-.sort-row { max-width:880px; margin:0 auto .3rem; padding:0 1rem;
-            display:flex; align-items:center; gap:.4rem; }
-.sort-btn { padding:.22rem .65rem; border:1px solid var(--border); border-radius:5px;
-            background:#fff; font-size:.73rem; cursor:pointer; color:var(--muted); }
-.sort-btn.active { background:var(--text); color:#fff; border-color:var(--text); }
+/* ── SIDEBAR ── */
+.sidebar {
+  width: 210px; min-width: 210px;
+  background: var(--surface); border-right: 1px solid var(--border);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.sidebar-logo {
+  padding: 1rem .9rem .75rem;
+  font-size: .95rem; font-weight: 700; color: var(--accent);
+  border-bottom: 1px solid var(--border); letter-spacing: -.01em;
+  display: flex; align-items: center; gap: .4rem;
+}
+.sidebar-sect { padding: .6rem .65rem .25rem; }
+.sect-label {
+  font-size: .58rem; text-transform: uppercase; letter-spacing: .09em;
+  color: var(--dim); padding: .4rem .4rem .25rem; display: block;
+}
+.sidebar-nav { padding: .4rem .65rem; flex: 1; }
+.nav-item {
+  display: flex; align-items: center; gap: .45rem;
+  padding: .4rem .65rem; border-radius: 7px;
+  color: var(--muted); font-size: .76rem; cursor: default;
+  margin-bottom: 1px; transition: all .13s;
+}
+.nav-item.active { background: var(--card); color: var(--text); }
+.nav-item.soon { opacity: .45; }
+.nav-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--dim); flex-shrink: 0; }
+.nav-item.active .nav-dot { background: var(--accent); }
 
-/* Stats pills */
-.stats { max-width:880px; margin:0 auto .4rem; padding:0 1rem;
-         display:flex; gap:.4rem; flex-wrap:wrap; }
-.pill { background:#fff; border:1px solid var(--border); border-radius:20px;
-        padding:.18rem .7rem; font-size:.73rem; color:var(--muted); }
-.pill strong { color:var(--text); }
+.sidebar-footer {
+  padding: .65rem .9rem; border-top: 1px solid var(--border);
+  display: flex; gap: .3rem; flex-wrap: wrap; align-items: center;
+}
+.el-badge {
+  font-size: .62rem; padding: .12rem .42rem; border-radius: 4px;
+  border: 1px solid; font-weight: 600; white-space: nowrap;
+}
 
-/* Buttons */
-.btn { display:inline-flex; align-items:center; gap:3px; padding:.32rem .75rem;
-       border:none; border-radius:7px; font-size:.76rem; font-weight:500;
-       cursor:pointer; transition:background .12s,opacity .12s; white-space:nowrap; }
-.btn:disabled { opacity:.45; cursor:not-allowed; }
-.btn-primary { background:var(--primary); color:#fff; }
-.btn-primary:hover:not(:disabled) { background:var(--primary-h); }
-.btn-success { background:var(--success); color:#fff; }
-.btn-success:hover:not(:disabled) { background:var(--success-h); }
-.btn-ghost   { background:transparent; border:1px solid var(--border); color:var(--text); }
-.btn-ghost:hover:not(:disabled)   { background:var(--bg); }
-.btn-danger  { background:transparent; border:1px solid #fca5a5; color:#dc2626; }
-.btn-danger:hover:not(:disabled)  { background:#fef2f2; }
-.btn-teal    { background:#0d9488; color:#fff; }
-.btn-teal:hover:not(:disabled)    { background:#0f766e; }
+/* ── FEED ── */
+.feed {
+  flex: 1; min-width: 0; display: flex; flex-direction: column;
+  border-right: 1px solid var(--border); overflow: hidden;
+}
+.feed-header {
+  padding: .75rem .9rem; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: .6rem; flex-shrink: 0;
+}
+.feed-title { font-size: .9rem; font-weight: 700; }
+.feed-updated { font-size: .7rem; color: var(--muted); }
+.btn-collect {
+  margin-left: auto; padding: .36rem .85rem;
+  background: var(--accent); color: #fff; border: none;
+  border-radius: 8px; font-size: .76rem; font-weight: 600;
+  cursor: pointer; white-space: nowrap;
+}
+.btn-collect:hover { opacity: .85; }
+.btn-collect:disabled { opacity: .45; cursor: not-allowed; }
 
-/* List */
-.list { max-width:880px; margin:0 auto; padding:.3rem 1rem 3rem;
-        display:flex; flex-direction:column; gap:.6rem; }
+.feed-tabs {
+  display: flex; padding: .45rem .7rem; gap: .25rem;
+  border-bottom: 1px solid var(--border); flex-shrink: 0; flex-wrap: wrap;
+}
+.tab-btn {
+  padding: .28rem .75rem; border-radius: 20px;
+  border: 1px solid transparent; background: transparent;
+  color: var(--muted); font-size: .72rem; cursor: pointer;
+  transition: all .13s; white-space: nowrap;
+}
+.tab-btn.active { background: var(--card); color: var(--text); border-color: var(--border2); }
+.tab-btn:hover:not(.active) { color: var(--text); }
+.tcnt {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 16px; height: 15px; border-radius: 8px; padding: 0 4px;
+  font-size: .6rem; font-weight: 700; margin-left: 3px;
+}
+.tcnt.hot  { background: var(--hot-bg); color: var(--hot); }
+.tcnt.good { background: var(--good-bg); color: var(--good); }
+.tcnt.rsv  { background: var(--rsv-bg); color: var(--rsv); }
+.tcnt.all  { background: var(--card); color: var(--muted); }
 
-/* Card */
-.card { background:var(--card); border:1px solid var(--border);
-        border-radius:var(--radius); padding:.85rem 1rem; }
-.card.is-approved { border-left:3px solid var(--success); }
+.feed-list {
+  flex: 1; overflow-y: auto; padding: .45rem;
+  display: flex; flex-direction: column; gap: .3rem;
+}
 
-.card-head { display:flex; align-items:flex-start; justify-content:space-between;
-             gap:.4rem; margin-bottom:.35rem; }
-.card-tags { display:flex; align-items:center; gap:.28rem; flex-wrap:wrap; flex:1; min-width:0; }
-.tag { display:inline-block; padding:.1rem .42rem; border-radius:4px;
-       font-size:.67rem; font-weight:500; white-space:nowrap;
-       background:#f1f5f9; color:var(--muted); }
-.tag-src      { background:#eff6ff; color:#1d4ed8; }
-.tag-approved { background:#f0fdf4; color:#15803d; }
-.tag-sent     { background:#faf5ff; color:#7c3aed; }
+/* ── CARD ── */
+.news-card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 9px; padding: .65rem .75rem; cursor: pointer;
+  transition: border-color .13s;
+}
+.news-card:hover { border-color: var(--border2); }
+.news-card.selected { border-color: var(--accent); }
+.news-card.approved { border-left: 2px solid var(--green); }
 
-.score { display:inline-flex; align-items:center; justify-content:center;
-         min-width:30px; height:21px; padding:0 5px; border-radius:5px;
-         font-size:.68rem; font-weight:700; flex-shrink:0; }
-.s0   { background:#f1f5f9; color:#94a3b8; }
-.s-lo { background:#fef3c7; color:#92400e; }
-.s-md { background:#dbeafe; color:#1e40af; }
-.s-hi { background:#dcfce7; color:#166534; }
+.card-top { display: flex; align-items: center; gap: .45rem; margin-bottom: .35rem; }
+.pri-badge {
+  display: inline-flex; align-items: center; gap: 2px;
+  padding: .12rem .45rem; border-radius: 20px;
+  font-size: .6rem; font-weight: 700; white-space: nowrap; flex-shrink: 0;
+}
+.pri-badge.hot     { background: var(--hot-bg); color: var(--hot); border: 1px solid var(--hot-bd); }
+.pri-badge.good    { background: var(--good-bg); color: var(--good); border: 1px solid var(--good-bd); }
+.pri-badge.reserve { background: var(--rsv-bg); color: var(--rsv); border: 1px solid var(--rsv-bd); }
 
-.card-title { font-size:.9rem; font-weight:600; line-height:1.4; margin:.18rem 0 .5rem; }
-.card-title a { color:var(--text); text-decoration:none; }
-.card-title a:hover { color:var(--primary); text-decoration:underline; }
+.card-title { font-size: .8rem; font-weight: 600; line-height: 1.4; color: var(--text); }
+.card-meta {
+  display: flex; align-items: center; gap: .35rem; flex-wrap: wrap;
+  font-size: .67rem; color: var(--muted); margin: .3rem 0 .38rem;
+}
+.meta-sep { color: var(--dim); }
+.meta-score { color: var(--text); font-weight: 600; }
+.meta-tts { color: var(--green); }
 
-/* Content blocks */
-.block-wrap { border-radius:8px; padding:.6rem .75rem; margin:.3rem 0; }
-.block-tts  { background:#f8fafc; border:1px solid var(--border); }
-.block-desc { background:#f0fdf4; border:1px solid #bbf7d0; }
-.block-prev { background:#fff7ed; border:1px solid #fed7aa; }
+.score-bar-wrap { height: 3px; background: var(--border); border-radius: 2px; margin-bottom: .5rem; }
+.score-bar { height: 100%; border-radius: 2px; }
+.score-bar.hot     { background: linear-gradient(90deg, var(--hot), #f97316); }
+.score-bar.good    { background: linear-gradient(90deg, #f97316, #eab308); }
+.score-bar.reserve { background: var(--rsv); }
 
-.block-head { display:flex; align-items:center; justify-content:space-between;
-              gap:.4rem; margin-bottom:.35rem; flex-wrap:wrap; }
-.block-label { font-size:.65rem; font-weight:700; text-transform:uppercase;
-               letter-spacing:.06em; color:var(--muted); }
-.tts-label-color  { color:#475569; }
-.desc-label-color { color:#15803d; }
-.prev-label-color { color:#c2410c; }
+.card-btns { display: flex; gap: .28rem; }
+.btn-sm {
+  padding: .27rem .6rem; border-radius: 6px;
+  border: 1px solid var(--border2); background: transparent;
+  color: var(--muted); font-size: .7rem; cursor: pointer;
+  transition: all .13s; white-space: nowrap;
+}
+.btn-sm:hover { color: var(--text); border-color: var(--text); }
+.btn-sm.gen  { color: var(--accent); border-color: var(--good-bd); }
+.btn-sm.gen:hover { background: var(--good-bg); }
+.btn-sm.tts-done { color: var(--green); border-color: rgba(34,197,94,.25); }
 
-.dirty-flag { font-size:.65rem; color:#d97706; display:none; }
+/* ── DETAIL ── */
+.detail {
+  width: 350px; min-width: 300px; max-width: 400px;
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.detail-empty {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  color: var(--dim); gap: .35rem; text-align: center; padding: 2rem;
+}
+.detail-empty svg { opacity: .25; margin-bottom: .3rem; }
 
-.block-textarea { width:100%; font-size:.82rem; line-height:1.65; color:#374151;
-                  font-family:inherit; border:none; background:transparent; resize:vertical;
-                  outline:none; min-height:70px; padding:0; }
-.block-textarea:focus { background:#fff; border-radius:4px; padding:.3rem; margin:-.3rem;
-                        box-shadow:0 0 0 2px rgba(37,99,235,.2); }
+.d-header {
+  padding: .75rem .9rem; border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.d-source { font-size: .67rem; color: var(--muted); margin-bottom: .18rem; }
+.d-title { font-size: .85rem; font-weight: 600; line-height: 1.45; }
+.d-title a { color: var(--text); text-decoration: none; }
+.d-title a:hover { color: var(--accent); }
+.d-score { margin-top: .42rem; font-size: .69rem; color: var(--muted); display: flex; align-items: center; gap: .4rem; }
+.d-score-val { color: var(--accent); font-weight: 700; }
 
-/* Preview pills */
-.prev-list { display:flex; flex-direction:column; gap:.28rem; }
-.prev-item { background:#fff; border:1px solid #fed7aa; border-radius:6px;
-             padding:.38rem .65rem; font-size:.78rem; font-weight:700;
-             color:#c2410c; cursor:pointer; letter-spacing:.03em;
-             display:flex; align-items:center; justify-content:space-between; gap:.4rem; }
-.prev-item:hover { background:#ffedd5; }
-.prev-copy-hint { font-size:.62rem; font-weight:400; color:#d97706; opacity:.7; }
+.d-body {
+  flex: 1; overflow-y: auto; padding: .75rem .9rem;
+  display: flex; flex-direction: column; gap: .75rem;
+}
+.blk-label {
+  font-size: .59rem; text-transform: uppercase; letter-spacing: .07em;
+  color: var(--muted); margin-bottom: .3rem;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.blk-actions { display: flex; gap: .2rem; align-items: center; }
+.btn-lbl {
+  padding: .1rem .38rem; border-radius: 4px;
+  border: 1px solid var(--border2); background: transparent;
+  color: var(--dim); font-size: .62rem; cursor: pointer;
+}
+.btn-lbl:hover { color: var(--text); }
+.dirty-dot {
+  width: 5px; height: 5px; border-radius: 50%;
+  background: #f59e0b; display: none; flex-shrink: 0;
+}
 
-/* Actions */
-.card-actions { display:flex; gap:.3rem; flex-wrap:wrap; margin-top:.5rem; align-items:center; }
+.d-ta {
+  width: 100%; background: var(--bg); border: 1px solid var(--border);
+  border-radius: 7px; color: var(--text); font-family: inherit;
+  font-size: .79rem; line-height: 1.6; padding: .55rem .7rem;
+  resize: vertical; outline: none; min-height: 60px;
+}
+.d-ta:focus { border-color: var(--accent); }
 
-/* ElevenLabs account select */
-.el-select { padding:.32rem .5rem; border:1px solid var(--border); border-radius:7px;
-             font-size:.76rem; background:#fff; color:var(--text); cursor:pointer;
-             max-width:160px; }
+.prev-list { display: flex; flex-direction: column; gap: .28rem; }
+.prev-pill {
+  background: var(--card); border: 1px solid var(--border2);
+  border-radius: 7px; padding: .38rem .65rem;
+  font-size: .76rem; font-weight: 700; color: var(--accent);
+  cursor: pointer; display: flex; align-items: center;
+  justify-content: space-between; gap: .3rem; letter-spacing: .02em;
+}
+.prev-pill:hover { background: var(--good-bg); border-color: var(--good-bd); }
+.prev-hint { font-size: .59rem; color: var(--dim); font-weight: 400; }
 
-/* Spinner */
-.spin { display:inline-block; width:11px; height:11px;
-        border:2px solid rgba(255,255,255,.3); border-top-color:#fff;
-        border-radius:50%; animation:rot .5s linear infinite; }
-@keyframes rot { to { transform:rotate(360deg); } }
+.d-footer {
+  padding: .7rem .9rem; border-top: 1px solid var(--border);
+  display: flex; gap: .35rem; flex-wrap: wrap; flex-shrink: 0; align-items: center;
+}
+.btn-act {
+  padding: .36rem .8rem; border-radius: 7px; font-size: .74rem;
+  font-weight: 600; cursor: pointer; border: 1px solid transparent;
+  transition: opacity .13s; white-space: nowrap;
+}
+.btn-act:disabled { opacity: .4; cursor: not-allowed; }
+.ba-approve { background: var(--green); color: #fff; }
+.ba-approve:hover:not(:disabled) { opacity: .85; }
+.ba-gen { background: var(--accent); color: #fff; }
+.ba-gen:hover:not(:disabled) { opacity: .85; }
+.ba-regen { background: transparent; color: var(--muted); border-color: var(--border2); }
+.ba-regen:hover:not(:disabled) { color: var(--text); border-color: var(--text); }
+.ba-speak { background: #0d9488; color: #fff; }
+.ba-speak:hover:not(:disabled) { opacity: .85; }
+.el-sel {
+  padding: .33rem .45rem; border: 1px solid var(--border2); border-radius: 6px;
+  background: var(--bg); color: var(--text); font-size: .72rem; cursor: pointer;
+}
 
-/* Toast */
-.toast { position:fixed; bottom:1.3rem; right:1.3rem; background:#1e293b;
-         color:#fff; padding:.55rem 1rem; border-radius:8px; font-size:.8rem;
-         opacity:0; transform:translateY(8px); transition:opacity .18s,transform .18s;
-         z-index:999; pointer-events:none; max-width:300px; }
-.toast.on  { opacity:1; transform:translateY(0); }
-.toast.err { background:#dc2626; }
+/* ── SPINNER ── */
+.spin {
+  display: inline-block; width: 11px; height: 11px;
+  border: 2px solid rgba(255,255,255,.3); border-top-color: #fff;
+  border-radius: 50%; animation: rot .5s linear infinite;
+}
+@keyframes rot { to { transform: rotate(360deg); } }
 
-/* Empty */
-.empty { text-align:center; padding:3rem 1rem; color:var(--muted); }
+/* ── TOAST ── */
+.toast {
+  position: fixed; bottom: 1.1rem; right: 1.1rem;
+  background: #1e293b; color: #fff; padding: .48rem .95rem;
+  border-radius: 8px; font-size: .77rem;
+  opacity: 0; transform: translateY(5px);
+  transition: opacity .17s, transform .17s; z-index: 999;
+  pointer-events: none; max-width: 280px;
+}
+.toast.on  { opacity: 1; transform: none; }
+.toast.err { background: var(--hot); }
+
+.empty-state { text-align: center; padding: 2.5rem 1rem; color: var(--dim); font-size: .8rem; }
+
+@media (max-width: 680px) {
+  .sidebar, .detail { display: none; }
+}
 </style>
 </head>
 <body>
+<div class="layout">
 
-<header class="header">
-  <div class="header-inner">
-    <h1>📰 UZ News Bot</h1>
-    <div class="header-right">
-      <div id="elCredits" style="display:flex;gap:.35rem;align-items:center;flex-wrap:wrap"></div>
-      <div class="score-lbl">Score ≥
-        <input type="number" id="minScore" value="1" min="0" max="20" onchange="load()">
-      </div>
-      <button class="btn btn-ghost" onclick="load()">↻</button>
-      <button class="btn btn-primary" id="collectBtn" onclick="collectNow()">Collect Now</button>
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">📰 UZ News Bot</div>
+
+    <div class="sidebar-nav" style="padding-top:.7rem">
+      <span class="sect-label">Раздел</span>
+      <div class="nav-item active"><span class="nav-dot"></span>Новости</div>
+      <div class="nav-item soon"><span class="nav-dot"></span>Контент</div>
+      <div class="nav-item soon"><span class="nav-dot"></span>Статистика</div>
+      <div class="nav-item soon"><span class="nav-dot"></span>Аналитика</div>
+      <div class="nav-item soon"><span class="nav-dot"></span>Настройки</div>
     </div>
-  </div>
-</header>
 
-<div class="tabs" id="tabs">
-  <button class="tab active" data-tab="all"      onclick="setTab('all')">Все</button>
-  <button class="tab"        data-tab="new"      onclick="setTab('new')">Новые</button>
-  <button class="tab"        data-tab="approved" onclick="setTab('approved')">Одобренные</button>
+    <div class="sidebar-footer">
+      <span style="font-size:.62rem;color:var(--dim);width:100%;margin-bottom:.2rem">ElevenLabs</span>
+      <div id="elBadges" style="display:flex;gap:.28rem;flex-wrap:wrap"></div>
+    </div>
+  </aside>
+
+  <!-- FEED -->
+  <main class="feed">
+    <div class="feed-header">
+      <span class="feed-title">Лента новостей</span>
+      <span class="feed-updated" id="updatedAt"></span>
+      <button class="btn-collect" id="collectBtn" onclick="collectNow()">Собрать сейчас</button>
+    </div>
+
+    <div class="feed-tabs">
+      <button class="tab-btn active" data-tab="all"     onclick="setTab('all')">
+        Все <span class="tcnt all" id="cnt-all">0</span>
+      </button>
+      <button class="tab-btn" data-tab="hot"     onclick="setTab('hot')">
+        🔥 Горящие <span class="tcnt hot" id="cnt-hot">0</span>
+      </button>
+      <button class="tab-btn" data-tab="good"    onclick="setTab('good')">
+        ⚡ Хорошие <span class="tcnt good" id="cnt-good">0</span>
+      </button>
+      <button class="tab-btn" data-tab="reserve" onclick="setTab('reserve')">
+        📋 Резерв <span class="tcnt rsv" id="cnt-reserve">0</span>
+      </button>
+      <button class="tab-btn" data-tab="approved" onclick="setTab('approved')">
+        ✓ Одобрено
+      </button>
+    </div>
+
+    <div class="feed-list" id="feedList">
+      <div class="empty-state">Загрузка…</div>
+    </div>
+  </main>
+
+  <!-- DETAIL -->
+  <aside class="detail">
+    <div class="detail-empty" id="detailEmpty">
+      <svg width="34" height="34" fill="none" stroke="currentColor" stroke-width="1.4" viewBox="0 0 24 24">
+        <rect x="3" y="3" width="18" height="18" rx="2.5"/>
+        <path d="M7 8h10M7 12h6M7 16h8"/>
+      </svg>
+      <div style="font-size:.8rem">Выбери новость</div>
+      <div style="font-size:.7rem">чтобы увидеть детали и скрипт</div>
+    </div>
+    <div id="detailContent" style="display:none;flex:1;flex-direction:column;overflow:hidden"></div>
+  </aside>
+
 </div>
 
-<div class="sort-row">
-  <span style="font-size:.73rem;color:var(--muted)">Сорт:</span>
-  <button class="sort-btn active" id="sort-score" onclick="setSort('score')">★ Score</button>
-  <button class="sort-btn"        id="sort-date"  onclick="setSort('date')">🕐 Дата</button>
-</div>
-
-<div class="stats" id="stats"></div>
-<div class="list"  id="list"><div class="empty">Загрузка…</div></div>
 <div class="toast" id="toast"></div>
 
 <script>
 "use strict";
-let data = [], curTab = "all", curSort = "score";
+let news = [], curTab = "all", selectedId = null;
 
 /* ── HTTP ── */
-async function req(method, path) {
-  const r = await fetch(path, { method });
+async function api(method, path, body) {
+  const opts = { method };
+  if (body !== undefined) {
+    opts.headers = { "Content-Type": "application/json" };
+    opts.body = JSON.stringify(body);
+  }
+  const r = await fetch(path, opts);
   if (r.status === 401) { location.href = "/login"; return null; }
-  if (r.status === 204)  return null;
   if (!r.ok) {
     let msg = "";
     try { const j = await r.json(); msg = j.detail || JSON.stringify(j); }
     catch(_) { msg = await r.text(); }
     throw new Error(msg);
   }
+  if (r.status === 204) return null;
   return r.json();
 }
 
@@ -210,341 +386,342 @@ function toast(msg, err=false) {
   el.textContent = msg;
   el.className = "toast on" + (err?" err":"");
   clearTimeout(el._t);
-  el._t = setTimeout(()=>el.classList.remove("on"), 3800);
+  el._t = setTimeout(() => el.classList.remove("on"), 3500);
 }
 
 /* ── Helpers ── */
-function esc(s){ return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
-function scoreClass(s){ if(!s)return"s0"; if(s<=2)return"s-lo"; if(s<=4)return"s-md"; return"s-hi"; }
-function fmtDate(str){
-  if(!str) return "";
-  try {
-    const d = new Date(str);
-    if(!isNaN(d)) return d.toLocaleDateString("ru-RU",{day:"2-digit",month:"2-digit"})
-                        +" "+d.toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"});
-  } catch(_) {}
-  return str.slice(0,16).replace("T"," ");
+function esc(s) {
+  return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 }
-
-/* ── Tab / Sort ── */
-function setTab(t){
-  curTab = t;
-  document.querySelectorAll(".tab").forEach(b=>b.classList.toggle("active",b.dataset.tab===t));
-  load();
+function timeAgo(str) {
+  if (!str) return "";
+  const mins = Math.round((Date.now() - new Date(str)) / 60000);
+  if (mins < 1)  return "только что";
+  if (mins < 60) return `${mins}м назад`;
+  const h = Math.floor(mins/60);
+  if (h < 24)    return `${h}ч назад`;
+  return `${Math.floor(h/24)}д назад`;
 }
-function setSort(s){
-  curSort = s;
-  document.getElementById("sort-score").classList.toggle("active", s==="score");
-  document.getElementById("sort-date").classList.toggle("active",  s==="date");
-  load();
+function priLabel(p) {
+  return p==="hot"?"🔥 Горящая": p==="good"?"⚡ Хорошая":"📋 Резерв";
 }
+function fmtCr(n) { return n<0?"Err":n>=1000?Math.round(n/1000)+"k":n+" chr"; }
 
-/* ── Card HTML ── */
-function cardHtml(n){
-  const approved = n.approved===1, hasTTS = !!n.tts_script, sent = n.sent_tg===1;
-  const hasDesc  = !!n.description;
-  const previews = Array.isArray(n.preview_titles) ? n.preview_titles : [];
-
-  const tags = [
-    `<span class="tag tag-src">${esc(n.source||"")}</span>`,
-    n.published ? `<span class="tag">${fmtDate(n.published)}</span>` : "",
-    approved    ? `<span class="tag tag-approved">✓ Approved</span>` : "",
-    sent        ? `<span class="tag tag-sent">Sent TG</span>` : "",
-  ].filter(Boolean).join("");
-
-  /* TTS block */
-  const ttsBlock = hasTTS ? `
-    <div class="block-wrap block-tts">
-      <div class="block-head">
-        <span class="block-label tts-label-color">🎙 TTS (Claude)</span>
-        <span class="dirty-flag" id="dirty-tts-${n.id}">● не сохранено</span>
-        <div style="display:flex;gap:.3rem">
-          <button class="btn btn-ghost" style="padding:.18rem .5rem;font-size:.7rem"
-                  onclick="saveTTS(${n.id})">Сохранить</button>
-          <button class="btn btn-ghost" style="padding:.18rem .5rem;font-size:.7rem"
-                  onclick="copyTA('tts-${n.id}')">Copy</button>
-        </div>
-      </div>
-      <textarea class="block-textarea" id="tts-${n.id}"
-                oninput="markDirty('tts',${n.id})" rows="6">${esc(n.tts_script)}</textarea>
-    </div>` : "";
-
-  /* Description block */
-  const descBlock = hasDesc ? `
-    <div class="block-wrap block-desc">
-      <div class="block-head">
-        <span class="block-label desc-label-color">📝 Описание</span>
-        <span class="dirty-flag" id="dirty-desc-${n.id}">● не сохранено</span>
-        <div style="display:flex;gap:.3rem">
-          <button class="btn btn-ghost" style="padding:.18rem .5rem;font-size:.7rem"
-                  onclick="saveDesc(${n.id})">Сохранить</button>
-          <button class="btn btn-ghost" style="padding:.18rem .5rem;font-size:.7rem"
-                  onclick="copyTA('desc-${n.id}')">Copy</button>
-        </div>
-      </div>
-      <textarea class="block-textarea" id="desc-${n.id}"
-                oninput="markDirty('desc',${n.id})" rows="5">${esc(n.description)}</textarea>
-    </div>` : "";
-
-  /* Preview titles block */
-  const prevItems = previews.map((p,i)=>`
-    <div class="prev-item" onclick="copyPreview(this)">
-      <span>${esc(p)}</span>
-      <span class="prev-copy-hint">нажми — скопировать</span>
-    </div>`).join("");
-  const prevBlock = previews.length ? `
-    <div class="block-wrap block-prev">
-      <div class="block-head">
-        <span class="block-label prev-label-color">🖼 Превью (3 варианта)</span>
-      </div>
-      <div class="prev-list">${prevItems}</div>
-    </div>` : "";
-
-  /* Speak button */
-  const speakBtn = hasTTS ? `
-    <select class="el-select" id="el-acc-${n.id}">
-      <option value="0">🤖 Авто</option>
-      <option value="1">Акк 1</option>
-      <option value="2">Акк 2</option>
-    </select>
-    <button class="btn btn-teal" id="speak-btn-${n.id}" onclick="speak(${n.id})">🎙 Озвучить</button>` : "";
-
-  /* Action buttons */
-  let actions = "";
-  if (!hasTTS) {
-    actions = `
-      <button class="btn btn-primary" id="gen-${n.id}" onclick="generate(${n.id})">✨ Generate</button>
-      <button class="btn btn-danger"  onclick="del(${n.id})">Delete</button>`;
-  } else {
-    actions = `
-      <button class="btn btn-success" id="apr-${n.id}" onclick="approve(${n.id})" ${approved?"disabled":""}>
-        ${approved?"✓ Approved":"Одобрить"}</button>
-      ${speakBtn}
-      <button class="btn btn-ghost" id="reg-${n.id}" onclick="regen(${n.id})">↺ Regenerate</button>
-      <button class="btn btn-danger" onclick="del(${n.id})">Delete</button>`;
-  }
-
-  return `
-    <div class="card ${approved?"is-approved":""}" id="card-${n.id}">
-      <div class="card-head">
-        <div class="card-tags">${tags}</div>
-        <span class="score ${scoreClass(n.score)}">★ ${n.score}</span>
-      </div>
-      <div class="card-title">
-        <a href="${esc(n.url)}" target="_blank" rel="noopener">${esc(n.title)}</a>
-      </div>
-      ${ttsBlock}${descBlock}${prevBlock}
-      <div class="card-actions">${actions}</div>
-    </div>`;
-}
-
-function replaceCard(id){
-  const n=data.find(x=>x.id===id); if(!n) return;
-  const el=document.getElementById("card-"+id); if(!el) return;
-  const tmp=document.createElement("div");
-  tmp.innerHTML=cardHtml(n);
-  el.replaceWith(tmp.firstElementChild);
-  loadCredits(); // refresh account selects
+/* ── Tab ── */
+function setTab(tab) {
+  curTab = tab;
+  document.querySelectorAll(".tab-btn").forEach(b=>b.classList.toggle("active",b.dataset.tab===tab));
+  renderFeed();
 }
 
 /* ── Load ── */
-async function load(){
-  const min = parseInt(document.getElementById("minScore").value)||0;
+async function load() {
   try {
-    data = await req("GET", `/api/news?min_score=${min}&limit=100&tab=${curTab}&sort=${curSort}`);
-    if(!data) return;
-    const total=data.length, approved=data.filter(n=>n.approved).length,
-          withTTS=data.filter(n=>n.tts_script).length;
-    document.getElementById("stats").innerHTML =
-      `<div class="pill">Всего: <strong>${total}</strong></div>
-       <div class="pill">С TTS: <strong>${withTTS}</strong></div>
-       <div class="pill">Одобрено: <strong>${approved}</strong></div>`;
-    const list=document.getElementById("list");
-    list.innerHTML=data.length?data.map(cardHtml).join(""):
-      `<div class="empty">Нет новостей. Попробуй другой таб или нажми "Collect Now".</div>`;
-  } catch(e){ toast("Ошибка: "+e.message, true); }
-}
-
-/* ── Collect ── */
-async function collectNow(){
-  const btn=document.getElementById("collectBtn");
-  btn.disabled=true; btn.innerHTML=`<span class="spin"></span> Collecting…`;
-  try {
-    await req("POST","/api/collect");
-    toast("Сбор запущен — обновление через ~15с");
-    setTimeout(load,15000);
-  } catch(e){ toast("Ошибка: "+e.message,true); }
-  finally { setTimeout(()=>{btn.disabled=false;btn.textContent="Collect Now";},12000); }
-}
-
-/* ── Generate ── */
-async function generate(id){
-  const btn=document.getElementById("gen-"+id);
-  if(btn){btn.disabled=true;btn.innerHTML=`<span class="spin"></span> Генерирую…`;}
-  try {
-    const res=await req("POST",`/api/news/${id}/generate`);
-    if(!res) return;
-    const n=data.find(x=>x.id===id);
-    if(n){
-      n.tts_script=res.tts_script;
-      n.description=res.description;
-      n.preview_titles=res.preview_titles||[];
+    [news] = await Promise.all([
+      api("GET", "/api/news?min_score=1&limit=150"),
+      loadCounts(),
+    ]);
+    news = news || [];
+    document.getElementById("updatedAt").textContent =
+      "Обновлено " + new Date().toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"});
+    renderFeed();
+    if (selectedId) {
+      const n = news.find(x=>x.id===selectedId);
+      if (n) renderDetail(n); else clearDetail();
     }
-    replaceCard(id); toast("TTS + Описание + Превью готовы ✓");
-  } catch(e){ toast("Ошибка: "+e.message,true); if(btn){btn.disabled=false;btn.textContent="✨ Generate";} }
+  } catch(e) { toast("Ошибка: "+e.message, true); }
 }
 
-/* ── Approve ── */
-async function approve(id){
+async function loadCounts() {
   try {
-    await req("POST",`/api/news/${id}/approve`);
-    const n=data.find(x=>x.id===id); if(n) n.approved=1;
-    replaceCard(id); toast("Одобрено ✓");
-  } catch(e){ toast("Ошибка: "+e.message,true); }
+    const c = await api("GET", "/api/news/counts");
+    if (!c) return;
+    document.getElementById("cnt-all").textContent     = c.all     || 0;
+    document.getElementById("cnt-hot").textContent     = c.hot     || 0;
+    document.getElementById("cnt-good").textContent    = c.good    || 0;
+    document.getElementById("cnt-reserve").textContent = c.reserve || 0;
+  } catch(_) {}
 }
 
-/* ── Regenerate ── */
-async function regen(id){
-  const btn=document.getElementById("reg-"+id);
-  if(btn){btn.disabled=true;btn.textContent="Генерирую…";}
-  try {
-    const res=await req("POST",`/api/news/${id}/regenerate`);
-    if(!res) return;
-    const n=data.find(x=>x.id===id);
-    if(n){
-      n.tts_script=res.tts_script;
-      n.description=res.description;
-      n.preview_titles=res.preview_titles||[];
-      n.approved=0;
-    }
-    replaceCard(id); toast("Перегенерировано ✓");
-  } catch(e){ toast("Ошибка: "+e.message,true); if(btn){btn.disabled=false;btn.textContent="↺ Regenerate";} }
+/* ── Render feed ── */
+function renderFeed() {
+  let filtered = news;
+  if (curTab === "hot")      filtered = news.filter(n=>n.priority==="hot");
+  else if (curTab === "good") filtered = news.filter(n=>n.priority==="good");
+  else if (curTab === "reserve") filtered = news.filter(n=>n.priority==="reserve");
+  else if (curTab === "approved") filtered = news.filter(n=>n.approved===1);
+
+  const list = document.getElementById("feedList");
+  if (!filtered.length) {
+    list.innerHTML = `<div class="empty-state">Нет новостей в этой категории</div>`;
+    return;
+  }
+  list.innerHTML = filtered.map(cardHtml).join("");
 }
 
-/* ── Delete ── */
-async function del(id){
-  if(!confirm("Удалить эту новость?")) return;
+function cardHtml(n) {
+  const p = n.priority || "reserve";
+  const barW = Math.min(100, Math.round((n.score / 10) * 100));
+  const hasTTS = !!n.tts_script;
+  return `
+    <div class="news-card${selectedId===n.id?" selected":""}${n.approved?" approved":""}"
+         id="card-${n.id}" onclick="selectCard(${n.id})">
+      <div class="card-top">
+        <span class="pri-badge ${p}">${priLabel(p)}</span>
+        ${n.approved?'<span style="font-size:.6rem;color:var(--green);margin-left:auto">✓ Одобрено</span>':''}
+      </div>
+      <div class="card-title">${esc(n.title)}</div>
+      <div class="card-meta">
+        <span>${esc(n.source||"")}</span>
+        <span class="meta-sep">·</span>
+        <span>${timeAgo(n.collected||n.created_at)}</span>
+        <span class="meta-sep">·</span>
+        <span>оценка <span class="meta-score">${n.score}</span></span>
+        ${hasTTS?'<span class="meta-sep">·</span><span class="meta-tts">✓ TTS</span>':""}
+      </div>
+      <div class="score-bar-wrap">
+        <div class="score-bar ${p}" style="width:${barW}%"></div>
+      </div>
+      <div class="card-btns" onclick="event.stopPropagation()">
+        ${!hasTTS
+          ? `<button class="btn-sm gen" onclick="generateCard(${n.id})">Генерировать</button>`
+          : `<button class="btn-sm tts-done" onclick="selectCard(${n.id})">Открыть скрипт</button>`}
+        <button class="btn-sm" onclick="event.stopPropagation();delCard(${n.id})">Удалить</button>
+      </div>
+    </div>`;
+}
+
+/* ── Select ── */
+function selectCard(id) {
+  selectedId = id;
+  document.querySelectorAll(".news-card").forEach(el=>
+    el.classList.toggle("selected", el.id==="card-"+id));
+  const n = news.find(x=>x.id===id);
+  if (n) renderDetail(n);
+}
+function clearDetail() {
+  selectedId = null;
+  document.getElementById("detailEmpty").style.display = "flex";
+  document.getElementById("detailContent").style.display = "none";
+}
+
+/* ── Detail ── */
+function renderDetail(n) {
+  document.getElementById("detailEmpty").style.display = "none";
+  const dc = document.getElementById("detailContent");
+  dc.style.display = "flex";
+
+  const p = n.priority || "reserve";
+  const previews = Array.isArray(n.preview_titles) ? n.preview_titles : [];
+  const hasTTS  = !!n.tts_script;
+  const hasDesc = !!n.description;
+
+  const ttsBlock = hasTTS ? `
+    <div>
+      <div class="blk-label">🎙 TTS (Claude)
+        <div class="blk-actions">
+          <span class="dirty-dot" id="dirty-tts-${n.id}"></span>
+          <button class="btn-lbl" onclick="saveTTS(${n.id})">Сохранить</button>
+          <button class="btn-lbl" onclick="copyTA('tts-${n.id}')">Copy</button>
+        </div>
+      </div>
+      <textarea class="d-ta" id="tts-${n.id}" oninput="markDirty('tts',${n.id})" rows="8">${esc(n.tts_script)}</textarea>
+    </div>` : `<div style="font-size:.77rem;color:var(--muted);text-align:center;padding:.4rem 0">
+      Нажми «Генерировать» для создания TTS</div>`;
+
+  const descBlock = hasDesc ? `
+    <div>
+      <div class="blk-label">📝 Описание
+        <div class="blk-actions">
+          <span class="dirty-dot" id="dirty-desc-${n.id}"></span>
+          <button class="btn-lbl" onclick="saveDesc(${n.id})">Сохранить</button>
+          <button class="btn-lbl" onclick="copyTA('desc-${n.id}')">Copy</button>
+        </div>
+      </div>
+      <textarea class="d-ta" id="desc-${n.id}" oninput="markDirty('desc',${n.id})" rows="5">${esc(n.description)}</textarea>
+    </div>` : "";
+
+  const prevBlock = previews.length ? `
+    <div>
+      <div class="blk-label">🖼 Превью — нажми чтобы скопировать</div>
+      <div class="prev-list">
+        ${previews.map(pv=>`
+          <div class="prev-pill" onclick="copyPrev(this)">
+            <span>${esc(pv)}</span>
+            <span class="prev-hint">copy</span>
+          </div>`).join("")}
+      </div>
+    </div>` : "";
+
+  dc.innerHTML = `
+    <div class="d-header">
+      <div class="d-source">${esc(n.source||"")} · <span class="pri-badge ${p}" style="display:inline-flex">${priLabel(p)}</span></div>
+      <div class="d-title"><a href="${esc(n.url)}" target="_blank" rel="noopener">${esc(n.title)}</a></div>
+      <div class="d-score">
+        Оценка: <span class="d-score-val">${n.score}</span>
+        ${n.approved?'<span style="color:var(--green)">· ✓ Одобрено</span>':""}
+      </div>
+    </div>
+    <div class="d-body">${ttsBlock}${descBlock}${prevBlock}</div>
+    <div class="d-footer">
+      ${hasTTS ? `
+        <button class="btn-act ba-approve" id="apr-${n.id}"
+                onclick="approveNews(${n.id})" ${n.approved?"disabled":""}>
+          ${n.approved?"✓ Одобрено":"Одобрить"}</button>
+        <select class="el-sel" id="el-${n.id}">
+          <option value="0">🤖 Авто</option>
+          <option value="1">Акк 1</option>
+          <option value="2">Акк 2</option>
+        </select>
+        <button class="btn-act ba-speak" onclick="speakNews(${n.id})">🎙 Озвучить</button>
+        <button class="btn-act ba-regen" onclick="regenNews(${n.id})">↺ Заново</button>
+      ` : `
+        <button class="btn-act ba-gen" id="gen-det-${n.id}" onclick="generateCard(${n.id})">✨ Генерировать</button>
+      `}
+    </div>`;
+}
+
+/* ── Actions ── */
+async function collectNow() {
+  const btn = document.getElementById("collectBtn");
+  btn.disabled=true; btn.innerHTML=`<span class="spin"></span> Сбор…`;
   try {
-    await req("DELETE",`/api/news/${id}`);
-    data=data.filter(x=>x.id!==id);
-    document.getElementById("card-"+id)?.remove();
+    await api("POST","/api/collect");
+    toast("Сбор запущен — обновление через ~20с");
+    setTimeout(load, 20000);
+  } catch(e) { toast("Ошибка: "+e.message, true); }
+  finally { setTimeout(()=>{btn.disabled=false;btn.textContent="Собрать сейчас";},15000); }
+}
+
+async function generateCard(id) {
+  const cardBtn = document.querySelector(`#card-${id} .btn-sm.gen`);
+  const detBtn  = document.getElementById("gen-det-"+id);
+  if (cardBtn) { cardBtn.disabled=true; cardBtn.innerHTML=`<span class="spin" style="border-top-color:var(--accent)"></span>`; }
+  if (detBtn)  { detBtn.disabled=true;  detBtn.innerHTML=`<span class="spin"></span> Генерирую…`; }
+  try {
+    const res = await api("POST", `/api/news/${id}/generate`);
+    if (!res) return;
+    const n = news.find(x=>x.id===id);
+    if (n) { n.tts_script=res.tts_script; n.description=res.description; n.preview_titles=res.preview_titles||[]; }
+    renderFeed();
+    if (selectedId===id && n) renderDetail(n);
+    toast("TTS + Описание + Превью готовы ✓");
+  } catch(e) {
+    toast("Ошибка: "+e.message, true);
+    renderFeed();
+    if (selectedId===id) { const n=news.find(x=>x.id===id); if(n) renderDetail(n); }
+  }
+}
+
+async function regenNews(id) {
+  const btn = document.querySelector(".d-footer .ba-regen");
+  if (btn) { btn.disabled=true; btn.textContent="Генерирую…"; }
+  try {
+    const res = await api("POST", `/api/news/${id}/regenerate`);
+    if (!res) return;
+    const n = news.find(x=>x.id===id);
+    if (n) { n.tts_script=res.tts_script; n.description=res.description; n.preview_titles=res.preview_titles||[]; n.approved=0; }
+    renderFeed();
+    if (selectedId===id && n) renderDetail(n);
+    toast("Перегенерировано ✓");
+  } catch(e) { toast("Ошибка: "+e.message, true); if(btn){btn.disabled=false;btn.textContent="↺ Заново";} }
+}
+
+async function approveNews(id) {
+  try {
+    await api("POST", `/api/news/${id}/approve`);
+    const n = news.find(x=>x.id===id); if(n) n.approved=1;
+    renderFeed(); loadCounts();
+    if (selectedId===id && n) renderDetail(n);
+    toast("Одобрено ✓");
+  } catch(e) { toast("Ошибка: "+e.message, true); }
+}
+
+async function delCard(id) {
+  if (!confirm("Удалить новость?")) return;
+  try {
+    await api("DELETE", `/api/news/${id}`);
+    news = news.filter(x=>x.id!==id);
+    if (selectedId===id) clearDetail();
+    renderFeed(); loadCounts();
     toast("Удалено");
-  } catch(e){ toast("Ошибка: "+e.message,true); }
+  } catch(e) { toast("Ошибка: "+e.message, true); }
 }
 
-/* ── Dirty flags ── */
-function markDirty(type, id){
-  const d=document.getElementById(`dirty-${type}-${id}`);
-  if(d) d.style.display="inline";
+/* ── Save ── */
+function markDirty(type, id) {
+  const d = document.getElementById(`dirty-${type}-${id}`);
+  if (d) d.style.display="inline-block";
 }
-
-/* ── Save TTS ── */
-async function saveTTS(id, silent=false){
-  const ta=document.getElementById("tts-"+id); if(!ta) return;
-  const text=ta.value.trim();
-  if(!text){ toast("Текст пустой",true); return; }
+async function saveTTS(id) {
+  const ta = document.getElementById("tts-"+id); if(!ta) return;
+  const text = ta.value.trim(); if(!text) return;
   try {
-    await fetch(`/api/news/${id}/tts`,{
-      method:"PATCH",headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({tts_script:text})
-    });
-    const d=document.getElementById("dirty-tts-"+id);
-    if(d) d.style.display="none";
-    const n=data.find(x=>x.id===id); if(n) n.tts_script=text;
-    if(!silent) toast("TTS сохранён ✓");
-  } catch(e){ toast("Ошибка: "+e.message,true); }
+    await api("PATCH", `/api/news/${id}/tts`, {tts_script:text});
+    const n=news.find(x=>x.id===id); if(n) n.tts_script=text;
+    const d=document.getElementById("dirty-tts-"+id); if(d) d.style.display="none";
+    toast("TTS сохранён ✓");
+  } catch(e) { toast("Ошибка: "+e.message, true); }
 }
-
-/* ── Save Description ── */
-async function saveDesc(id){
-  const ta=document.getElementById("desc-"+id); if(!ta) return;
-  const text=ta.value.trim();
-  if(!text){ toast("Текст пустой",true); return; }
+async function saveDesc(id) {
+  const ta = document.getElementById("desc-"+id); if(!ta) return;
+  const text = ta.value.trim(); if(!text) return;
   try {
-    await fetch(`/api/news/${id}/description`,{
-      method:"PATCH",headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({description:text})
-    });
-    const d=document.getElementById("dirty-desc-"+id);
-    if(d) d.style.display="none";
-    const n=data.find(x=>x.id===id); if(n) n.description=text;
+    await api("PATCH", `/api/news/${id}/description`, {description:text});
+    const n=news.find(x=>x.id===id); if(n) n.description=text;
+    const d=document.getElementById("dirty-desc-"+id); if(d) d.style.display="none";
     toast("Описание сохранено ✓");
-  } catch(e){ toast("Ошибка: "+e.message,true); }
+  } catch(e) { toast("Ошибка: "+e.message, true); }
 }
 
-/* ── Copy textarea ── */
-async function copyTA(elId){
+/* ── Copy ── */
+async function copyTA(elId) {
   const el=document.getElementById(elId); if(!el) return;
   try { await navigator.clipboard.writeText(el.value||el.textContent); }
-  catch(_){ el.select?.(); document.execCommand("copy"); }
+  catch(_) { el.select?.(); document.execCommand("copy"); }
   toast("Скопировано ✓");
 }
-
-/* ── Copy preview pill ── */
-async function copyPreview(el){
-  const text=el.querySelector("span")?.textContent?.trim()||el.textContent.trim();
-  try { await navigator.clipboard.writeText(text); }
-  catch(_){ const r=document.createRange();r.selectNode(el);
-    window.getSelection().removeAllRanges();window.getSelection().addRange(r);
-    document.execCommand("copy");window.getSelection().removeAllRanges(); }
+async function copyPrev(el) {
+  const text = el.querySelector("span")?.textContent?.trim()||"";
+  try { await navigator.clipboard.writeText(text); } catch(_){}
   toast("Превью скопировано ✓");
 }
 
-/* ── Speak (ElevenLabs) ── */
-async function speak(id){
-  const dirty=document.getElementById("dirty-tts-"+id);
-  if(dirty && dirty.style.display!=="none") await saveTTS(id,true);
-  const sel=document.getElementById("el-acc-"+id);
-  const account=sel?parseInt(sel.value):0;
-  const btn=document.getElementById("speak-btn-"+id);
-  if(btn){btn.disabled=true;btn.innerHTML=`<span class="spin"></span>`;}
-  toast(`Генерирую аудио…`);
+/* ── Speak ── */
+async function speakNews(id) {
+  const dirty = document.getElementById("dirty-tts-"+id);
+  if (dirty && dirty.style.display!=="none") await saveTTS(id);
+  const sel = document.getElementById("el-"+id);
+  const account = sel ? parseInt(sel.value) : 0;
+  const btn = document.querySelector(".d-footer .ba-speak");
+  if (btn) { btn.disabled=true; btn.innerHTML=`<span class="spin"></span>`; }
+  toast("Генерирую аудио…");
   try {
-    const r=await fetch(`/api/news/${id}/speak?account=${account}`);
-    if(r.status===401){location.href="/login";return;}
-    if(!r.ok) throw new Error(await r.text());
-    const usedAcc=r.headers.get("X-EL-Account")||account;
-    const blob=await r.blob();
-    const a=document.createElement("a");
-    a.href=URL.createObjectURL(blob);
-    a.download=`tts_${id}_acc${usedAcc}.mp3`;
+    const r = await fetch(`/api/news/${id}/speak?account=${account}`);
+    if (r.status===401) { location.href="/login"; return; }
+    if (!r.ok) throw new Error(await r.text());
+    const usedAcc = r.headers.get("X-EL-Account")||account;
+    const blob = await r.blob();
+    const a = document.createElement("a");
+    a.href=URL.createObjectURL(blob); a.download=`tts_${id}_acc${usedAcc}.mp3`;
     a.click(); URL.revokeObjectURL(a.href);
     toast(`MP3 скачан (Акк ${usedAcc}) ✓`);
     loadCredits();
-  } catch(e){ toast("ElevenLabs: "+e.message,true); }
+  } catch(e) { toast("ElevenLabs: "+e.message, true); }
   finally { if(btn){btn.disabled=false;btn.innerHTML="🎙 Озвучить";} }
 }
 
-/* ── ElevenLabs Credits ── */
-let creditsCache={};
-function fmtCredits(n){ return n<0?"Err":n>=1000?Math.round(n/1000)+"k chars":n+" chars"; }
-
-async function loadCredits(){
+/* ── ElevenLabs credits ── */
+async function loadCredits() {
   try {
-    const d=await req("GET","/api/elevenlabs/credits");
-    if(!d) return;
-    creditsCache=d;
-    const el=document.getElementById("elCredits");
-    el.innerHTML="";
-    for(const [acc,chars] of Object.entries(d)){
-      const color=chars>500?"#16a34a":chars>0?"#d97706":"#dc2626";
-      el.innerHTML+=`<span title="Аккаунт ${acc}: ${fmtCredits(chars)}"
-        style="font-size:.7rem;padding:.18rem .5rem;border-radius:4px;background:#f1f5f9;
-               border:1px solid ${color};color:${color};font-weight:600;white-space:nowrap">
-        🎙${acc} ${fmtCredits(chars)}</span>`;
+    const d = await api("GET","/api/elevenlabs/credits");
+    if (!d) return;
+    const el = document.getElementById("elBadges");
+    el.innerHTML = "";
+    for (const [acc, chars] of Object.entries(d)) {
+      const color = chars>5000?"#22c55e":chars>0?"#f97316":"#ef4444";
+      el.innerHTML += `<span class="el-badge" style="color:${color};border-color:${color}">🎙${acc} ${fmtCr(chars)}</span>`;
     }
-    document.querySelectorAll(".el-select").forEach(sel=>{
-      for(const opt of sel.options){
-        if(opt.value==="1"&&d["1"]!==undefined){
-          opt.text=`Акк 1 — ${fmtCredits(d["1"])}`;
-          opt.disabled=d["1"]===0;
-        }
-        if(opt.value==="2"&&d["2"]!==undefined){
-          opt.text=`Акк 2 — ${fmtCredits(d["2"])}`;
-          opt.disabled=d["2"]===0;
-        }
-      }
-    });
   } catch(_){}
 }
 

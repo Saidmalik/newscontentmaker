@@ -689,11 +689,15 @@ def _get_el_credits_sync(api_key: str) -> int:
     return -1
 
 
+EL_MIN_CHARS = 200  # минимум символов для одной озвучки
+
 async def _pick_el_account() -> tuple[str, str, int]:
-    """Auto-select ElevenLabs account with most remaining credits.
+    """Auto-select ElevenLabs account with FEWEST credits that still has enough.
+    Logic: use the account that's running lower first (save the fuller one).
+    Falls back to account with most credits if both are below minimum.
     Returns (api_key, voice_id, account_number).
     """
-    best = (-2, "", "", 0)
+    accounts = []
     for acc in [1, 2]:
         api_key  = os.environ.get(f"ELEVENLABS_API_KEY_{acc}", "")
         voice_id = os.environ.get(f"ELEVENLABS_VOICE_ID_{acc}", "")
@@ -701,20 +705,29 @@ async def _pick_el_account() -> tuple[str, str, int]:
             continue
         credits = await asyncio.to_thread(_get_el_credits_sync, api_key)
         log(f"ElevenLabs acc{acc}: {credits} chars remaining")
-        if credits > best[0]:
-            best = (credits, api_key, voice_id, acc)
+        accounts.append((credits, api_key, voice_id, acc))
 
-    if not best[1]:
+    if not accounts:
         raise HTTPException(
             status_code=500,
             detail="Нет настроенных ElevenLabs аккаунтов. Добавьте ELEVENLABS_API_KEY_1 и ELEVENLABS_VOICE_ID_1."
         )
-    if best[0] == 0:
-        raise HTTPException(
-            status_code=402,
-            detail="На обоих аккаунтах ElevenLabs закончились кредиты. Пополните баланс."
-        )
-    return best[1], best[2], best[3]
+
+    # Prefer account with fewest credits that is still above minimum
+    viable = [a for a in accounts if a[0] >= EL_MIN_CHARS]
+    if viable:
+        # Use the one with least credits (burn it first)
+        chosen = min(viable, key=lambda a: a[0])
+    else:
+        # All below minimum — pick the one with most to give best chance
+        chosen = max(accounts, key=lambda a: a[0])
+        if chosen[0] <= 0:
+            raise HTTPException(
+                status_code=402,
+                detail="На всех аккаунтах ElevenLabs недостаточно кредитов (нужно минимум 200). Пополните баланс."
+            )
+
+    return chosen[1], chosen[2], chosen[3]
 
 
 @app.get("/api/elevenlabs/credits")
@@ -869,12 +882,11 @@ async def _do_generate(news_id: int) -> dict:
         "Короче = лучше если всё сказано. Макс 35-45 сек только для сложных новостей.]\n\n"
         "===ОПИСАНИЕ===\n"
         "[Описание для поста — 150-250 слов. Строго соблюдай структуру:\n"
-        "1. Эмоциональный заголовок с эмодзи (1 строка)\n"
-        "2. Суть: кто, что, где, когда — все конкретные цифры и факты (2-3 абзаца)\n"
-        "3. Почему это важно для обычного человека — личное последствие (1 абзац)\n"
-        "4. Детали и контекст которых нет в TTS: история вопроса, сравнения, механика (1-2 абзаца)\n"
-        "5. Вопрос для вовлечения аудитории в конце\n"
-        "Абзацы разделяй пустой строкой. Пиши живо, не как СМИ.]\n\n"
+        "1. Суть: кто, что, где, когда — конкретные цифры и факты. НЕ повторяй первое предложение TTS. Сразу детали. (2-3 абзаца)\n"
+        "2. Почему это важно для обычного человека — личное последствие (1 абзац)\n"
+        "3. Контекст которого нет в TTS: история вопроса, сравнения, как это работает (1-2 абзаца)\n"
+        "4. Вопрос для вовлечения аудитории в конце\n"
+        "Абзацы разделяй пустой строкой. БЕЗ эмодзи. БЕЗ заголовков и подзаголовков. Пиши как живой текст, не как СМИ.]\n\n"
         "===ПРЕВЬЮ===\n"
         "1. [3-5 слов КАПСОМ — вариант 1]\n"
         "2. [3-5 слов КАПСОМ — вариант 2]\n"

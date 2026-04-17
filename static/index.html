@@ -424,10 +424,13 @@ body {
 
     <div class="filter-bar">
       <div class="filter-group">
-        <span class="filter-lbl">Дата:</span>
-        <button class="flt-btn" data-period="today" onclick="setPeriod('today')">Сегодня</button>
-        <button class="flt-btn" data-period="week"  onclick="setPeriod('week')">7 дней</button>
-        <button class="flt-btn active" data-period="all" onclick="setPeriod('all')">Все</button>
+        <span class="filter-lbl">Период:</span>
+        <select class="el-sel" id="periodSelect" onchange="setPeriod(this.value)" style="font-size:.72rem;padding:.22rem .5rem">
+          <option value="today">Сегодня</option>
+          <option value="yesterday">Вчера</option>
+          <option value="3days">3 дня</option>
+          <option value="all" selected>Всё время</option>
+        </select>
       </div>
       <div class="filter-group" style="margin-left:.3rem">
         <span class="filter-lbl">Score ≥</span>
@@ -515,15 +518,17 @@ function fmtNum(n){if(!n||n===0)return"—";return n>=1000?Math.round(n/1000)+"k
 function fmtCr(n){return n<0?"Err":n>=1000?Math.round(n/1000)+"k":n+" chr";}
 function periodDates(p){
   const t=new Date(),fmt=d=>d.toISOString().slice(0,10);
-  if(p==="today")return{date_from:fmt(t),date_to:fmt(t)};
-  if(p==="week"){const w=new Date(t);w.setDate(w.getDate()-6);return{date_from:fmt(w),date_to:fmt(t)};}
+  if(p==="today")    return{date_from:fmt(t),date_to:fmt(t)};
+  if(p==="yesterday"){const y=new Date(t);y.setDate(y.getDate()-1);return{date_from:fmt(y),date_to:fmt(y)};}
+  if(p==="3days")    {const d3=new Date(t);d3.setDate(d3.getDate()-2);return{date_from:fmt(d3),date_to:fmt(t)};}
   return{date_from:"",date_to:""};
 }
 
 /* ── Filters ── */
 function setPeriod(p){
   curPeriod=p;
-  document.querySelectorAll(".flt-btn[data-period]").forEach(b=>b.classList.toggle("active",b.dataset.period===p));
+  const sel=document.getElementById("periodSelect");
+  if(sel) sel.value=p;
   load();
 }
 function setSort(s){
@@ -708,21 +713,8 @@ function renderDetail(n){
         <div class="stat-pill"><span class="stat-pill-val">${fmtNum(n.stats_shares)}</span><span class="stat-pill-lbl">↗️ Репосты</span></div>
         <div class="stat-pill"><span class="stat-pill-val">${fmtNum(n.stats_saves)}</span><span class="stat-pill-lbl">🔖 Сохранения</span></div>
       </div>`:""}
-      <div class="stats-form">
-        <div class="blk-label" style="margin-bottom:0">Обновить данные</div>
-        <div class="stats-grid">
-          <div class="stat-field"><span class="stat-label">👁 Просмотры</span>
-            <input class="stat-input" type="number" id="sv-${n.id}" placeholder="0" value="${n.stats_views||""}"></div>
-          <div class="stat-field"><span class="stat-label">❤️ Лайки</span>
-            <input class="stat-input" type="number" id="sl-${n.id}" placeholder="0" value="${n.stats_likes||""}"></div>
-          <div class="stat-field"><span class="stat-label">💬 Комменты</span>
-            <input class="stat-input" type="number" id="sc-${n.id}" placeholder="0" value="${n.stats_comments||""}"></div>
-          <div class="stat-field"><span class="stat-label">↗️ Репосты</span>
-            <input class="stat-input" type="number" id="ss-${n.id}" placeholder="0" value="${n.stats_shares||""}"></div>
-          <div class="stat-field"><span class="stat-label">🔖 Сохранения</span>
-            <input class="stat-input" type="number" id="sk-${n.id}" placeholder="0" value="${n.stats_saves||""}"></div>
-        </div>
-        <button class="btn-save-stats" onclick="saveStats(${n.id})">💾 Сохранить статистику</button>
+      <div style="background:rgba(139,92,246,.07);border:1px solid rgba(139,92,246,.2);border-radius:8px;padding:.6rem .75rem;font-size:.74rem;color:var(--muted);text-align:center">
+        📄 Загрузи PDF из Edits во вкладке <b style="color:var(--text)">Аналитика</b> — статистика привяжется автоматически
       </div>
     </div>`:"";
 

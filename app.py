@@ -290,8 +290,10 @@ async def api_news(
     request: Request,
     min_score: int = 1,
     limit: int = 150,
-    tab: str = "all",    # all | hot | good | reserve | approved
-    sort: str = "score", # score | date
+    tab: str = "all",       # all | hot | good | reserve | approved
+    sort: str = "score",    # score | date
+    date_from: str = "",    # YYYY-MM-DD
+    date_to: str = "",      # YYYY-MM-DD
 ):
     require_auth(request)
 
@@ -306,6 +308,13 @@ async def api_news(
         where.append("score >= 3 AND score < 6")
     elif tab == "reserve":
         where.append("score >= 1 AND score < 3")
+
+    if date_from:
+        where.append("date(collected) >= ?")
+        params.append(date_from)
+    if date_to:
+        where.append("date(collected) <= ?")
+        params.append(date_to)
 
     order = "score DESC, collected DESC" if sort == "score" else "collected DESC"
 
@@ -603,7 +612,13 @@ async def _do_generate(news_id: int) -> dict:
         "[TTS скрипт — ЦЕЛЬ 20-25 секунд (~45-55 слов). 18 сек — отлично. "
         "Короче = лучше если всё сказано. Макс 35-45 сек только для сложных новостей.]\n\n"
         "===ОПИСАНИЕ===\n"
-        "[Описание для поста — детальнее TTS, абзацы с отступами, цифры, почему важно, вопрос]\n\n"
+        "[Описание для поста — 150-250 слов. Строго соблюдай структуру:\n"
+        "1. Эмоциональный заголовок с эмодзи (1 строка)\n"
+        "2. Суть: кто, что, где, когда — все конкретные цифры и факты (2-3 абзаца)\n"
+        "3. Почему это важно для обычного человека — личное последствие (1 абзац)\n"
+        "4. Детали и контекст которых нет в TTS: история вопроса, сравнения, механика (1-2 абзаца)\n"
+        "5. Вопрос для вовлечения аудитории в конце\n"
+        "Абзацы разделяй пустой строкой. Пиши живо, не как СМИ.]\n\n"
         "===ПРЕВЬЮ===\n"
         "1. [3-5 слов КАПСОМ — вариант 1]\n"
         "2. [3-5 слов КАПСОМ — вариант 2]\n"

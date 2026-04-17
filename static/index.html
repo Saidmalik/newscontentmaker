@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>UZ News Bot</title>
+<title>mediahub</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='85'>🎯</text></svg>">
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 :root {
@@ -34,50 +35,58 @@ body {
   font-size: 13px; line-height: 1.5;
   display: flex; flex-direction: column;
 }
-
-/* scrollbar */
-::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
 
-/* ── LAYOUT ── */
 .layout { display: flex; flex: 1; overflow: hidden; }
 
 /* ── SIDEBAR ── */
 .sidebar {
-  width: 210px; min-width: 210px;
+  width: 200px; min-width: 200px;
   background: var(--surface); border-right: 1px solid var(--border);
   display: flex; flex-direction: column; overflow: hidden;
 }
 .sidebar-logo {
-  padding: 1rem .9rem .75rem;
-  font-size: .95rem; font-weight: 700; color: var(--accent);
-  border-bottom: 1px solid var(--border); letter-spacing: -.01em;
-  display: flex; align-items: center; gap: .4rem;
+  padding: .9rem .85rem .75rem;
+  font-size: 1rem; font-weight: 800; color: var(--accent);
+  border-bottom: 1px solid var(--border); letter-spacing: -.02em;
+  display: flex; align-items: center; gap: .38rem;
 }
-.sidebar-sect { padding: .6rem .65rem .25rem; }
+.sidebar-logo span { font-size: .7rem; font-weight: 400; color: var(--dim); margin-left: .1rem; }
+.sidebar-nav { padding: .55rem .55rem; flex: 1; }
 .sect-label {
-  font-size: .58rem; text-transform: uppercase; letter-spacing: .09em;
-  color: var(--dim); padding: .4rem .4rem .25rem; display: block;
+  font-size: .57rem; text-transform: uppercase; letter-spacing: .09em;
+  color: var(--dim); padding: .45rem .4rem .2rem; display: block;
 }
-.sidebar-nav { padding: .4rem .65rem; flex: 1; }
 .nav-item {
-  display: flex; align-items: center; gap: .45rem;
-  padding: .4rem .65rem; border-radius: 7px;
-  color: var(--muted); font-size: .76rem; cursor: default;
-  margin-bottom: 1px; transition: all .13s;
+  display: flex; align-items: center; gap: .42rem;
+  padding: .38rem .6rem; border-radius: 7px;
+  color: var(--muted); font-size: .75rem; cursor: default;
+  margin-bottom: 1px; transition: all .13s; user-select: none;
 }
 .nav-item.active { background: var(--card); color: var(--text); }
-.nav-item.soon { opacity: .45; }
+.nav-item.soon   { opacity: .35; }
 .nav-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--dim); flex-shrink: 0; }
 .nav-item.active .nav-dot { background: var(--accent); }
 
-.sidebar-footer {
-  padding: .65rem .9rem; border-top: 1px solid var(--border);
-  display: flex; gap: .3rem; flex-wrap: wrap; align-items: center;
+/* legend */
+.legend {
+  margin: .9rem .55rem 0; border-top: 1px solid var(--border); padding-top: .75rem;
 }
+.legend-row {
+  display: flex; align-items: flex-start; gap: .38rem; margin-bottom: .45rem;
+  font-size: .67rem; color: var(--muted); line-height: 1.4;
+}
+.legend-row b { color: var(--text); white-space: nowrap; display: block; }
+
+.sidebar-footer {
+  padding: .6rem .85rem; border-top: 1px solid var(--border);
+}
+.sidebar-footer-lbl { font-size: .6rem; color: var(--dim); margin-bottom: .3rem; }
+.el-badges { display: flex; gap: .28rem; flex-wrap: wrap; }
 .el-badge {
-  font-size: .62rem; padding: .12rem .42rem; border-radius: 4px;
+  font-size: .62rem; padding: .1rem .38rem; border-radius: 4px;
   border: 1px solid; font-weight: 600; white-space: nowrap;
 }
 
@@ -87,164 +96,185 @@ body {
   border-right: 1px solid var(--border); overflow: hidden;
 }
 .feed-header {
-  padding: .75rem .9rem; border-bottom: 1px solid var(--border);
-  display: flex; align-items: center; gap: .6rem; flex-shrink: 0;
+  padding: .65rem .85rem; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: .55rem; flex-shrink: 0;
 }
-.feed-title { font-size: .9rem; font-weight: 700; }
-.feed-updated { font-size: .7rem; color: var(--muted); }
+.feed-title { font-size: .88rem; font-weight: 700; }
+.feed-updated { font-size: .68rem; color: var(--muted); }
 .btn-collect {
-  margin-left: auto; padding: .36rem .85rem;
+  margin-left: auto; padding: .33rem .8rem;
   background: var(--accent); color: #fff; border: none;
-  border-radius: 8px; font-size: .76rem; font-weight: 600;
-  cursor: pointer; white-space: nowrap;
+  border-radius: 7px; font-size: .74rem; font-weight: 600; cursor: pointer;
 }
 .btn-collect:hover { opacity: .85; }
-.btn-collect:disabled { opacity: .45; cursor: not-allowed; }
+.btn-collect:disabled { opacity: .4; cursor: not-allowed; }
+
+/* filter bar */
+.filter-bar {
+  display: flex; align-items: center; gap: .4rem; flex-wrap: wrap;
+  padding: .42rem .85rem; border-bottom: 1px solid var(--border);
+  background: var(--surface); flex-shrink: 0;
+}
+.filter-group { display: flex; align-items: center; gap: .2rem; }
+.filter-lbl { font-size: .65rem; color: var(--dim); white-space: nowrap; }
+.flt-btn {
+  padding: .2rem .55rem; border-radius: 5px; border: 1px solid var(--border2);
+  background: transparent; color: var(--muted); font-size: .68rem; cursor: pointer;
+  transition: all .12s;
+}
+.flt-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.flt-btn:hover:not(.active) { color: var(--text); }
+.flt-score-input {
+  width: 44px; padding: .19rem .35rem; border: 1px solid var(--border2);
+  border-radius: 5px; background: var(--bg); color: var(--text);
+  font-size: .72rem; text-align: center;
+}
+.sort-btn {
+  padding: .2rem .55rem; border-radius: 5px; border: 1px solid var(--border2);
+  background: transparent; color: var(--muted); font-size: .68rem; cursor: pointer;
+}
+.sort-btn.active { background: var(--card); color: var(--text); }
+.sort-btn:hover:not(.active) { color: var(--text); }
 
 .feed-tabs {
-  display: flex; padding: .45rem .7rem; gap: .25rem;
+  display: flex; padding: .4rem .7rem; gap: .22rem;
   border-bottom: 1px solid var(--border); flex-shrink: 0; flex-wrap: wrap;
 }
 .tab-btn {
-  padding: .28rem .75rem; border-radius: 20px;
-  border: 1px solid transparent; background: transparent;
-  color: var(--muted); font-size: .72rem; cursor: pointer;
-  transition: all .13s; white-space: nowrap;
+  padding: .25rem .7rem; border-radius: 20px; border: 1px solid transparent;
+  background: transparent; color: var(--muted); font-size: .71rem; cursor: pointer;
+  transition: all .13s;
 }
 .tab-btn.active { background: var(--card); color: var(--text); border-color: var(--border2); }
 .tab-btn:hover:not(.active) { color: var(--text); }
 .tcnt {
   display: inline-flex; align-items: center; justify-content: center;
-  min-width: 16px; height: 15px; border-radius: 8px; padding: 0 4px;
-  font-size: .6rem; font-weight: 700; margin-left: 3px;
+  min-width: 15px; height: 14px; border-radius: 7px; padding: 0 3px;
+  font-size: .59rem; font-weight: 700; margin-left: 2px;
 }
-.tcnt.hot  { background: var(--hot-bg); color: var(--hot); }
+.tcnt.hot  { background: var(--hot-bg);  color: var(--hot); }
 .tcnt.good { background: var(--good-bg); color: var(--good); }
-.tcnt.rsv  { background: var(--rsv-bg); color: var(--rsv); }
-.tcnt.all  { background: var(--card); color: var(--muted); }
+.tcnt.rsv  { background: var(--rsv-bg);  color: var(--rsv); }
+.tcnt.all  { background: var(--card);    color: var(--muted); }
 
 .feed-list {
-  flex: 1; overflow-y: auto; padding: .45rem;
-  display: flex; flex-direction: column; gap: .3rem;
+  flex: 1; overflow-y: auto; padding: .4rem;
+  display: flex; flex-direction: column; gap: .28rem;
 }
 
 /* ── CARD ── */
 .news-card {
   background: var(--card); border: 1px solid var(--border);
-  border-radius: 9px; padding: .65rem .75rem; cursor: pointer;
+  border-radius: 9px; padding: .6rem .7rem; cursor: pointer;
   transition: border-color .13s;
 }
-.news-card:hover { border-color: var(--border2); }
-.news-card.selected { border-color: var(--accent); }
-.news-card.approved { border-left: 2px solid var(--green); }
+.news-card:hover   { border-color: var(--border2); }
+.news-card.selected{ border-color: var(--accent); }
+.news-card.approved{ border-left: 2px solid var(--green); }
 
-.card-top { display: flex; align-items: center; gap: .45rem; margin-bottom: .35rem; }
+.card-top { display: flex; align-items: center; gap: .4rem; margin-bottom: .3rem; }
 .pri-badge {
-  display: inline-flex; align-items: center; gap: 2px;
-  padding: .12rem .45rem; border-radius: 20px;
-  font-size: .6rem; font-weight: 700; white-space: nowrap; flex-shrink: 0;
+  display: inline-flex; align-items: center; gap: 2px; padding: .1rem .42rem;
+  border-radius: 20px; font-size: .59rem; font-weight: 700; white-space: nowrap; flex-shrink: 0;
 }
 .pri-badge.hot     { background: var(--hot-bg); color: var(--hot); border: 1px solid var(--hot-bd); }
 .pri-badge.good    { background: var(--good-bg); color: var(--good); border: 1px solid var(--good-bd); }
 .pri-badge.reserve { background: var(--rsv-bg); color: var(--rsv); border: 1px solid var(--rsv-bd); }
 
-.card-title { font-size: .8rem; font-weight: 600; line-height: 1.4; color: var(--text); }
+.card-title { font-size: .79rem; font-weight: 600; line-height: 1.4; color: var(--text); }
 .card-meta {
-  display: flex; align-items: center; gap: .35rem; flex-wrap: wrap;
-  font-size: .67rem; color: var(--muted); margin: .3rem 0 .38rem;
+  display: flex; align-items: center; gap: .3rem; flex-wrap: wrap;
+  font-size: .65rem; color: var(--muted); margin: .28rem 0 .35rem;
 }
-.meta-sep { color: var(--dim); }
+.meta-sep   { color: var(--dim); }
 .meta-score { color: var(--text); font-weight: 600; }
-.meta-tts { color: var(--green); }
+.meta-tts   { color: var(--green); }
 
-.score-bar-wrap { height: 3px; background: var(--border); border-radius: 2px; margin-bottom: .5rem; }
+.score-bar-wrap { height: 3px; background: var(--border); border-radius: 2px; margin-bottom: .45rem; }
 .score-bar { height: 100%; border-radius: 2px; }
 .score-bar.hot     { background: linear-gradient(90deg, var(--hot), #f97316); }
 .score-bar.good    { background: linear-gradient(90deg, #f97316, #eab308); }
 .score-bar.reserve { background: var(--rsv); }
 
-.card-btns { display: flex; gap: .28rem; }
+.card-btns { display: flex; gap: .25rem; }
 .btn-sm {
-  padding: .27rem .6rem; border-radius: 6px;
-  border: 1px solid var(--border2); background: transparent;
-  color: var(--muted); font-size: .7rem; cursor: pointer;
-  transition: all .13s; white-space: nowrap;
+  padding: .24rem .55rem; border-radius: 6px; border: 1px solid var(--border2);
+  background: transparent; color: var(--muted); font-size: .69rem; cursor: pointer;
+  transition: all .12s;
 }
 .btn-sm:hover { color: var(--text); border-color: var(--text); }
-.btn-sm.gen  { color: var(--accent); border-color: var(--good-bd); }
+.btn-sm.gen { color: var(--accent); border-color: var(--good-bd); }
 .btn-sm.gen:hover { background: var(--good-bg); }
 .btn-sm.tts-done { color: var(--green); border-color: rgba(34,197,94,.25); }
+.btn-sm.del { color: var(--dim); }
+.btn-sm.del:hover { color: var(--hot); border-color: var(--hot); }
 
 /* ── DETAIL ── */
 .detail {
-  width: 350px; min-width: 300px; max-width: 400px;
+  width: 360px; min-width: 300px; max-width: 420px;
   display: flex; flex-direction: column; overflow: hidden;
 }
 .detail-empty {
   flex: 1; display: flex; flex-direction: column;
   align-items: center; justify-content: center;
-  color: var(--dim); gap: .35rem; text-align: center; padding: 2rem;
+  color: var(--dim); gap: .3rem; text-align: center; padding: 2rem;
 }
-.detail-empty svg { opacity: .25; margin-bottom: .3rem; }
+.detail-empty svg { opacity: .2; margin-bottom: .25rem; }
 
 .d-header {
-  padding: .75rem .9rem; border-bottom: 1px solid var(--border); flex-shrink: 0;
+  padding: .7rem .85rem; border-bottom: 1px solid var(--border); flex-shrink: 0;
 }
-.d-source { font-size: .67rem; color: var(--muted); margin-bottom: .18rem; }
-.d-title { font-size: .85rem; font-weight: 600; line-height: 1.45; }
+.d-source { font-size: .65rem; color: var(--muted); margin-bottom: .15rem; display: flex; align-items: center; gap: .35rem; }
+.d-title { font-size: .83rem; font-weight: 600; line-height: 1.45; }
 .d-title a { color: var(--text); text-decoration: none; }
 .d-title a:hover { color: var(--accent); }
-.d-score { margin-top: .42rem; font-size: .69rem; color: var(--muted); display: flex; align-items: center; gap: .4rem; }
+.d-meta { margin-top: .38rem; font-size: .67rem; color: var(--muted); display: flex; align-items: center; gap: .38rem; flex-wrap: wrap; }
 .d-score-val { color: var(--accent); font-weight: 700; }
 
 .d-body {
-  flex: 1; overflow-y: auto; padding: .75rem .9rem;
-  display: flex; flex-direction: column; gap: .75rem;
+  flex: 1; overflow-y: auto; padding: .7rem .85rem;
+  display: flex; flex-direction: column; gap: .7rem;
 }
 .blk-label {
-  font-size: .59rem; text-transform: uppercase; letter-spacing: .07em;
-  color: var(--muted); margin-bottom: .3rem;
+  font-size: .58rem; text-transform: uppercase; letter-spacing: .07em;
+  color: var(--muted); margin-bottom: .28rem;
   display: flex; align-items: center; justify-content: space-between;
 }
-.blk-actions { display: flex; gap: .2rem; align-items: center; }
+.blk-actions { display: flex; gap: .18rem; align-items: center; }
 .btn-lbl {
-  padding: .1rem .38rem; border-radius: 4px;
-  border: 1px solid var(--border2); background: transparent;
-  color: var(--dim); font-size: .62rem; cursor: pointer;
+  padding: .08rem .35rem; border-radius: 4px; border: 1px solid var(--border2);
+  background: transparent; color: var(--dim); font-size: .61rem; cursor: pointer;
 }
 .btn-lbl:hover { color: var(--text); }
 .dirty-dot {
   width: 5px; height: 5px; border-radius: 50%;
   background: #f59e0b; display: none; flex-shrink: 0;
 }
-
 .d-ta {
   width: 100%; background: var(--bg); border: 1px solid var(--border);
   border-radius: 7px; color: var(--text); font-family: inherit;
-  font-size: .79rem; line-height: 1.6; padding: .55rem .7rem;
+  font-size: .78rem; line-height: 1.6; padding: .52rem .65rem;
   resize: vertical; outline: none; min-height: 60px;
 }
 .d-ta:focus { border-color: var(--accent); }
 
-.prev-list { display: flex; flex-direction: column; gap: .28rem; }
+.prev-list { display: flex; flex-direction: column; gap: .25rem; }
 .prev-pill {
-  background: var(--card); border: 1px solid var(--border2);
-  border-radius: 7px; padding: .38rem .65rem;
-  font-size: .76rem; font-weight: 700; color: var(--accent);
+  background: var(--card); border: 1px solid var(--border2); border-radius: 7px;
+  padding: .35rem .6rem; font-size: .75rem; font-weight: 700; color: var(--accent);
   cursor: pointer; display: flex; align-items: center;
   justify-content: space-between; gap: .3rem; letter-spacing: .02em;
 }
 .prev-pill:hover { background: var(--good-bg); border-color: var(--good-bd); }
-.prev-hint { font-size: .59rem; color: var(--dim); font-weight: 400; }
+.prev-hint { font-size: .58rem; color: var(--dim); font-weight: 400; }
 
 .d-footer {
-  padding: .7rem .9rem; border-top: 1px solid var(--border);
-  display: flex; gap: .35rem; flex-wrap: wrap; flex-shrink: 0; align-items: center;
+  padding: .65rem .85rem; border-top: 1px solid var(--border);
+  display: flex; gap: .3rem; flex-wrap: wrap; flex-shrink: 0; align-items: center;
 }
 .btn-act {
-  padding: .36rem .8rem; border-radius: 7px; font-size: .74rem;
-  font-weight: 600; cursor: pointer; border: 1px solid transparent;
-  transition: opacity .13s; white-space: nowrap;
+  padding: .33rem .75rem; border-radius: 7px; font-size: .73rem; font-weight: 600;
+  cursor: pointer; border: 1px solid transparent; transition: opacity .12s; white-space: nowrap;
 }
 .btn-act:disabled { opacity: .4; cursor: not-allowed; }
 .ba-approve { background: var(--green); color: #fff; }
@@ -256,35 +286,29 @@ body {
 .ba-speak { background: #0d9488; color: #fff; }
 .ba-speak:hover:not(:disabled) { opacity: .85; }
 .el-sel {
-  padding: .33rem .45rem; border: 1px solid var(--border2); border-radius: 6px;
-  background: var(--bg); color: var(--text); font-size: .72rem; cursor: pointer;
+  padding: .3rem .42rem; border: 1px solid var(--border2); border-radius: 6px;
+  background: var(--bg); color: var(--text); font-size: .71rem; cursor: pointer;
 }
 
-/* ── SPINNER ── */
+/* ── MISC ── */
 .spin {
-  display: inline-block; width: 11px; height: 11px;
+  display: inline-block; width: 10px; height: 10px;
   border: 2px solid rgba(255,255,255,.3); border-top-color: #fff;
   border-radius: 50%; animation: rot .5s linear infinite;
 }
 @keyframes rot { to { transform: rotate(360deg); } }
 
-/* ── TOAST ── */
 .toast {
-  position: fixed; bottom: 1.1rem; right: 1.1rem;
-  background: #1e293b; color: #fff; padding: .48rem .95rem;
-  border-radius: 8px; font-size: .77rem;
-  opacity: 0; transform: translateY(5px);
-  transition: opacity .17s, transform .17s; z-index: 999;
-  pointer-events: none; max-width: 280px;
+  position: fixed; bottom: 1rem; right: 1rem; background: #1e293b; color: #fff;
+  padding: .45rem .9rem; border-radius: 8px; font-size: .76rem;
+  opacity: 0; transform: translateY(5px); transition: opacity .16s, transform .16s;
+  z-index: 999; pointer-events: none; max-width: 280px;
 }
 .toast.on  { opacity: 1; transform: none; }
 .toast.err { background: var(--hot); }
+.empty-state { text-align: center; padding: 2rem 1rem; color: var(--dim); font-size: .78rem; }
 
-.empty-state { text-align: center; padding: 2.5rem 1rem; color: var(--dim); font-size: .8rem; }
-
-@media (max-width: 680px) {
-  .sidebar, .detail { display: none; }
-}
+@media (max-width: 700px) { .sidebar, .detail { display: none; } }
 </style>
 </head>
 <body>
@@ -292,20 +316,33 @@ body {
 
   <!-- SIDEBAR -->
   <aside class="sidebar">
-    <div class="sidebar-logo">📰 UZ News Bot</div>
+    <div class="sidebar-logo">
+      🎯 mediahub
+    </div>
 
-    <div class="sidebar-nav" style="padding-top:.7rem">
+    <div class="sidebar-nav">
       <span class="sect-label">Раздел</span>
       <div class="nav-item active"><span class="nav-dot"></span>Новости</div>
       <div class="nav-item soon"><span class="nav-dot"></span>Контент</div>
       <div class="nav-item soon"><span class="nav-dot"></span>Статистика</div>
       <div class="nav-item soon"><span class="nav-dot"></span>Аналитика</div>
       <div class="nav-item soon"><span class="nav-dot"></span>Настройки</div>
+
+      <div class="legend">
+        <div class="legend-row">
+          <span>✓</span>
+          <span><b>Одобрить</b> — помечает новость как готовую. Видна в табе «Одобрено». Ничего не публикуется автоматически.</span>
+        </div>
+        <div class="legend-row">
+          <span>✕</span>
+          <span><b>Удалить</b> — удаляет новость из базы навсегда.</span>
+        </div>
+      </div>
     </div>
 
     <div class="sidebar-footer">
-      <span style="font-size:.62rem;color:var(--dim);width:100%;margin-bottom:.2rem">ElevenLabs</span>
-      <div id="elBadges" style="display:flex;gap:.28rem;flex-wrap:wrap"></div>
+      <div class="sidebar-footer-lbl">ElevenLabs</div>
+      <div class="el-badges" id="elBadges"></div>
     </div>
   </aside>
 
@@ -317,22 +354,40 @@ body {
       <button class="btn-collect" id="collectBtn" onclick="collectNow()">Собрать сейчас</button>
     </div>
 
+    <!-- FILTERS -->
+    <div class="filter-bar">
+      <div class="filter-group">
+        <span class="filter-lbl">Дата:</span>
+        <button class="flt-btn" data-period="today"  onclick="setPeriod('today')">Сегодня</button>
+        <button class="flt-btn" data-period="week"   onclick="setPeriod('week')">7 дней</button>
+        <button class="flt-btn active" data-period="all" onclick="setPeriod('all')">Все</button>
+      </div>
+      <div class="filter-group" style="margin-left:.3rem">
+        <span class="filter-lbl">Score ≥</span>
+        <input type="number" class="flt-score-input" id="minScore" value="1" min="0" max="20" onchange="load()">
+      </div>
+      <div class="filter-group" style="margin-left:auto">
+        <span class="filter-lbl">Сорт:</span>
+        <button class="sort-btn active" id="sort-score" onclick="setSort('score')">★ Рейтинг</button>
+        <button class="sort-btn" id="sort-date" onclick="setSort('date')">🕐 Дата</button>
+      </div>
+    </div>
+
+    <!-- TABS -->
     <div class="feed-tabs">
-      <button class="tab-btn active" data-tab="all"     onclick="setTab('all')">
-        Все <span class="tcnt all" id="cnt-all">0</span>
+      <button class="tab-btn active" data-tab="all"      onclick="setTab('all')">
+        Все <span class="tcnt all" id="cnt-all">—</span>
       </button>
-      <button class="tab-btn" data-tab="hot"     onclick="setTab('hot')">
-        🔥 Горящие <span class="tcnt hot" id="cnt-hot">0</span>
+      <button class="tab-btn" data-tab="hot"      onclick="setTab('hot')">
+        🔥 Горящие <span class="tcnt hot" id="cnt-hot">—</span>
       </button>
-      <button class="tab-btn" data-tab="good"    onclick="setTab('good')">
-        ⚡ Хорошие <span class="tcnt good" id="cnt-good">0</span>
+      <button class="tab-btn" data-tab="good"     onclick="setTab('good')">
+        ⚡ Хорошие <span class="tcnt good" id="cnt-good">—</span>
       </button>
-      <button class="tab-btn" data-tab="reserve" onclick="setTab('reserve')">
-        📋 Резерв <span class="tcnt rsv" id="cnt-reserve">0</span>
+      <button class="tab-btn" data-tab="reserve"  onclick="setTab('reserve')">
+        📋 Резерв <span class="tcnt rsv" id="cnt-reserve">—</span>
       </button>
-      <button class="tab-btn" data-tab="approved" onclick="setTab('approved')">
-        ✓ Одобрено
-      </button>
+      <button class="tab-btn" data-tab="approved" onclick="setTab('approved')">✓ Одобрено</button>
     </div>
 
     <div class="feed-list" id="feedList">
@@ -343,29 +398,30 @@ body {
   <!-- DETAIL -->
   <aside class="detail">
     <div class="detail-empty" id="detailEmpty">
-      <svg width="34" height="34" fill="none" stroke="currentColor" stroke-width="1.4" viewBox="0 0 24 24">
+      <svg width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.4" viewBox="0 0 24 24">
         <rect x="3" y="3" width="18" height="18" rx="2.5"/>
         <path d="M7 8h10M7 12h6M7 16h8"/>
       </svg>
-      <div style="font-size:.8rem">Выбери новость</div>
-      <div style="font-size:.7rem">чтобы увидеть детали и скрипт</div>
+      <div style="font-size:.78rem">Выбери новость</div>
+      <div style="font-size:.68rem">чтобы увидеть детали и скрипт</div>
     </div>
     <div id="detailContent" style="display:none;flex:1;flex-direction:column;overflow:hidden"></div>
   </aside>
 
 </div>
-
 <div class="toast" id="toast"></div>
 
 <script>
 "use strict";
-let news = [], curTab = "all", selectedId = null;
+let news = [], curTab = "all", curSort = "score", curPeriod = "all", selectedId = null;
+
+const MONTHS = ["янв","фев","мар","апр","май","июн","июл","авг","сен","окт","ноя","дек"];
 
 /* ── HTTP ── */
 async function api(method, path, body) {
   const opts = { method };
   if (body !== undefined) {
-    opts.headers = { "Content-Type": "application/json" };
+    opts.headers = {"Content-Type":"application/json"};
     opts.body = JSON.stringify(body);
   }
   const r = await fetch(path, opts);
@@ -393,21 +449,42 @@ function toast(msg, err=false) {
 function esc(s) {
   return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 }
-function timeAgo(str) {
+function fmtDate(str) {
   if (!str) return "";
-  const mins = Math.round((Date.now() - new Date(str)) / 60000);
-  if (mins < 1)  return "только что";
-  if (mins < 60) return `${mins}м назад`;
-  const h = Math.floor(mins/60);
-  if (h < 24)    return `${h}ч назад`;
-  return `${Math.floor(h/24)}д назад`;
+  try {
+    const d = new Date(str);
+    if (isNaN(d)) return str.slice(0,16).replace("T"," ");
+    return `${d.getDate()} ${MONTHS[d.getMonth()]}, ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
+  } catch(_) { return str.slice(0,10); }
+}
+function periodDates(period) {
+  const today = new Date();
+  const fmt = d => d.toISOString().slice(0,10);
+  if (period === "today") return { date_from: fmt(today), date_to: fmt(today) };
+  if (period === "week") {
+    const w = new Date(today); w.setDate(w.getDate()-6);
+    return { date_from: fmt(w), date_to: fmt(today) };
+  }
+  return { date_from: "", date_to: "" };
 }
 function priLabel(p) {
   return p==="hot"?"🔥 Горящая": p==="good"?"⚡ Хорошая":"📋 Резерв";
 }
 function fmtCr(n) { return n<0?"Err":n>=1000?Math.round(n/1000)+"k":n+" chr"; }
 
-/* ── Tab ── */
+/* ── Filters / Sort / Tab ── */
+function setPeriod(p) {
+  curPeriod = p;
+  document.querySelectorAll(".flt-btn[data-period]").forEach(b=>
+    b.classList.toggle("active", b.dataset.period===p));
+  load();
+}
+function setSort(s) {
+  curSort = s;
+  document.getElementById("sort-score").classList.toggle("active", s==="score");
+  document.getElementById("sort-date").classList.toggle("active",  s==="date");
+  load();
+}
 function setTab(tab) {
   curTab = tab;
   document.querySelectorAll(".tab-btn").forEach(b=>b.classList.toggle("active",b.dataset.tab===tab));
@@ -416,14 +493,18 @@ function setTab(tab) {
 
 /* ── Load ── */
 async function load() {
+  const min = parseInt(document.getElementById("minScore").value)||1;
+  const { date_from, date_to } = periodDates(curPeriod);
+  const params = new URLSearchParams({
+    min_score: min, limit: 200, sort: curSort,
+    ...(date_from ? {date_from} : {}),
+    ...(date_to   ? {date_to}   : {}),
+  });
   try {
-    [news] = await Promise.all([
-      api("GET", "/api/news?min_score=1&limit=150"),
-      loadCounts(),
-    ]);
-    news = news || [];
+    news = await api("GET", `/api/news?${params}`) || [];
     document.getElementById("updatedAt").textContent =
       "Обновлено " + new Date().toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"});
+    updateCounts();
     renderFeed();
     if (selectedId) {
       const n = news.find(x=>x.id===selectedId);
@@ -432,24 +513,25 @@ async function load() {
   } catch(e) { toast("Ошибка: "+e.message, true); }
 }
 
-async function loadCounts() {
-  try {
-    const c = await api("GET", "/api/news/counts");
-    if (!c) return;
-    document.getElementById("cnt-all").textContent     = c.all     || 0;
-    document.getElementById("cnt-hot").textContent     = c.hot     || 0;
-    document.getElementById("cnt-good").textContent    = c.good    || 0;
-    document.getElementById("cnt-reserve").textContent = c.reserve || 0;
-  } catch(_) {}
+function updateCounts() {
+  const counts = {all:0, hot:0, good:0, reserve:0};
+  news.forEach(n => {
+    counts.all++;
+    counts[n.priority || "reserve"] = (counts[n.priority || "reserve"]||0)+1;
+  });
+  document.getElementById("cnt-all").textContent     = counts.all;
+  document.getElementById("cnt-hot").textContent     = counts.hot;
+  document.getElementById("cnt-good").textContent    = counts.good;
+  document.getElementById("cnt-reserve").textContent = counts.reserve;
 }
 
 /* ── Render feed ── */
 function renderFeed() {
   let filtered = news;
   if (curTab === "hot")      filtered = news.filter(n=>n.priority==="hot");
-  else if (curTab === "good") filtered = news.filter(n=>n.priority==="good");
-  else if (curTab === "reserve") filtered = news.filter(n=>n.priority==="reserve");
-  else if (curTab === "approved") filtered = news.filter(n=>n.approved===1);
+  else if (curTab==="good")  filtered = news.filter(n=>n.priority==="good");
+  else if (curTab==="reserve") filtered = news.filter(n=>n.priority==="reserve");
+  else if (curTab==="approved") filtered = news.filter(n=>n.approved===1);
 
   const list = document.getElementById("feedList");
   if (!filtered.length) {
@@ -463,20 +545,21 @@ function cardHtml(n) {
   const p = n.priority || "reserve";
   const barW = Math.min(100, Math.round((n.score / 10) * 100));
   const hasTTS = !!n.tts_script;
+  const pubDate = fmtDate(n.published || n.collected);
   return `
     <div class="news-card${selectedId===n.id?" selected":""}${n.approved?" approved":""}"
          id="card-${n.id}" onclick="selectCard(${n.id})">
       <div class="card-top">
         <span class="pri-badge ${p}">${priLabel(p)}</span>
-        ${n.approved?'<span style="font-size:.6rem;color:var(--green);margin-left:auto">✓ Одобрено</span>':''}
+        ${n.approved?'<span style="font-size:.59rem;color:var(--green);margin-left:auto">✓ Одобрено</span>':""}
       </div>
       <div class="card-title">${esc(n.title)}</div>
       <div class="card-meta">
         <span>${esc(n.source||"")}</span>
         <span class="meta-sep">·</span>
-        <span>${timeAgo(n.collected||n.created_at)}</span>
+        <span title="Дата публикации">${pubDate}</span>
         <span class="meta-sep">·</span>
-        <span>оценка <span class="meta-score">${n.score}</span></span>
+        <span>Score <span class="meta-score">${n.score}</span></span>
         ${hasTTS?'<span class="meta-sep">·</span><span class="meta-tts">✓ TTS</span>':""}
       </div>
       <div class="score-bar-wrap">
@@ -484,14 +567,14 @@ function cardHtml(n) {
       </div>
       <div class="card-btns" onclick="event.stopPropagation()">
         ${!hasTTS
-          ? `<button class="btn-sm gen" onclick="generateCard(${n.id})">Генерировать</button>`
-          : `<button class="btn-sm tts-done" onclick="selectCard(${n.id})">Открыть скрипт</button>`}
-        <button class="btn-sm" onclick="event.stopPropagation();delCard(${n.id})">Удалить</button>
+          ? `<button class="btn-sm gen" onclick="generateCard(${n.id})">✨ Генерировать</button>`
+          : `<button class="btn-sm tts-done" onclick="selectCard(${n.id})">Открыть скрипт →</button>`}
+        <button class="btn-sm del" title="Удалить из базы навсегда" onclick="event.stopPropagation();delCard(${n.id})">✕</button>
       </div>
     </div>`;
 }
 
-/* ── Select ── */
+/* ── Select / Detail ── */
 function selectCard(id) {
   selectedId = id;
   document.querySelectorAll(".news-card").forEach(el=>
@@ -505,12 +588,10 @@ function clearDetail() {
   document.getElementById("detailContent").style.display = "none";
 }
 
-/* ── Detail ── */
 function renderDetail(n) {
   document.getElementById("detailEmpty").style.display = "none";
   const dc = document.getElementById("detailContent");
   dc.style.display = "flex";
-
   const p = n.priority || "reserve";
   const previews = Array.isArray(n.preview_titles) ? n.preview_titles : [];
   const hasTTS  = !!n.tts_script;
@@ -526,8 +607,8 @@ function renderDetail(n) {
         </div>
       </div>
       <textarea class="d-ta" id="tts-${n.id}" oninput="markDirty('tts',${n.id})" rows="8">${esc(n.tts_script)}</textarea>
-    </div>` : `<div style="font-size:.77rem;color:var(--muted);text-align:center;padding:.4rem 0">
-      Нажми «Генерировать» для создания TTS</div>`;
+    </div>` : `<div style="font-size:.75rem;color:var(--dim);text-align:center;padding:.5rem 0">
+      Нажми «Генерировать» для создания TTS, описания и превью</div>`;
 
   const descBlock = hasDesc ? `
     <div>
@@ -538,7 +619,7 @@ function renderDetail(n) {
           <button class="btn-lbl" onclick="copyTA('desc-${n.id}')">Copy</button>
         </div>
       </div>
-      <textarea class="d-ta" id="desc-${n.id}" oninput="markDirty('desc',${n.id})" rows="5">${esc(n.description)}</textarea>
+      <textarea class="d-ta" id="desc-${n.id}" oninput="markDirty('desc',${n.id})" rows="7">${esc(n.description)}</textarea>
     </div>` : "";
 
   const prevBlock = previews.length ? `
@@ -547,26 +628,29 @@ function renderDetail(n) {
       <div class="prev-list">
         ${previews.map(pv=>`
           <div class="prev-pill" onclick="copyPrev(this)">
-            <span>${esc(pv)}</span>
-            <span class="prev-hint">copy</span>
+            <span>${esc(pv)}</span><span class="prev-hint">copy</span>
           </div>`).join("")}
       </div>
     </div>` : "";
 
   dc.innerHTML = `
     <div class="d-header">
-      <div class="d-source">${esc(n.source||"")} · <span class="pri-badge ${p}" style="display:inline-flex">${priLabel(p)}</span></div>
+      <div class="d-source">
+        ${esc(n.source||"")} · <span class="pri-badge ${p}" style="display:inline-flex">${priLabel(p)}</span>
+      </div>
       <div class="d-title"><a href="${esc(n.url)}" target="_blank" rel="noopener">${esc(n.title)}</a></div>
-      <div class="d-score">
-        Оценка: <span class="d-score-val">${n.score}</span>
-        ${n.approved?'<span style="color:var(--green)">· ✓ Одобрено</span>':""}
+      <div class="d-meta">
+        Score: <span class="d-score-val">${n.score}</span>
+        · ${fmtDate(n.published || n.collected)}
+        ${n.approved?'· <span style="color:var(--green)">✓ Одобрено</span>':""}
       </div>
     </div>
     <div class="d-body">${ttsBlock}${descBlock}${prevBlock}</div>
     <div class="d-footer">
       ${hasTTS ? `
         <button class="btn-act ba-approve" id="apr-${n.id}"
-                onclick="approveNews(${n.id})" ${n.approved?"disabled":""}>
+                onclick="approveNews(${n.id})" ${n.approved?"disabled":""}
+                title="Пометить как готовое к публикации">
           ${n.approved?"✓ Одобрено":"Одобрить"}</button>
         <select class="el-sel" id="el-${n.id}">
           <option value="0">🤖 Авто</option>
@@ -574,9 +658,9 @@ function renderDetail(n) {
           <option value="2">Акк 2</option>
         </select>
         <button class="btn-act ba-speak" onclick="speakNews(${n.id})">🎙 Озвучить</button>
-        <button class="btn-act ba-regen" onclick="regenNews(${n.id})">↺ Заново</button>
+        <button class="btn-act ba-regen" onclick="regenNews(${n.id})" title="Сгенерировать заново">↺</button>
       ` : `
-        <button class="btn-act ba-gen" id="gen-det-${n.id}" onclick="generateCard(${n.id})">✨ Генерировать</button>
+        <button class="btn-act ba-gen" onclick="generateCard(${n.id})">✨ Генерировать</button>
       `}
     </div>`;
 }
@@ -594,10 +678,11 @@ async function collectNow() {
 }
 
 async function generateCard(id) {
-  const cardBtn = document.querySelector(`#card-${id} .btn-sm.gen`);
-  const detBtn  = document.getElementById("gen-det-"+id);
-  if (cardBtn) { cardBtn.disabled=true; cardBtn.innerHTML=`<span class="spin" style="border-top-color:var(--accent)"></span>`; }
-  if (detBtn)  { detBtn.disabled=true;  detBtn.innerHTML=`<span class="spin"></span> Генерирую…`; }
+  const btn = document.querySelector(`#card-${id} .btn-sm.gen`);
+  if (btn) { btn.disabled=true; btn.innerHTML=`<span class="spin" style="border-top-color:var(--accent)"></span>`; }
+  // also update detail button if open
+  const detBtn = document.querySelector(".d-footer .ba-gen");
+  if (detBtn && selectedId===id) { detBtn.disabled=true; detBtn.innerHTML=`<span class="spin"></span> Генерирую…`; }
   try {
     const res = await api("POST", `/api/news/${id}/generate`);
     if (!res) return;
@@ -606,44 +691,39 @@ async function generateCard(id) {
     renderFeed();
     if (selectedId===id && n) renderDetail(n);
     toast("TTS + Описание + Превью готовы ✓");
-  } catch(e) {
-    toast("Ошибка: "+e.message, true);
-    renderFeed();
-    if (selectedId===id) { const n=news.find(x=>x.id===id); if(n) renderDetail(n); }
-  }
+  } catch(e) { toast("Ошибка: "+e.message, true); renderFeed(); if(selectedId===id){const n=news.find(x=>x.id===id);if(n)renderDetail(n);} }
 }
 
 async function regenNews(id) {
-  const btn = document.querySelector(".d-footer .ba-regen");
-  if (btn) { btn.disabled=true; btn.textContent="Генерирую…"; }
+  const btn = document.querySelector(".ba-regen");
+  if (btn) { btn.disabled=true; btn.textContent="…"; }
   try {
     const res = await api("POST", `/api/news/${id}/regenerate`);
     if (!res) return;
     const n = news.find(x=>x.id===id);
     if (n) { n.tts_script=res.tts_script; n.description=res.description; n.preview_titles=res.preview_titles||[]; n.approved=0; }
-    renderFeed();
-    if (selectedId===id && n) renderDetail(n);
+    renderFeed(); if(selectedId===id&&n) renderDetail(n);
     toast("Перегенерировано ✓");
-  } catch(e) { toast("Ошибка: "+e.message, true); if(btn){btn.disabled=false;btn.textContent="↺ Заново";} }
+  } catch(e) { toast("Ошибка: "+e.message, true); if(btn){btn.disabled=false;btn.textContent="↺";} }
 }
 
 async function approveNews(id) {
   try {
     await api("POST", `/api/news/${id}/approve`);
-    const n = news.find(x=>x.id===id); if(n) n.approved=1;
-    renderFeed(); loadCounts();
-    if (selectedId===id && n) renderDetail(n);
+    const n=news.find(x=>x.id===id); if(n) n.approved=1;
+    renderFeed(); updateCounts();
+    if(selectedId===id&&n) renderDetail(n);
     toast("Одобрено ✓");
   } catch(e) { toast("Ошибка: "+e.message, true); }
 }
 
 async function delCard(id) {
-  if (!confirm("Удалить новость?")) return;
+  if (!confirm("Удалить новость из базы? Это нельзя отменить.")) return;
   try {
     await api("DELETE", `/api/news/${id}`);
     news = news.filter(x=>x.id!==id);
     if (selectedId===id) clearDetail();
-    renderFeed(); loadCounts();
+    renderFeed(); updateCounts();
     toast("Удалено");
   } catch(e) { toast("Ошибка: "+e.message, true); }
 }
@@ -651,7 +731,7 @@ async function delCard(id) {
 /* ── Save ── */
 function markDirty(type, id) {
   const d = document.getElementById(`dirty-${type}-${id}`);
-  if (d) d.style.display="inline-block";
+  if (d) d.style.display = "inline-block";
 }
 async function saveTTS(id) {
   const ta = document.getElementById("tts-"+id); if(!ta) return;
@@ -682,7 +762,7 @@ async function copyTA(elId) {
   toast("Скопировано ✓");
 }
 async function copyPrev(el) {
-  const text = el.querySelector("span")?.textContent?.trim()||"";
+  const text=el.querySelector("span")?.textContent?.trim()||"";
   try { await navigator.clipboard.writeText(text); } catch(_){}
   toast("Превью скопировано ✓");
 }

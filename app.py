@@ -74,6 +74,12 @@ def run_migrations(conn: sqlite3.Connection):
         "ALTER TABLE news ADD COLUMN gpt_comment TEXT",
         "ALTER TABLE news ADD COLUMN description TEXT",
         "ALTER TABLE news ADD COLUMN preview_titles TEXT",
+        "ALTER TABLE news ADD COLUMN published_at TEXT",
+        "ALTER TABLE news ADD COLUMN stats_views INTEGER DEFAULT 0",
+        "ALTER TABLE news ADD COLUMN stats_likes INTEGER DEFAULT 0",
+        "ALTER TABLE news ADD COLUMN stats_comments INTEGER DEFAULT 0",
+        "ALTER TABLE news ADD COLUMN stats_shares INTEGER DEFAULT 0",
+        "ALTER TABLE news ADD COLUMN stats_saves INTEGER DEFAULT 0",
     ]:
         try:
             conn.execute(sql)
@@ -301,7 +307,9 @@ async def api_news(
     params: list = [min_score]
 
     if tab == "approved":
-        where.append("approved = 1")
+        where.append("approved = 1 AND published_at IS NULL")
+    elif tab == "published":
+        where.append("published_at IS NOT NULL")
     elif tab == "hot":
         where.append("score >= 6")
     elif tab == "good":
@@ -323,7 +331,9 @@ async def api_news(
     rows = conn.execute(
         f"""SELECT id, title, url, source, published, score,
                    tts_script, approved, generated_at, collected, sent_tg,
-                   reviewed_script, gpt_comment, description, preview_titles
+                   reviewed_script, gpt_comment, description, preview_titles,
+                   published_at,
+                   stats_views, stats_likes, stats_comments, stats_shares, stats_saves
             FROM news
             WHERE {' AND '.join(where)}
             ORDER BY {order}
@@ -389,6 +399,44 @@ async def api_approve(news_id: int, request: Request):
     conn.commit()
     conn.close()
     return {"id": news_id, "approved": True}
+
+
+@app.post("/api/news/{news_id}/publish")
+async def api_publish(news_id: int, request: Request):
+    """Mark news as manually published."""
+    require_auth(request)
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute(
+        "UPDATE news SET published_at=? WHERE id=?",
+        (datetime.now().isoformat(), news_id),
+    )
+    conn.commit()
+    conn.close()
+    return {"id": news_id, "published": True}
+
+
+@app.patch("/api/news/{news_id}/stats")
+async def api_update_stats(news_id: int, request: Request):
+    """Save post statistics (views, likes, comments, shares, saves)."""
+    require_auth(request)
+    body = await request.json()
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute(
+        """UPDATE news SET
+           stats_views=?, stats_likes=?, stats_comments=?, stats_shares=?, stats_saves=?
+           WHERE id=?""",
+        (
+            int(body.get("views", 0) or 0),
+            int(body.get("likes", 0) or 0),
+            int(body.get("comments", 0) or 0),
+            int(body.get("shares", 0) or 0),
+            int(body.get("saves", 0) or 0),
+            news_id,
+        ),
+    )
+    conn.commit()
+    conn.close()
+    return {"id": news_id, "saved": True}
 
 
 @app.post("/api/news/{news_id}/approve-reviewed")

@@ -27,68 +27,55 @@
   --rsv-bd:  rgba(107,114,128,.22);
   --accent:  #f97316;
   --green:   #22c55e;
+  --blue:    #3b82f6;
+  --purple:  #8b5cf6;
 }
 html, body { height: 100%; overflow: hidden; }
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  background: var(--bg); color: var(--text);
-  font-size: 13px; line-height: 1.5;
+  background: var(--bg); color: var(--text); font-size: 13px; line-height: 1.5;
   display: flex; flex-direction: column;
 }
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
-
 .layout { display: flex; flex: 1; overflow: hidden; }
 
 /* ── SIDEBAR ── */
 .sidebar {
-  width: 200px; min-width: 200px;
-  background: var(--surface); border-right: 1px solid var(--border);
-  display: flex; flex-direction: column; overflow: hidden;
+  width: 200px; min-width: 200px; background: var(--surface);
+  border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden;
 }
 .sidebar-logo {
-  padding: .9rem .85rem .75rem;
-  font-size: 1rem; font-weight: 800; color: var(--accent);
+  padding: .9rem .85rem .75rem; font-size: 1rem; font-weight: 800; color: var(--accent);
   border-bottom: 1px solid var(--border); letter-spacing: -.02em;
-  display: flex; align-items: center; gap: .38rem;
 }
-.sidebar-logo span { font-size: .7rem; font-weight: 400; color: var(--dim); margin-left: .1rem; }
-.sidebar-nav { padding: .55rem .55rem; flex: 1; }
+.sidebar-nav { padding: .55rem; flex: 1; }
 .sect-label {
   font-size: .57rem; text-transform: uppercase; letter-spacing: .09em;
   color: var(--dim); padding: .45rem .4rem .2rem; display: block;
 }
 .nav-item {
-  display: flex; align-items: center; gap: .42rem;
-  padding: .38rem .6rem; border-radius: 7px;
-  color: var(--muted); font-size: .75rem; cursor: default;
-  margin-bottom: 1px; transition: all .13s; user-select: none;
+  display: flex; align-items: center; gap: .42rem; padding: .38rem .6rem;
+  border-radius: 7px; color: var(--muted); font-size: .75rem; cursor: default;
+  margin-bottom: 1px; transition: all .13s;
 }
 .nav-item.active { background: var(--card); color: var(--text); }
 .nav-item.soon   { opacity: .35; }
 .nav-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--dim); flex-shrink: 0; }
 .nav-item.active .nav-dot { background: var(--accent); }
 
-/* legend */
-.legend {
-  margin: .9rem .55rem 0; border-top: 1px solid var(--border); padding-top: .75rem;
-}
+.legend { margin: .9rem .55rem 0; border-top: 1px solid var(--border); padding-top: .75rem; }
 .legend-row {
-  display: flex; align-items: flex-start; gap: .38rem; margin-bottom: .45rem;
-  font-size: .67rem; color: var(--muted); line-height: 1.4;
+  display: flex; align-items: flex-start; gap: .38rem; margin-bottom: .4rem;
+  font-size: .66rem; color: var(--muted); line-height: 1.4;
 }
 .legend-row b { color: var(--text); white-space: nowrap; display: block; }
 
-.sidebar-footer {
-  padding: .6rem .85rem; border-top: 1px solid var(--border);
-}
-.sidebar-footer-lbl { font-size: .6rem; color: var(--dim); margin-bottom: .3rem; }
-.el-badges { display: flex; gap: .28rem; flex-wrap: wrap; }
-.el-badge {
-  font-size: .62rem; padding: .1rem .38rem; border-radius: 4px;
-  border: 1px solid; font-weight: 600; white-space: nowrap;
-}
+.sidebar-footer { padding: .6rem .85rem; border-top: 1px solid var(--border); }
+.sidebar-footer-lbl { font-size: .6rem; color: var(--dim); margin-bottom: .28rem; }
+.el-badges { display: flex; gap: .25rem; flex-wrap: wrap; }
+.el-badge { font-size: .62rem; padding: .1rem .38rem; border-radius: 4px; border: 1px solid; font-weight: 600; }
 
 /* ── FEED ── */
 .feed {
@@ -102,9 +89,8 @@ body {
 .feed-title { font-size: .88rem; font-weight: 700; }
 .feed-updated { font-size: .68rem; color: var(--muted); }
 .btn-collect {
-  margin-left: auto; padding: .33rem .8rem;
-  background: var(--accent); color: #fff; border: none;
-  border-radius: 7px; font-size: .74rem; font-weight: 600; cursor: pointer;
+  margin-left: auto; padding: .33rem .8rem; background: var(--accent);
+  color: #fff; border: none; border-radius: 7px; font-size: .74rem; font-weight: 600; cursor: pointer;
 }
 .btn-collect:hover { opacity: .85; }
 .btn-collect:disabled { opacity: .4; cursor: not-allowed; }
@@ -112,22 +98,19 @@ body {
 /* filter bar */
 .filter-bar {
   display: flex; align-items: center; gap: .4rem; flex-wrap: wrap;
-  padding: .42rem .85rem; border-bottom: 1px solid var(--border);
-  background: var(--surface); flex-shrink: 0;
+  padding: .42rem .85rem; border-bottom: 1px solid var(--border); background: var(--surface); flex-shrink: 0;
 }
 .filter-group { display: flex; align-items: center; gap: .2rem; }
 .filter-lbl { font-size: .65rem; color: var(--dim); white-space: nowrap; }
 .flt-btn {
   padding: .2rem .55rem; border-radius: 5px; border: 1px solid var(--border2);
-  background: transparent; color: var(--muted); font-size: .68rem; cursor: pointer;
-  transition: all .12s;
+  background: transparent; color: var(--muted); font-size: .68rem; cursor: pointer; transition: all .12s;
 }
 .flt-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
 .flt-btn:hover:not(.active) { color: var(--text); }
 .flt-score-input {
-  width: 44px; padding: .19rem .35rem; border: 1px solid var(--border2);
-  border-radius: 5px; background: var(--bg); color: var(--text);
-  font-size: .72rem; text-align: center;
+  width: 44px; padding: .19rem .35rem; border: 1px solid var(--border2); border-radius: 5px;
+  background: var(--bg); color: var(--text); font-size: .72rem; text-align: center;
 }
 .sort-btn {
   padding: .2rem .55rem; border-radius: 5px; border: 1px solid var(--border2);
@@ -136,14 +119,14 @@ body {
 .sort-btn.active { background: var(--card); color: var(--text); }
 .sort-btn:hover:not(.active) { color: var(--text); }
 
+/* tabs */
 .feed-tabs {
   display: flex; padding: .4rem .7rem; gap: .22rem;
   border-bottom: 1px solid var(--border); flex-shrink: 0; flex-wrap: wrap;
 }
 .tab-btn {
   padding: .25rem .7rem; border-radius: 20px; border: 1px solid transparent;
-  background: transparent; color: var(--muted); font-size: .71rem; cursor: pointer;
-  transition: all .13s;
+  background: transparent; color: var(--muted); font-size: .71rem; cursor: pointer; transition: all .13s;
 }
 .tab-btn.active { background: var(--card); color: var(--text); border-color: var(--border2); }
 .tab-btn:hover:not(.active) { color: var(--text); }
@@ -156,21 +139,19 @@ body {
 .tcnt.good { background: var(--good-bg); color: var(--good); }
 .tcnt.rsv  { background: var(--rsv-bg);  color: var(--rsv); }
 .tcnt.all  { background: var(--card);    color: var(--muted); }
+.tcnt.pub  { background: rgba(139,92,246,.15); color: var(--purple); }
 
-.feed-list {
-  flex: 1; overflow-y: auto; padding: .4rem;
-  display: flex; flex-direction: column; gap: .28rem;
-}
+.feed-list { flex: 1; overflow-y: auto; padding: .4rem; display: flex; flex-direction: column; gap: .28rem; }
 
-/* ── CARD ── */
+/* card */
 .news-card {
-  background: var(--card); border: 1px solid var(--border);
-  border-radius: 9px; padding: .6rem .7rem; cursor: pointer;
-  transition: border-color .13s;
+  background: var(--card); border: 1px solid var(--border); border-radius: 9px;
+  padding: .6rem .7rem; cursor: pointer; transition: border-color .13s;
 }
-.news-card:hover   { border-color: var(--border2); }
-.news-card.selected{ border-color: var(--accent); }
-.news-card.approved{ border-left: 2px solid var(--green); }
+.news-card:hover    { border-color: var(--border2); }
+.news-card.selected { border-color: var(--accent); }
+.news-card.approved { border-left: 2px solid var(--green); }
+.news-card.is-published { border-left: 2px solid var(--purple); }
 
 .card-top { display: flex; align-items: center; gap: .4rem; margin-bottom: .3rem; }
 .pri-badge {
@@ -180,8 +161,9 @@ body {
 .pri-badge.hot     { background: var(--hot-bg); color: var(--hot); border: 1px solid var(--hot-bd); }
 .pri-badge.good    { background: var(--good-bg); color: var(--good); border: 1px solid var(--good-bd); }
 .pri-badge.reserve { background: var(--rsv-bg); color: var(--rsv); border: 1px solid var(--rsv-bd); }
+.pri-badge.published-badge { background: rgba(139,92,246,.15); color: var(--purple); border: 1px solid rgba(139,92,246,.3); }
 
-.card-title { font-size: .79rem; font-weight: 600; line-height: 1.4; color: var(--text); }
+.card-title { font-size: .79rem; font-weight: 600; line-height: 1.4; }
 .card-meta {
   display: flex; align-items: center; gap: .3rem; flex-wrap: wrap;
   font-size: .65rem; color: var(--muted); margin: .28rem 0 .35rem;
@@ -189,18 +171,27 @@ body {
 .meta-sep   { color: var(--dim); }
 .meta-score { color: var(--text); font-weight: 600; }
 .meta-tts   { color: var(--green); }
+.meta-pub   { color: var(--purple); }
+
+/* stats mini in card */
+.card-stats {
+  display: flex; gap: .5rem; margin: .25rem 0 .35rem;
+  font-size: .65rem; color: var(--muted);
+}
+.cs-item { display: flex; align-items: center; gap: 2px; }
+.cs-val  { color: var(--text); font-weight: 600; }
 
 .score-bar-wrap { height: 3px; background: var(--border); border-radius: 2px; margin-bottom: .45rem; }
 .score-bar { height: 100%; border-radius: 2px; }
 .score-bar.hot     { background: linear-gradient(90deg, var(--hot), #f97316); }
 .score-bar.good    { background: linear-gradient(90deg, #f97316, #eab308); }
 .score-bar.reserve { background: var(--rsv); }
+.score-bar.published-bar { background: linear-gradient(90deg, var(--purple), var(--blue)); }
 
 .card-btns { display: flex; gap: .25rem; }
 .btn-sm {
   padding: .24rem .55rem; border-radius: 6px; border: 1px solid var(--border2);
-  background: transparent; color: var(--muted); font-size: .69rem; cursor: pointer;
-  transition: all .12s;
+  background: transparent; color: var(--muted); font-size: .69rem; cursor: pointer; transition: all .12s;
 }
 .btn-sm:hover { color: var(--text); border-color: var(--text); }
 .btn-sm.gen { color: var(--accent); border-color: var(--good-bd); }
@@ -208,36 +199,26 @@ body {
 .btn-sm.tts-done { color: var(--green); border-color: rgba(34,197,94,.25); }
 .btn-sm.del { color: var(--dim); }
 .btn-sm.del:hover { color: var(--hot); border-color: var(--hot); }
+.btn-sm.mark-pub { color: var(--purple); border-color: rgba(139,92,246,.3); }
+.btn-sm.mark-pub:hover { background: rgba(139,92,246,.1); }
 
 /* ── DETAIL ── */
-.detail {
-  width: 360px; min-width: 300px; max-width: 420px;
-  display: flex; flex-direction: column; overflow: hidden;
-}
+.detail { width: 360px; min-width: 300px; max-width: 420px; display: flex; flex-direction: column; overflow: hidden; }
 .detail-empty {
   flex: 1; display: flex; flex-direction: column;
-  align-items: center; justify-content: center;
-  color: var(--dim); gap: .3rem; text-align: center; padding: 2rem;
+  align-items: center; justify-content: center; color: var(--dim); gap: .3rem; text-align: center; padding: 2rem;
 }
 .detail-empty svg { opacity: .2; margin-bottom: .25rem; }
-
-.d-header {
-  padding: .7rem .85rem; border-bottom: 1px solid var(--border); flex-shrink: 0;
-}
+.d-header { padding: .7rem .85rem; border-bottom: 1px solid var(--border); flex-shrink: 0; }
 .d-source { font-size: .65rem; color: var(--muted); margin-bottom: .15rem; display: flex; align-items: center; gap: .35rem; }
 .d-title { font-size: .83rem; font-weight: 600; line-height: 1.45; }
 .d-title a { color: var(--text); text-decoration: none; }
 .d-title a:hover { color: var(--accent); }
 .d-meta { margin-top: .38rem; font-size: .67rem; color: var(--muted); display: flex; align-items: center; gap: .38rem; flex-wrap: wrap; }
 .d-score-val { color: var(--accent); font-weight: 700; }
-
-.d-body {
-  flex: 1; overflow-y: auto; padding: .7rem .85rem;
-  display: flex; flex-direction: column; gap: .7rem;
-}
+.d-body { flex: 1; overflow-y: auto; padding: .7rem .85rem; display: flex; flex-direction: column; gap: .7rem; }
 .blk-label {
-  font-size: .58rem; text-transform: uppercase; letter-spacing: .07em;
-  color: var(--muted); margin-bottom: .28rem;
+  font-size: .58rem; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); margin-bottom: .28rem;
   display: flex; align-items: center; justify-content: space-between;
 }
 .blk-actions { display: flex; gap: .18rem; align-items: center; }
@@ -246,15 +227,11 @@ body {
   background: transparent; color: var(--dim); font-size: .61rem; cursor: pointer;
 }
 .btn-lbl:hover { color: var(--text); }
-.dirty-dot {
-  width: 5px; height: 5px; border-radius: 50%;
-  background: #f59e0b; display: none; flex-shrink: 0;
-}
+.dirty-dot { width: 5px; height: 5px; border-radius: 50%; background: #f59e0b; display: none; flex-shrink: 0; }
 .d-ta {
-  width: 100%; background: var(--bg); border: 1px solid var(--border);
-  border-radius: 7px; color: var(--text); font-family: inherit;
-  font-size: .78rem; line-height: 1.6; padding: .52rem .65rem;
-  resize: vertical; outline: none; min-height: 60px;
+  width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 7px;
+  color: var(--text); font-family: inherit; font-size: .78rem; line-height: 1.6;
+  padding: .52rem .65rem; resize: vertical; outline: none; min-height: 60px;
 }
 .d-ta:focus { border-color: var(--accent); }
 
@@ -262,11 +239,40 @@ body {
 .prev-pill {
   background: var(--card); border: 1px solid var(--border2); border-radius: 7px;
   padding: .35rem .6rem; font-size: .75rem; font-weight: 700; color: var(--accent);
-  cursor: pointer; display: flex; align-items: center;
-  justify-content: space-between; gap: .3rem; letter-spacing: .02em;
+  cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: .3rem;
 }
 .prev-pill:hover { background: var(--good-bg); border-color: var(--good-bd); }
 .prev-hint { font-size: .58rem; color: var(--dim); font-weight: 400; }
+
+/* stats form */
+.stats-form {
+  background: rgba(139,92,246,.07); border: 1px solid rgba(139,92,246,.2);
+  border-radius: 8px; padding: .65rem .75rem;
+}
+.stats-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: .4rem .6rem; margin-top: .35rem;
+}
+.stat-field { display: flex; flex-direction: column; gap: .18rem; }
+.stat-label { font-size: .62rem; color: var(--muted); }
+.stat-input {
+  background: var(--bg); border: 1px solid var(--border2); border-radius: 6px;
+  color: var(--text); font-size: .8rem; padding: .28rem .45rem; width: 100%; outline: none;
+}
+.stat-input:focus { border-color: var(--purple); }
+.btn-save-stats {
+  margin-top: .55rem; width: 100%; padding: .33rem; border-radius: 6px;
+  background: var(--purple); color: #fff; border: none; font-size: .74rem; font-weight: 600; cursor: pointer;
+}
+.btn-save-stats:hover { opacity: .85; }
+
+/* stats display (read-only) */
+.stats-display { display: grid; grid-template-columns: repeat(3,1fr); gap: .35rem; }
+.stat-pill {
+  background: var(--card); border: 1px solid var(--border); border-radius: 7px;
+  padding: .35rem .4rem; text-align: center;
+}
+.stat-pill-val { font-size: .88rem; font-weight: 700; color: var(--text); display: block; }
+.stat-pill-lbl { font-size: .6rem; color: var(--dim); display: block; margin-top: 1px; }
 
 .d-footer {
   padding: .65rem .85rem; border-top: 1px solid var(--border);
@@ -279,25 +285,26 @@ body {
 .btn-act:disabled { opacity: .4; cursor: not-allowed; }
 .ba-approve { background: var(--green); color: #fff; }
 .ba-approve:hover:not(:disabled) { opacity: .85; }
-.ba-gen { background: var(--accent); color: #fff; }
+.ba-publish { background: var(--purple); color: #fff; }
+.ba-publish:hover:not(:disabled) { opacity: .85; }
+.ba-gen     { background: var(--accent); color: #fff; }
 .ba-gen:hover:not(:disabled) { opacity: .85; }
-.ba-regen { background: transparent; color: var(--muted); border-color: var(--border2); }
+.ba-regen   { background: transparent; color: var(--muted); border-color: var(--border2); }
 .ba-regen:hover:not(:disabled) { color: var(--text); border-color: var(--text); }
-.ba-speak { background: #0d9488; color: #fff; }
+.ba-speak   { background: #0d9488; color: #fff; }
 .ba-speak:hover:not(:disabled) { opacity: .85; }
 .el-sel {
   padding: .3rem .42rem; border: 1px solid var(--border2); border-radius: 6px;
   background: var(--bg); color: var(--text); font-size: .71rem; cursor: pointer;
 }
 
-/* ── MISC ── */
+/* spinner / toast */
 .spin {
   display: inline-block; width: 10px; height: 10px;
   border: 2px solid rgba(255,255,255,.3); border-top-color: #fff;
   border-radius: 50%; animation: rot .5s linear infinite;
 }
 @keyframes rot { to { transform: rotate(360deg); } }
-
 .toast {
   position: fixed; bottom: 1rem; right: 1rem; background: #1e293b; color: #fff;
   padding: .45rem .9rem; border-radius: 8px; font-size: .76rem;
@@ -307,7 +314,6 @@ body {
 .toast.on  { opacity: 1; transform: none; }
 .toast.err { background: var(--hot); }
 .empty-state { text-align: center; padding: 2rem 1rem; color: var(--dim); font-size: .78rem; }
-
 @media (max-width: 700px) { .sidebar, .detail { display: none; } }
 </style>
 </head>
@@ -316,30 +322,18 @@ body {
 
   <!-- SIDEBAR -->
   <aside class="sidebar">
-    <div class="sidebar-logo">
-      🎯 mediahub
-    </div>
-
+    <div class="sidebar-logo">🎯 mediahub</div>
     <div class="sidebar-nav">
       <span class="sect-label">Раздел</span>
       <div class="nav-item active"><span class="nav-dot"></span>Новости</div>
-      <div class="nav-item soon"><span class="nav-dot"></span>Контент</div>
-      <div class="nav-item soon"><span class="nav-dot"></span>Статистика</div>
       <div class="nav-item soon"><span class="nav-dot"></span>Аналитика</div>
       <div class="nav-item soon"><span class="nav-dot"></span>Настройки</div>
-
       <div class="legend">
-        <div class="legend-row">
-          <span>✓</span>
-          <span><b>Одобрить</b> — помечает новость как готовую. Видна в табе «Одобрено». Ничего не публикуется автоматически.</span>
-        </div>
-        <div class="legend-row">
-          <span>✕</span>
-          <span><b>Удалить</b> — удаляет новость из базы навсегда.</span>
-        </div>
+        <div class="legend-row"><span>✓</span><span><b>Одобрить</b> — готово к публикации. Ничего не публикуется автоматически.</span></div>
+        <div class="legend-row"><span>📤</span><span><b>Опубликовано</b> — ты опубликовал вручную. Нажми чтобы переместить туда.</span></div>
+        <div class="legend-row"><span>📊</span><span><b>Статистика</b> — добавляй просмотры/лайки после публикации.</span></div>
       </div>
     </div>
-
     <div class="sidebar-footer">
       <div class="sidebar-footer-lbl">ElevenLabs</div>
       <div class="el-badges" id="elBadges"></div>
@@ -354,12 +348,11 @@ body {
       <button class="btn-collect" id="collectBtn" onclick="collectNow()">Собрать сейчас</button>
     </div>
 
-    <!-- FILTERS -->
     <div class="filter-bar">
       <div class="filter-group">
         <span class="filter-lbl">Дата:</span>
-        <button class="flt-btn" data-period="today"  onclick="setPeriod('today')">Сегодня</button>
-        <button class="flt-btn" data-period="week"   onclick="setPeriod('week')">7 дней</button>
+        <button class="flt-btn" data-period="today" onclick="setPeriod('today')">Сегодня</button>
+        <button class="flt-btn" data-period="week"  onclick="setPeriod('week')">7 дней</button>
         <button class="flt-btn active" data-period="all" onclick="setPeriod('all')">Все</button>
       </div>
       <div class="filter-group" style="margin-left:.3rem">
@@ -373,26 +366,16 @@ body {
       </div>
     </div>
 
-    <!-- TABS -->
     <div class="feed-tabs">
-      <button class="tab-btn active" data-tab="all"      onclick="setTab('all')">
-        Все <span class="tcnt all" id="cnt-all">—</span>
-      </button>
-      <button class="tab-btn" data-tab="hot"      onclick="setTab('hot')">
-        🔥 Горящие <span class="tcnt hot" id="cnt-hot">—</span>
-      </button>
-      <button class="tab-btn" data-tab="good"     onclick="setTab('good')">
-        ⚡ Хорошие <span class="tcnt good" id="cnt-good">—</span>
-      </button>
-      <button class="tab-btn" data-tab="reserve"  onclick="setTab('reserve')">
-        📋 Резерв <span class="tcnt rsv" id="cnt-reserve">—</span>
-      </button>
-      <button class="tab-btn" data-tab="approved" onclick="setTab('approved')">✓ Одобрено</button>
+      <button class="tab-btn active" data-tab="all"       onclick="setTab('all')">Все <span class="tcnt all" id="cnt-all">—</span></button>
+      <button class="tab-btn"        data-tab="hot"       onclick="setTab('hot')">🔥 Горящие <span class="tcnt hot" id="cnt-hot">—</span></button>
+      <button class="tab-btn"        data-tab="good"      onclick="setTab('good')">⚡ Хорошие <span class="tcnt good" id="cnt-good">—</span></button>
+      <button class="tab-btn"        data-tab="reserve"   onclick="setTab('reserve')">📋 Резерв <span class="tcnt rsv" id="cnt-reserve">—</span></button>
+      <button class="tab-btn"        data-tab="approved"  onclick="setTab('approved')">✓ Одобренные</button>
+      <button class="tab-btn"        data-tab="published" onclick="setTab('published')">📤 Опубликовано <span class="tcnt pub" id="cnt-pub">—</span></button>
     </div>
 
-    <div class="feed-list" id="feedList">
-      <div class="empty-state">Загрузка…</div>
-    </div>
+    <div class="feed-list" id="feedList"><div class="empty-state">Загрузка…</div></div>
   </main>
 
   <!-- DETAIL -->
@@ -407,197 +390,193 @@ body {
     </div>
     <div id="detailContent" style="display:none;flex:1;flex-direction:column;overflow:hidden"></div>
   </aside>
-
 </div>
 <div class="toast" id="toast"></div>
 
 <script>
 "use strict";
-let news = [], curTab = "all", curSort = "score", curPeriod = "all", selectedId = null;
-
-const MONTHS = ["янв","фев","мар","апр","май","июн","июл","авг","сен","окт","ноя","дек"];
+let news=[], curTab="all", curSort="score", curPeriod="all", selectedId=null;
+const MONTHS=["янв","фев","мар","апр","май","июн","июл","авг","сен","окт","ноя","дек"];
 
 /* ── HTTP ── */
 async function api(method, path, body) {
-  const opts = { method };
-  if (body !== undefined) {
-    opts.headers = {"Content-Type":"application/json"};
-    opts.body = JSON.stringify(body);
-  }
-  const r = await fetch(path, opts);
-  if (r.status === 401) { location.href = "/login"; return null; }
-  if (!r.ok) {
-    let msg = "";
-    try { const j = await r.json(); msg = j.detail || JSON.stringify(j); }
-    catch(_) { msg = await r.text(); }
-    throw new Error(msg);
-  }
-  if (r.status === 204) return null;
+  const opts={method};
+  if(body!==undefined){opts.headers={"Content-Type":"application/json"};opts.body=JSON.stringify(body);}
+  const r=await fetch(path,opts);
+  if(r.status===401){location.href="/login";return null;}
+  if(!r.ok){let m="";try{const j=await r.json();m=j.detail||JSON.stringify(j);}catch(_){m=await r.text();}throw new Error(m);}
+  if(r.status===204)return null;
   return r.json();
 }
 
 /* ── Toast ── */
-function toast(msg, err=false) {
-  const el = document.getElementById("toast");
-  el.textContent = msg;
-  el.className = "toast on" + (err?" err":"");
-  clearTimeout(el._t);
-  el._t = setTimeout(() => el.classList.remove("on"), 3500);
+function toast(msg,err=false){
+  const el=document.getElementById("toast");
+  el.textContent=msg;el.className="toast on"+(err?" err":"");
+  clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove("on"),3500);
 }
 
 /* ── Helpers ── */
-function esc(s) {
-  return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+function esc(s){return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");}
+function fmtDate(str){
+  if(!str)return"";
+  try{const d=new Date(str);if(isNaN(d))return str.slice(0,16).replace("T"," ");
+  return`${d.getDate()} ${MONTHS[d.getMonth()]}, ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;}
+  catch(_){return str.slice(0,10);}
 }
-function fmtDate(str) {
-  if (!str) return "";
-  try {
-    const d = new Date(str);
-    if (isNaN(d)) return str.slice(0,16).replace("T"," ");
-    return `${d.getDate()} ${MONTHS[d.getMonth()]}, ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
-  } catch(_) { return str.slice(0,10); }
+function priLabel(p){return p==="hot"?"🔥 Горящая":p==="good"?"⚡ Хорошая":"📋 Резерв";}
+function fmtNum(n){if(!n||n===0)return"—";return n>=1000?Math.round(n/1000)+"k":String(n);}
+function fmtCr(n){return n<0?"Err":n>=1000?Math.round(n/1000)+"k":n+" chr";}
+function periodDates(p){
+  const t=new Date(),fmt=d=>d.toISOString().slice(0,10);
+  if(p==="today")return{date_from:fmt(t),date_to:fmt(t)};
+  if(p==="week"){const w=new Date(t);w.setDate(w.getDate()-6);return{date_from:fmt(w),date_to:fmt(t)};}
+  return{date_from:"",date_to:""};
 }
-function periodDates(period) {
-  const today = new Date();
-  const fmt = d => d.toISOString().slice(0,10);
-  if (period === "today") return { date_from: fmt(today), date_to: fmt(today) };
-  if (period === "week") {
-    const w = new Date(today); w.setDate(w.getDate()-6);
-    return { date_from: fmt(w), date_to: fmt(today) };
-  }
-  return { date_from: "", date_to: "" };
-}
-function priLabel(p) {
-  return p==="hot"?"🔥 Горящая": p==="good"?"⚡ Хорошая":"📋 Резерв";
-}
-function fmtCr(n) { return n<0?"Err":n>=1000?Math.round(n/1000)+"k":n+" chr"; }
 
-/* ── Filters / Sort / Tab ── */
-function setPeriod(p) {
-  curPeriod = p;
-  document.querySelectorAll(".flt-btn[data-period]").forEach(b=>
-    b.classList.toggle("active", b.dataset.period===p));
+/* ── Filters ── */
+function setPeriod(p){
+  curPeriod=p;
+  document.querySelectorAll(".flt-btn[data-period]").forEach(b=>b.classList.toggle("active",b.dataset.period===p));
   load();
 }
-function setSort(s) {
-  curSort = s;
-  document.getElementById("sort-score").classList.toggle("active", s==="score");
-  document.getElementById("sort-date").classList.toggle("active",  s==="date");
+function setSort(s){
+  curSort=s;
+  document.getElementById("sort-score").classList.toggle("active",s==="score");
+  document.getElementById("sort-date").classList.toggle("active",s==="date");
   load();
 }
-function setTab(tab) {
-  curTab = tab;
+function setTab(tab){
+  curTab=tab;
   document.querySelectorAll(".tab-btn").forEach(b=>b.classList.toggle("active",b.dataset.tab===tab));
   renderFeed();
 }
 
 /* ── Load ── */
-async function load() {
-  const min = parseInt(document.getElementById("minScore").value)||1;
-  const { date_from, date_to } = periodDates(curPeriod);
-  const params = new URLSearchParams({
-    min_score: min, limit: 200, sort: curSort,
-    ...(date_from ? {date_from} : {}),
-    ...(date_to   ? {date_to}   : {}),
-  });
-  try {
-    news = await api("GET", `/api/news?${params}`) || [];
-    document.getElementById("updatedAt").textContent =
-      "Обновлено " + new Date().toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"});
-    updateCounts();
-    renderFeed();
-    if (selectedId) {
-      const n = news.find(x=>x.id===selectedId);
-      if (n) renderDetail(n); else clearDetail();
-    }
-  } catch(e) { toast("Ошибка: "+e.message, true); }
+async function load(){
+  const min=parseInt(document.getElementById("minScore").value)||1;
+  const{date_from,date_to}=periodDates(curPeriod);
+  const p=new URLSearchParams({min_score:min,limit:200,sort:curSort,...(date_from?{date_from}:{}),...(date_to?{date_to}:{})});
+  try{
+    news=await api("GET",`/api/news?${p}`)||[];
+    // also load published separately (no score filter)
+    const pub=await api("GET","/api/news?tab=published&min_score=0&limit=200")||[];
+    // merge: add published ones not already in news
+    const ids=new Set(news.map(n=>n.id));
+    pub.forEach(n=>{if(!ids.has(n.id))news.push(n);});
+
+    document.getElementById("updatedAt").textContent=
+      "Обновлено "+new Date().toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"});
+    updateCounts();renderFeed();
+    if(selectedId){const n=news.find(x=>x.id===selectedId);if(n)renderDetail(n);else clearDetail();}
+  }catch(e){toast("Ошибка: "+e.message,true);}
 }
 
-function updateCounts() {
-  const counts = {all:0, hot:0, good:0, reserve:0};
-  news.forEach(n => {
-    counts.all++;
-    counts[n.priority || "reserve"] = (counts[n.priority || "reserve"]||0)+1;
+function updateCounts(){
+  let all=0,hot=0,good=0,rsv=0,pub=0;
+  news.forEach(n=>{
+    if(n.published_at){pub++;return;}
+    all++;
+    const p=n.priority||"reserve";
+    if(p==="hot")hot++;else if(p==="good")good++;else rsv++;
   });
-  document.getElementById("cnt-all").textContent     = counts.all;
-  document.getElementById("cnt-hot").textContent     = counts.hot;
-  document.getElementById("cnt-good").textContent    = counts.good;
-  document.getElementById("cnt-reserve").textContent = counts.reserve;
+  document.getElementById("cnt-all").textContent=all;
+  document.getElementById("cnt-hot").textContent=hot;
+  document.getElementById("cnt-good").textContent=good;
+  document.getElementById("cnt-reserve").textContent=rsv;
+  document.getElementById("cnt-pub").textContent=pub;
 }
 
 /* ── Render feed ── */
-function renderFeed() {
-  let filtered = news;
-  if (curTab === "hot")      filtered = news.filter(n=>n.priority==="hot");
-  else if (curTab==="good")  filtered = news.filter(n=>n.priority==="good");
-  else if (curTab==="reserve") filtered = news.filter(n=>n.priority==="reserve");
-  else if (curTab==="approved") filtered = news.filter(n=>n.approved===1);
+function renderFeed(){
+  let filtered=news;
+  if(curTab==="hot")      filtered=news.filter(n=>!n.published_at&&n.priority==="hot");
+  else if(curTab==="good")filtered=news.filter(n=>!n.published_at&&n.priority==="good");
+  else if(curTab==="reserve")filtered=news.filter(n=>!n.published_at&&n.priority==="reserve");
+  else if(curTab==="approved")filtered=news.filter(n=>n.approved&&!n.published_at);
+  else if(curTab==="published")filtered=news.filter(n=>!!n.published_at);
+  else filtered=news.filter(n=>!n.published_at); // "all" hides published
 
-  const list = document.getElementById("feedList");
-  if (!filtered.length) {
-    list.innerHTML = `<div class="empty-state">Нет новостей в этой категории</div>`;
-    return;
-  }
-  list.innerHTML = filtered.map(cardHtml).join("");
+  const list=document.getElementById("feedList");
+  if(!filtered.length){list.innerHTML=`<div class="empty-state">Нет новостей в этой категории</div>`;return;}
+  list.innerHTML=filtered.map(n=>cardHtml(n,curTab==="published")).join("");
 }
 
-function cardHtml(n) {
-  const p = n.priority || "reserve";
-  const barW = Math.min(100, Math.round((n.score / 10) * 100));
-  const hasTTS = !!n.tts_script;
-  const pubDate = fmtDate(n.published || n.collected);
-  return `
-    <div class="news-card${selectedId===n.id?" selected":""}${n.approved?" approved":""}"
+function cardHtml(n,isPubTab=false){
+  const p=n.priority||"reserve";
+  const isPublished=!!n.published_at;
+  const barCls=isPublished?"published-bar":p;
+  const barW=Math.min(100,Math.round((n.score/10)*100));
+  const hasTTS=!!n.tts_script;
+
+  const hasStats=n.stats_views||n.stats_likes||n.stats_comments||n.stats_shares;
+
+  const statsRow=isPublished&&hasStats?`
+    <div class="card-stats">
+      <span class="cs-item">👁 <span class="cs-val">${fmtNum(n.stats_views)}</span></span>
+      <span class="cs-item">❤️ <span class="cs-val">${fmtNum(n.stats_likes)}</span></span>
+      <span class="cs-item">💬 <span class="cs-val">${fmtNum(n.stats_comments)}</span></span>
+      <span class="cs-item">↗️ <span class="cs-val">${fmtNum(n.stats_shares)}</span></span>
+    </div>`:"";
+
+  const btns=isPubTab
+    ?`<button class="btn-sm tts-done" onclick="selectCard(${n.id})">📊 Статистика</button>`
+    :(!hasTTS
+      ?`<button class="btn-sm gen" onclick="generateCard(${n.id})">✨ Генерировать</button>`
+      :n.approved
+        ?`<button class="btn-sm mark-pub" onclick="event.stopPropagation();markPublished(${n.id})">📤 Опубликовано</button>
+          <button class="btn-sm tts-done" onclick="selectCard(${n.id})">Открыть →</button>`
+        :`<button class="btn-sm tts-done" onclick="selectCard(${n.id})">Открыть скрипт →</button>`
+    )+`<button class="btn-sm del" title="Удалить" onclick="event.stopPropagation();delCard(${n.id})">✕</button>`;
+
+  return`
+    <div class="news-card${selectedId===n.id?" selected":""}${n.approved&&!isPublished?" approved":""}${isPublished?" is-published":""}"
          id="card-${n.id}" onclick="selectCard(${n.id})">
       <div class="card-top">
-        <span class="pri-badge ${p}">${priLabel(p)}</span>
-        ${n.approved?'<span style="font-size:.59rem;color:var(--green);margin-left:auto">✓ Одобрено</span>':""}
+        ${isPublished
+          ?`<span class="pri-badge published-badge">📤 Опубликовано</span>`
+          :`<span class="pri-badge ${p}">${priLabel(p)}</span>`}
+        ${n.approved&&!isPublished?'<span style="font-size:.59rem;color:var(--green);margin-left:auto">✓ Одобрено</span>':""}
       </div>
       <div class="card-title">${esc(n.title)}</div>
       <div class="card-meta">
         <span>${esc(n.source||"")}</span>
         <span class="meta-sep">·</span>
-        <span title="Дата публикации">${pubDate}</span>
+        <span>${fmtDate(n.published||n.collected)}</span>
         <span class="meta-sep">·</span>
         <span>Score <span class="meta-score">${n.score}</span></span>
         ${hasTTS?'<span class="meta-sep">·</span><span class="meta-tts">✓ TTS</span>':""}
+        ${isPublished?`<span class="meta-sep">·</span><span class="meta-pub">📤 ${fmtDate(n.published_at)}</span>`:""}
       </div>
-      <div class="score-bar-wrap">
-        <div class="score-bar ${p}" style="width:${barW}%"></div>
-      </div>
-      <div class="card-btns" onclick="event.stopPropagation()">
-        ${!hasTTS
-          ? `<button class="btn-sm gen" onclick="generateCard(${n.id})">✨ Генерировать</button>`
-          : `<button class="btn-sm tts-done" onclick="selectCard(${n.id})">Открыть скрипт →</button>`}
-        <button class="btn-sm del" title="Удалить из базы навсегда" onclick="event.stopPropagation();delCard(${n.id})">✕</button>
-      </div>
+      ${statsRow}
+      <div class="score-bar-wrap"><div class="score-bar ${barCls}" style="width:${barW}%"></div></div>
+      <div class="card-btns" onclick="event.stopPropagation()">${btns}</div>
     </div>`;
 }
 
 /* ── Select / Detail ── */
-function selectCard(id) {
-  selectedId = id;
-  document.querySelectorAll(".news-card").forEach(el=>
-    el.classList.toggle("selected", el.id==="card-"+id));
-  const n = news.find(x=>x.id===id);
-  if (n) renderDetail(n);
+function selectCard(id){
+  selectedId=id;
+  document.querySelectorAll(".news-card").forEach(el=>el.classList.toggle("selected",el.id==="card-"+id));
+  const n=news.find(x=>x.id===id);if(n)renderDetail(n);
 }
-function clearDetail() {
-  selectedId = null;
-  document.getElementById("detailEmpty").style.display = "flex";
-  document.getElementById("detailContent").style.display = "none";
+function clearDetail(){
+  selectedId=null;
+  document.getElementById("detailEmpty").style.display="flex";
+  document.getElementById("detailContent").style.display="none";
 }
 
-function renderDetail(n) {
-  document.getElementById("detailEmpty").style.display = "none";
-  const dc = document.getElementById("detailContent");
-  dc.style.display = "flex";
-  const p = n.priority || "reserve";
-  const previews = Array.isArray(n.preview_titles) ? n.preview_titles : [];
-  const hasTTS  = !!n.tts_script;
-  const hasDesc = !!n.description;
+function renderDetail(n){
+  document.getElementById("detailEmpty").style.display="none";
+  const dc=document.getElementById("detailContent");
+  dc.style.display="flex";
+  const p=n.priority||"reserve";
+  const previews=Array.isArray(n.preview_titles)?n.preview_titles:[];
+  const hasTTS=!!n.tts_script;
+  const hasDesc=!!n.description;
+  const isPublished=!!n.published_at;
 
-  const ttsBlock = hasTTS ? `
+  const ttsBlock=hasTTS?`
     <div>
       <div class="blk-label">🎙 TTS (Claude)
         <div class="blk-actions">
@@ -607,10 +586,11 @@ function renderDetail(n) {
         </div>
       </div>
       <textarea class="d-ta" id="tts-${n.id}" oninput="markDirty('tts',${n.id})" rows="8">${esc(n.tts_script)}</textarea>
-    </div>` : `<div style="font-size:.75rem;color:var(--dim);text-align:center;padding:.5rem 0">
+    </div>`:
+    `<div style="font-size:.75rem;color:var(--dim);text-align:center;padding:.5rem 0">
       Нажми «Генерировать» для создания TTS, описания и превью</div>`;
 
-  const descBlock = hasDesc ? `
+  const descBlock=hasDesc?`
     <div>
       <div class="blk-label">📝 Описание
         <div class="blk-actions">
@@ -620,193 +600,235 @@ function renderDetail(n) {
         </div>
       </div>
       <textarea class="d-ta" id="desc-${n.id}" oninput="markDirty('desc',${n.id})" rows="7">${esc(n.description)}</textarea>
-    </div>` : "";
+    </div>`:"";
 
-  const prevBlock = previews.length ? `
+  const prevBlock=previews.length?`
     <div>
       <div class="blk-label">🖼 Превью — нажми чтобы скопировать</div>
-      <div class="prev-list">
-        ${previews.map(pv=>`
-          <div class="prev-pill" onclick="copyPrev(this)">
-            <span>${esc(pv)}</span><span class="prev-hint">copy</span>
-          </div>`).join("")}
+      <div class="prev-list">${previews.map(pv=>`
+        <div class="prev-pill" onclick="copyPrev(this)"><span>${esc(pv)}</span><span class="prev-hint">copy</span></div>`).join("")}
       </div>
-    </div>` : "";
+    </div>`:"";
 
-  dc.innerHTML = `
+  /* stats block — shown for published items */
+  const statsBlock=isPublished?`
+    <div>
+      <div class="blk-label">📊 Статистика публикации</div>
+      ${(n.stats_views||n.stats_likes||n.stats_comments||n.stats_shares||n.stats_saves)?`
+      <div class="stats-display" style="margin-bottom:.55rem">
+        <div class="stat-pill"><span class="stat-pill-val">${fmtNum(n.stats_views)}</span><span class="stat-pill-lbl">👁 Просмотры</span></div>
+        <div class="stat-pill"><span class="stat-pill-val">${fmtNum(n.stats_likes)}</span><span class="stat-pill-lbl">❤️ Лайки</span></div>
+        <div class="stat-pill"><span class="stat-pill-val">${fmtNum(n.stats_comments)}</span><span class="stat-pill-lbl">💬 Комменты</span></div>
+        <div class="stat-pill"><span class="stat-pill-val">${fmtNum(n.stats_shares)}</span><span class="stat-pill-lbl">↗️ Репосты</span></div>
+        <div class="stat-pill"><span class="stat-pill-val">${fmtNum(n.stats_saves)}</span><span class="stat-pill-lbl">🔖 Сохранения</span></div>
+      </div>`:""}
+      <div class="stats-form">
+        <div class="blk-label" style="margin-bottom:0">Обновить данные</div>
+        <div class="stats-grid">
+          <div class="stat-field"><span class="stat-label">👁 Просмотры</span>
+            <input class="stat-input" type="number" id="sv-${n.id}" placeholder="0" value="${n.stats_views||""}"></div>
+          <div class="stat-field"><span class="stat-label">❤️ Лайки</span>
+            <input class="stat-input" type="number" id="sl-${n.id}" placeholder="0" value="${n.stats_likes||""}"></div>
+          <div class="stat-field"><span class="stat-label">💬 Комменты</span>
+            <input class="stat-input" type="number" id="sc-${n.id}" placeholder="0" value="${n.stats_comments||""}"></div>
+          <div class="stat-field"><span class="stat-label">↗️ Репосты</span>
+            <input class="stat-input" type="number" id="ss-${n.id}" placeholder="0" value="${n.stats_shares||""}"></div>
+          <div class="stat-field"><span class="stat-label">🔖 Сохранения</span>
+            <input class="stat-input" type="number" id="sk-${n.id}" placeholder="0" value="${n.stats_saves||""}"></div>
+        </div>
+        <button class="btn-save-stats" onclick="saveStats(${n.id})">💾 Сохранить статистику</button>
+      </div>
+    </div>`:"";
+
+  const pubDate=isPublished?`· 📤 ${fmtDate(n.published_at)}`:"";
+
+  dc.innerHTML=`
     <div class="d-header">
       <div class="d-source">
-        ${esc(n.source||"")} · <span class="pri-badge ${p}" style="display:inline-flex">${priLabel(p)}</span>
+        ${esc(n.source||"")} ·
+        ${isPublished
+          ?`<span class="pri-badge published-badge" style="display:inline-flex">📤 Опубликовано</span>`
+          :`<span class="pri-badge ${p}" style="display:inline-flex">${priLabel(p)}</span>`}
       </div>
       <div class="d-title"><a href="${esc(n.url)}" target="_blank" rel="noopener">${esc(n.title)}</a></div>
       <div class="d-meta">
         Score: <span class="d-score-val">${n.score}</span>
-        · ${fmtDate(n.published || n.collected)}
-        ${n.approved?'· <span style="color:var(--green)">✓ Одобрено</span>':""}
+        · ${fmtDate(n.published||n.collected)}
+        ${pubDate}
+        ${n.approved&&!isPublished?'· <span style="color:var(--green)">✓ Одобрено</span>':""}
       </div>
     </div>
-    <div class="d-body">${ttsBlock}${descBlock}${prevBlock}</div>
+    <div class="d-body">${ttsBlock}${descBlock}${prevBlock}${statsBlock}</div>
     <div class="d-footer">
-      ${hasTTS ? `
-        <button class="btn-act ba-approve" id="apr-${n.id}"
-                onclick="approveNews(${n.id})" ${n.approved?"disabled":""}
+      ${isPublished?`
+        <button class="btn-act ba-regen" onclick="regenNews(${n.id})" title="Сгенерировать заново">↺ Заново</button>
+      `:hasTTS?`
+        <button class="btn-act ba-approve" id="apr-${n.id}" onclick="approveNews(${n.id})" ${n.approved?"disabled":""}
                 title="Пометить как готовое к публикации">
           ${n.approved?"✓ Одобрено":"Одобрить"}</button>
+        ${n.approved?`<button class="btn-act ba-publish" onclick="markPublished(${n.id})" title="Я опубликовал этот пост">📤 Опубликовано</button>`:""}
         <select class="el-sel" id="el-${n.id}">
-          <option value="0">🤖 Авто</option>
-          <option value="1">Акк 1</option>
-          <option value="2">Акк 2</option>
+          <option value="0">🤖 Авто</option><option value="1">Акк 1</option><option value="2">Акк 2</option>
         </select>
         <button class="btn-act ba-speak" onclick="speakNews(${n.id})">🎙 Озвучить</button>
         <button class="btn-act ba-regen" onclick="regenNews(${n.id})" title="Сгенерировать заново">↺</button>
-      ` : `
+      `:`
         <button class="btn-act ba-gen" onclick="generateCard(${n.id})">✨ Генерировать</button>
       `}
     </div>`;
 }
 
 /* ── Actions ── */
-async function collectNow() {
-  const btn = document.getElementById("collectBtn");
-  btn.disabled=true; btn.innerHTML=`<span class="spin"></span> Сбор…`;
-  try {
-    await api("POST","/api/collect");
-    toast("Сбор запущен — обновление через ~20с");
-    setTimeout(load, 20000);
-  } catch(e) { toast("Ошибка: "+e.message, true); }
-  finally { setTimeout(()=>{btn.disabled=false;btn.textContent="Собрать сейчас";},15000); }
+async function collectNow(){
+  const btn=document.getElementById("collectBtn");
+  btn.disabled=true;btn.innerHTML=`<span class="spin"></span> Сбор…`;
+  try{await api("POST","/api/collect");toast("Сбор запущен — обновление через ~20с");setTimeout(load,20000);}
+  catch(e){toast("Ошибка: "+e.message,true);}
+  finally{setTimeout(()=>{btn.disabled=false;btn.textContent="Собрать сейчас";},15000);}
 }
 
-async function generateCard(id) {
-  const btn = document.querySelector(`#card-${id} .btn-sm.gen`);
-  if (btn) { btn.disabled=true; btn.innerHTML=`<span class="spin" style="border-top-color:var(--accent)"></span>`; }
-  // also update detail button if open
-  const detBtn = document.querySelector(".d-footer .ba-gen");
-  if (detBtn && selectedId===id) { detBtn.disabled=true; detBtn.innerHTML=`<span class="spin"></span> Генерирую…`; }
-  try {
-    const res = await api("POST", `/api/news/${id}/generate`);
-    if (!res) return;
-    const n = news.find(x=>x.id===id);
-    if (n) { n.tts_script=res.tts_script; n.description=res.description; n.preview_titles=res.preview_titles||[]; }
-    renderFeed();
-    if (selectedId===id && n) renderDetail(n);
+async function generateCard(id){
+  const btn=document.querySelector(`#card-${id} .btn-sm.gen`);
+  if(btn){btn.disabled=true;btn.innerHTML=`<span class="spin" style="border-top-color:var(--accent)"></span>`;}
+  const detBtn=document.querySelector(".d-footer .ba-gen");
+  if(detBtn&&selectedId===id){detBtn.disabled=true;detBtn.innerHTML=`<span class="spin"></span> Генерирую…`;}
+  try{
+    const res=await api("POST",`/api/news/${id}/generate`);if(!res)return;
+    const n=news.find(x=>x.id===id);
+    if(n){n.tts_script=res.tts_script;n.description=res.description;n.preview_titles=res.preview_titles||[];}
+    renderFeed();if(selectedId===id&&n)renderDetail(n);
     toast("TTS + Описание + Превью готовы ✓");
-  } catch(e) { toast("Ошибка: "+e.message, true); renderFeed(); if(selectedId===id){const n=news.find(x=>x.id===id);if(n)renderDetail(n);} }
+  }catch(e){toast("Ошибка: "+e.message,true);renderFeed();if(selectedId===id){const n=news.find(x=>x.id===id);if(n)renderDetail(n);}}
 }
 
-async function regenNews(id) {
-  const btn = document.querySelector(".ba-regen");
-  if (btn) { btn.disabled=true; btn.textContent="…"; }
-  try {
-    const res = await api("POST", `/api/news/${id}/regenerate`);
-    if (!res) return;
-    const n = news.find(x=>x.id===id);
-    if (n) { n.tts_script=res.tts_script; n.description=res.description; n.preview_titles=res.preview_titles||[]; n.approved=0; }
-    renderFeed(); if(selectedId===id&&n) renderDetail(n);
+async function regenNews(id){
+  const btn=document.querySelector(".ba-regen");
+  if(btn){btn.disabled=true;btn.textContent="…";}
+  try{
+    const res=await api("POST",`/api/news/${id}/regenerate`);if(!res)return;
+    const n=news.find(x=>x.id===id);
+    if(n){n.tts_script=res.tts_script;n.description=res.description;n.preview_titles=res.preview_titles||[];n.approved=0;}
+    renderFeed();if(selectedId===id&&n)renderDetail(n);
     toast("Перегенерировано ✓");
-  } catch(e) { toast("Ошибка: "+e.message, true); if(btn){btn.disabled=false;btn.textContent="↺";} }
+  }catch(e){toast("Ошибка: "+e.message,true);if(btn){btn.disabled=false;btn.textContent="↺";}}
 }
 
-async function approveNews(id) {
-  try {
-    await api("POST", `/api/news/${id}/approve`);
-    const n=news.find(x=>x.id===id); if(n) n.approved=1;
-    renderFeed(); updateCounts();
-    if(selectedId===id&&n) renderDetail(n);
-    toast("Одобрено ✓");
-  } catch(e) { toast("Ошибка: "+e.message, true); }
+async function approveNews(id){
+  try{
+    await api("POST",`/api/news/${id}/approve`);
+    const n=news.find(x=>x.id===id);if(n)n.approved=1;
+    renderFeed();updateCounts();if(selectedId===id&&n)renderDetail(n);
+    toast("Одобрено ✓ — теперь можешь нажать «Опубликовано»");
+  }catch(e){toast("Ошибка: "+e.message,true);}
 }
 
-async function delCard(id) {
-  if (!confirm("Удалить новость из базы? Это нельзя отменить.")) return;
-  try {
-    await api("DELETE", `/api/news/${id}`);
-    news = news.filter(x=>x.id!==id);
-    if (selectedId===id) clearDetail();
-    renderFeed(); updateCounts();
-    toast("Удалено");
-  } catch(e) { toast("Ошибка: "+e.message, true); }
+async function markPublished(id){
+  try{
+    await api("POST",`/api/news/${id}/publish`);
+    const n=news.find(x=>x.id===id);if(n)n.published_at=new Date().toISOString();
+    renderFeed();updateCounts();if(selectedId===id&&n)renderDetail(n);
+    toast("Отмечено как опубликовано 📤");
+  }catch(e){toast("Ошибка: "+e.message,true);}
 }
 
-/* ── Save ── */
-function markDirty(type, id) {
-  const d = document.getElementById(`dirty-${type}-${id}`);
-  if (d) d.style.display = "inline-block";
+async function saveStats(id){
+  const v=n=>parseInt(document.getElementById(n)?.value||"0")||0;
+  try{
+    await api("PATCH",`/api/news/${id}/stats`,{
+      views:v(`sv-${id}`),likes:v(`sl-${id}`),
+      comments:v(`sc-${id}`),shares:v(`ss-${id}`),saves:v(`sk-${id}`)
+    });
+    const n=news.find(x=>x.id===id);
+    if(n){
+      n.stats_views=v(`sv-${id}`);n.stats_likes=v(`sl-${id}`);
+      n.stats_comments=v(`sc-${id}`);n.stats_shares=v(`ss-${id}`);n.stats_saves=v(`sk-${id}`);
+    }
+    renderFeed();if(selectedId===id&&n)renderDetail(n);
+    toast("Статистика сохранена ✓");
+  }catch(e){toast("Ошибка: "+e.message,true);}
 }
-async function saveTTS(id) {
-  const ta = document.getElementById("tts-"+id); if(!ta) return;
-  const text = ta.value.trim(); if(!text) return;
-  try {
-    await api("PATCH", `/api/news/${id}/tts`, {tts_script:text});
-    const n=news.find(x=>x.id===id); if(n) n.tts_script=text;
-    const d=document.getElementById("dirty-tts-"+id); if(d) d.style.display="none";
+
+async function delCard(id){
+  if(!confirm("Удалить новость из базы? Это нельзя отменить."))return;
+  try{
+    await api("DELETE",`/api/news/${id}`);
+    news=news.filter(x=>x.id!==id);
+    if(selectedId===id)clearDetail();
+    renderFeed();updateCounts();toast("Удалено");
+  }catch(e){toast("Ошибка: "+e.message,true);}
+}
+
+/* ── Save text ── */
+function markDirty(type,id){const d=document.getElementById(`dirty-${type}-${id}`);if(d)d.style.display="inline-block";}
+async function saveTTS(id){
+  const ta=document.getElementById("tts-"+id);if(!ta)return;
+  const text=ta.value.trim();if(!text)return;
+  try{
+    await api("PATCH",`/api/news/${id}/tts`,{tts_script:text});
+    const n=news.find(x=>x.id===id);if(n)n.tts_script=text;
+    const d=document.getElementById("dirty-tts-"+id);if(d)d.style.display="none";
     toast("TTS сохранён ✓");
-  } catch(e) { toast("Ошибка: "+e.message, true); }
+  }catch(e){toast("Ошибка: "+e.message,true);}
 }
-async function saveDesc(id) {
-  const ta = document.getElementById("desc-"+id); if(!ta) return;
-  const text = ta.value.trim(); if(!text) return;
-  try {
-    await api("PATCH", `/api/news/${id}/description`, {description:text});
-    const n=news.find(x=>x.id===id); if(n) n.description=text;
-    const d=document.getElementById("dirty-desc-"+id); if(d) d.style.display="none";
+async function saveDesc(id){
+  const ta=document.getElementById("desc-"+id);if(!ta)return;
+  const text=ta.value.trim();if(!text)return;
+  try{
+    await api("PATCH",`/api/news/${id}/description`,{description:text});
+    const n=news.find(x=>x.id===id);if(n)n.description=text;
+    const d=document.getElementById("dirty-desc-"+id);if(d)d.style.display="none";
     toast("Описание сохранено ✓");
-  } catch(e) { toast("Ошибка: "+e.message, true); }
+  }catch(e){toast("Ошибка: "+e.message,true);}
 }
 
 /* ── Copy ── */
-async function copyTA(elId) {
-  const el=document.getElementById(elId); if(!el) return;
-  try { await navigator.clipboard.writeText(el.value||el.textContent); }
-  catch(_) { el.select?.(); document.execCommand("copy"); }
+async function copyTA(elId){
+  const el=document.getElementById(elId);if(!el)return;
+  try{await navigator.clipboard.writeText(el.value||el.textContent);}
+  catch(_){el.select?.();document.execCommand("copy");}
   toast("Скопировано ✓");
 }
-async function copyPrev(el) {
+async function copyPrev(el){
   const text=el.querySelector("span")?.textContent?.trim()||"";
-  try { await navigator.clipboard.writeText(text); } catch(_){}
+  try{await navigator.clipboard.writeText(text);}catch(_){}
   toast("Превью скопировано ✓");
 }
 
 /* ── Speak ── */
-async function speakNews(id) {
-  const dirty = document.getElementById("dirty-tts-"+id);
-  if (dirty && dirty.style.display!=="none") await saveTTS(id);
-  const sel = document.getElementById("el-"+id);
-  const account = sel ? parseInt(sel.value) : 0;
-  const btn = document.querySelector(".d-footer .ba-speak");
-  if (btn) { btn.disabled=true; btn.innerHTML=`<span class="spin"></span>`; }
+async function speakNews(id){
+  const dirty=document.getElementById("dirty-tts-"+id);
+  if(dirty&&dirty.style.display!=="none")await saveTTS(id);
+  const sel=document.getElementById("el-"+id);
+  const account=sel?parseInt(sel.value):0;
+  const btn=document.querySelector(".d-footer .ba-speak");
+  if(btn){btn.disabled=true;btn.innerHTML=`<span class="spin"></span>`;}
   toast("Генерирую аудио…");
-  try {
-    const r = await fetch(`/api/news/${id}/speak?account=${account}`);
-    if (r.status===401) { location.href="/login"; return; }
-    if (!r.ok) throw new Error(await r.text());
-    const usedAcc = r.headers.get("X-EL-Account")||account;
-    const blob = await r.blob();
-    const a = document.createElement("a");
-    a.href=URL.createObjectURL(blob); a.download=`tts_${id}_acc${usedAcc}.mp3`;
-    a.click(); URL.revokeObjectURL(a.href);
-    toast(`MP3 скачан (Акк ${usedAcc}) ✓`);
-    loadCredits();
-  } catch(e) { toast("ElevenLabs: "+e.message, true); }
-  finally { if(btn){btn.disabled=false;btn.innerHTML="🎙 Озвучить";} }
+  try{
+    const r=await fetch(`/api/news/${id}/speak?account=${account}`);
+    if(r.status===401){location.href="/login";return;}
+    if(!r.ok)throw new Error(await r.text());
+    const usedAcc=r.headers.get("X-EL-Account")||account;
+    const blob=await r.blob();const a=document.createElement("a");
+    a.href=URL.createObjectURL(blob);a.download=`tts_${id}_acc${usedAcc}.mp3`;
+    a.click();URL.revokeObjectURL(a.href);
+    toast(`MP3 скачан (Акк ${usedAcc}) ✓`);loadCredits();
+  }catch(e){toast("ElevenLabs: "+e.message,true);}
+  finally{if(btn){btn.disabled=false;btn.innerHTML="🎙 Озвучить";}}
 }
 
 /* ── ElevenLabs credits ── */
-async function loadCredits() {
-  try {
-    const d = await api("GET","/api/elevenlabs/credits");
-    if (!d) return;
-    const el = document.getElementById("elBadges");
-    el.innerHTML = "";
-    for (const [acc, chars] of Object.entries(d)) {
-      const color = chars>5000?"#22c55e":chars>0?"#f97316":"#ef4444";
-      el.innerHTML += `<span class="el-badge" style="color:${color};border-color:${color}">🎙${acc} ${fmtCr(chars)}</span>`;
+async function loadCredits(){
+  try{
+    const d=await api("GET","/api/elevenlabs/credits");if(!d)return;
+    const el=document.getElementById("elBadges");el.innerHTML="";
+    for(const[acc,chars]of Object.entries(d)){
+      const color=chars>5000?"#22c55e":chars>0?"#f97316":"#ef4444";
+      el.innerHTML+=`<span class="el-badge" style="color:${color};border-color:${color}">🎙${acc} ${fmtCr(chars)}</span>`;
     }
-  } catch(_){}
+  }catch(_){}
 }
 
-load();
-loadCredits();
+load();loadCredits();
 </script>
 </body>
 </html>

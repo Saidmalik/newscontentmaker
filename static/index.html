@@ -315,6 +315,80 @@ body {
 .toast.err { background: var(--hot); }
 .empty-state { text-align: center; padding: 2rem 1rem; color: var(--dim); font-size: .78rem; }
 @media (max-width: 700px) { .sidebar, .detail { display: none; } }
+
+/* ── ANALYTICS ── */
+.analytics-view { flex:1; overflow-y:auto; padding:1rem; display:flex; flex-direction:column; gap:.9rem; }
+.agg-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:.6rem; }
+.agg-card {
+  background:var(--card); border:1px solid var(--border); border-radius:10px;
+  padding:.75rem .85rem; text-align:center;
+}
+.agg-val { font-size:1.4rem; font-weight:800; color:var(--accent); display:block; }
+.agg-lbl { font-size:.65rem; color:var(--muted); margin-top:.15rem; display:block; }
+
+.an-section-title {
+  font-size:.7rem; text-transform:uppercase; letter-spacing:.08em;
+  color:var(--muted); margin-bottom:.45rem; display:flex; align-items:center;
+  justify-content:space-between; gap:.5rem;
+}
+.an-table-wrap { overflow-x:auto; }
+.an-table {
+  width:100%; border-collapse:collapse; font-size:.76rem;
+}
+.an-table th {
+  text-align:left; padding:.38rem .6rem; font-size:.63rem; font-weight:600;
+  color:var(--muted); border-bottom:1px solid var(--border2); white-space:nowrap;
+}
+.an-table td {
+  padding:.42rem .6rem; border-bottom:1px solid var(--border);
+  color:var(--text); vertical-align:middle;
+}
+.an-table tr:hover td { background:rgba(255,255,255,.02); }
+.an-table .num { text-align:right; font-weight:600; font-variant-numeric:tabular-nums; }
+.an-table .er-good { color:var(--green); }
+.an-table .er-ok   { color:var(--good); }
+.an-table .er-low  { color:var(--rsv); }
+.an-bar-wrap { width:60px; height:5px; background:var(--border); border-radius:3px; display:inline-block; vertical-align:middle; }
+.an-bar { height:100%; border-radius:3px; background:var(--accent); }
+
+.insights-box {
+  background:var(--card); border:1px solid rgba(139,92,246,.3); border-radius:10px;
+  padding:.85rem 1rem; font-size:.8rem; line-height:1.65; color:var(--text);
+  white-space:pre-wrap;
+}
+.btn-insights {
+  padding:.38rem .9rem; background:var(--purple); color:#fff; border:none;
+  border-radius:7px; font-size:.75rem; font-weight:600; cursor:pointer;
+}
+.btn-insights:hover { opacity:.85; }
+.btn-insights:disabled { opacity:.4; cursor:not-allowed; }
+
+/* PDF upload area */
+.pdf-upload-area {
+  border:2px dashed var(--border2); border-radius:10px; padding:1.2rem;
+  text-align:center; cursor:pointer; transition:border-color .15s;
+}
+.pdf-upload-area:hover { border-color:var(--purple); }
+.pdf-parsed {
+  background:var(--card); border:1px solid var(--border); border-radius:10px;
+  padding:.85rem 1rem; font-size:.78rem; display:flex; flex-direction:column; gap:.55rem;
+}
+.pdf-stat-row { display:flex; flex-wrap:wrap; gap:.4rem; }
+.pdf-stat-pill {
+  background:var(--bg); border:1px solid var(--border2); border-radius:6px;
+  padding:.22rem .6rem; font-size:.73rem; display:flex; gap:.3rem; align-items:center;
+}
+.pdf-stat-pill b { color:var(--accent); }
+
+/* platform badge */
+.plat-badge {
+  font-size:.6rem; padding:.08rem .38rem; border-radius:4px; border:1px solid;
+  font-weight:600; white-space:nowrap;
+}
+.plat-instagram { color:#e1306c; border-color:rgba(225,48,108,.3); background:rgba(225,48,108,.08); }
+.plat-telegram  { color:#2ca5e0; border-color:rgba(44,165,224,.3); background:rgba(44,165,224,.08); }
+.plat-tiktok    { color:#ee1d52; border-color:rgba(238,29,82,.3);  background:rgba(238,29,82,.08); }
+.plat-youtube   { color:#ff0000; border-color:rgba(255,0,0,.3);    background:rgba(255,0,0,.08); }
 </style>
 </head>
 <body>
@@ -325,8 +399,8 @@ body {
     <div class="sidebar-logo">🎯 mediahub</div>
     <div class="sidebar-nav">
       <span class="sect-label">Раздел</span>
-      <div class="nav-item active"><span class="nav-dot"></span>Новости</div>
-      <div class="nav-item soon"><span class="nav-dot"></span>Аналитика</div>
+      <div class="nav-item active" id="nav-news"      onclick="switchView('news')"><span class="nav-dot"></span>Новости</div>
+      <div class="nav-item"        id="nav-analytics" onclick="switchView('analytics')"><span class="nav-dot"></span>Аналитика</div>
       <div class="nav-item soon"><span class="nav-dot"></span>Настройки</div>
       <div class="legend">
         <div class="legend-row"><span>✓</span><span><b>Одобрить</b> — готово к публикации. Ничего не публикуется автоматически.</span></div>
@@ -376,6 +450,18 @@ body {
     </div>
 
     <div class="feed-list" id="feedList"><div class="empty-state">Загрузка…</div></div>
+  </main>
+
+  <!-- ANALYTICS VIEW -->
+  <main class="feed" id="analyticsView" style="display:none">
+    <div class="feed-header">
+      <span class="feed-title">📊 Аналитика</span>
+      <span class="feed-updated" id="anUpdated"></span>
+      <button class="btn-collect" onclick="loadAnalytics()">↻ Обновить</button>
+    </div>
+    <div class="analytics-view" id="analyticsBody">
+      <div class="empty-state">Нажми «Обновить» или опубликуй первый пост</div>
+    </div>
   </main>
 
   <!-- DETAIL -->
@@ -829,6 +915,245 @@ async function loadCredits(){
 }
 
 load();loadCredits();
+
+/* ── VIEW SWITCHER ── */
+function switchView(view){
+  const isNews = view==="news";
+  document.getElementById("nav-news").classList.toggle("active", isNews);
+  document.getElementById("nav-analytics").classList.toggle("active", !isNews);
+  // feed + detail
+  document.querySelector(".feed:not(#analyticsView)").style.display = isNews?"flex":"none";
+  document.querySelector(".detail").style.display = isNews?"flex":"none";
+  document.getElementById("analyticsView").style.display = isNews?"none":"flex";
+  if(!isNews) loadAnalytics();
+}
+
+/* ── ANALYTICS ── */
+async function loadAnalytics(){
+  const body = document.getElementById("analyticsBody");
+  body.innerHTML=`<div class="empty-state"><span class="spin" style="border-top-color:var(--accent);width:18px;height:18px;border-width:3px"></span></div>`;
+  document.getElementById("anUpdated").textContent="";
+  try{
+    const d = await api("GET","/api/analytics");
+    if(!d){body.innerHTML=`<div class="empty-state">Нет данных</div>`;return;}
+    renderAnalytics(d);
+    document.getElementById("anUpdated").textContent=
+      "Обновлено "+new Date().toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"});
+  }catch(e){body.innerHTML=`<div class="empty-state">Ошибка: ${e.message}</div>`;}
+}
+
+function fmtBig(n){if(!n)return"—";if(n>=1000000)return(n/1000000).toFixed(1)+"M";if(n>=1000)return(n/1000).toFixed(1)+"k";return String(n);}
+function erClass(er){if(er>=5)return"er-good";if(er>=2)return"er-ok";return"er-low";}
+function platBadge(p){
+  const map={instagram:"📸 Instagram",telegram:"✈️ Telegram",tiktok:"🎵 TikTok",youtube:"▶️ YouTube"};
+  return`<span class="plat-badge plat-${p||"instagram"}">${map[p]||p||"Instagram"}</span>`;
+}
+
+function renderAnalytics(d){
+  const {posts, aggregate: agg} = d;
+  const body = document.getElementById("analyticsBody");
+  let html="";
+
+  /* aggregate cards */
+  if(agg && agg.total_posts){
+    html+=`<div>
+      <div class="an-section-title">Общая статистика · ${agg.total_posts} постов с данными</div>
+      <div class="agg-grid">
+        <div class="agg-card"><span class="agg-val">${fmtBig(agg.total_views)}</span><span class="agg-lbl">👁 Всего просмотров</span></div>
+        <div class="agg-card"><span class="agg-val">${fmtBig(agg.avg_views)}</span><span class="agg-lbl">📈 Среднее просмотров</span></div>
+        <div class="agg-card"><span class="agg-val">${fmtBig(agg.avg_likes)}</span><span class="agg-lbl">❤️ Среднее лайков</span></div>
+        <div class="agg-card"><span class="agg-val">${agg.avg_er}%</span><span class="agg-lbl">⚡ Средний ER</span></div>
+      </div>
+    </div>`;
+    if(agg.best_post){
+      html+=`<div style="background:var(--card);border:1px solid rgba(34,197,94,.25);border-radius:10px;padding:.75rem .9rem;font-size:.78rem">
+        <div style="color:var(--green);font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;margin-bottom:.3rem">🏆 Лучший пост по просмотрам</div>
+        <div style="font-weight:600;margin-bottom:.2rem">${esc(agg.best_post.title||"")}</div>
+        <div style="color:var(--muted)">
+          👁 ${fmtBig(agg.best_post.stats_views)} просмотров &nbsp;·&nbsp;
+          ER ${agg.best_post.engagement_rate}% &nbsp;·&nbsp;
+          ⏱ ${agg.best_post.stats_watch_time||"—"}
+        </div>
+      </div>`;
+    }
+  }
+
+  /* PDF upload block */
+  html+=`<div>
+    <div class="an-section-title">
+      📤 Загрузить статистику
+      <span style="font-size:.62rem;color:var(--dim)">PDF из Meta Edits / Instagram</span>
+    </div>
+    <div class="pdf-upload-area" onclick="document.getElementById('pdfInput').click()">
+      <input type="file" id="pdfInput" accept=".pdf" style="display:none" onchange="uploadStatsPDF(this)">
+      <div style="font-size:1.5rem;margin-bottom:.35rem">📄</div>
+      <div style="font-size:.8rem;color:var(--text)">Нажми чтобы загрузить PDF из Edits</div>
+      <div style="font-size:.68rem;color:var(--muted);margin-top:.2rem">Instagram Reels · Telegram · TikTok · YouTube Shorts — скоро</div>
+    </div>
+    <div id="pdfResult" style="margin-top:.5rem"></div>
+  </div>`;
+
+  /* posts table */
+  const withStats = posts.filter(p=>p.has_stats);
+  const noStats   = posts.filter(p=>!p.has_stats);
+
+  if(withStats.length){
+    const sorted = [...withStats].sort((a,b)=>(b.stats_views||0)-(a.stats_views||0));
+    html+=`<div>
+      <div class="an-section-title">Все опубликованные посты · сортировка по просмотрам</div>
+      <div class="an-table-wrap"><table class="an-table">
+        <thead><tr>
+          <th>Пост</th>
+          <th>Платформа</th>
+          <th class="num">👁 Views</th>
+          <th class="num">📡 Reach</th>
+          <th class="num">❤️ Likes</th>
+          <th class="num">↗️ Share</th>
+          <th class="num">🔖 Save</th>
+          <th class="num">⏱ Watch</th>
+          <th class="num">ER%</th>
+          <th class="num">Score</th>
+        </tr></thead>
+        <tbody>
+          ${sorted.map(p=>{
+            const maxV = sorted[0].stats_views||1;
+            const barW = Math.round(((p.stats_views||0)/maxV)*100);
+            return`<tr>
+              <td style="max-width:180px">
+                <div style="font-size:.75rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+                     title="${esc(p.title)}">${esc((p.title||"").slice(0,45))}${(p.title||"").length>45?"…":""}</div>
+                <div style="margin-top:3px"><div class="an-bar-wrap"><div class="an-bar" style="width:${barW}%"></div></div></div>
+              </td>
+              <td>${platBadge(p.stats_platform)}</td>
+              <td class="num">${fmtBig(p.stats_views)}</td>
+              <td class="num">${fmtBig(p.stats_reach)}</td>
+              <td class="num">${fmtBig(p.stats_likes)}</td>
+              <td class="num">${fmtBig(p.stats_shares)}</td>
+              <td class="num">${fmtBig(p.stats_saves)}</td>
+              <td class="num" style="color:var(--muted)">${p.stats_watch_time||"—"}</td>
+              <td class="num ${erClass(p.engagement_rate)}">${p.engagement_rate}%</td>
+              <td class="num" style="color:var(--accent)">${p.score}</td>
+            </tr>`;
+          }).join("")}
+        </tbody>
+      </table></div>
+    </div>`;
+  }
+
+  /* Claude insights */
+  if(withStats.length>=3){
+    html+=`<div>
+      <div class="an-section-title">
+        🤖 Claude-инсайты
+        <button class="btn-insights" id="insightsBtn" onclick="loadInsights()">Анализировать</button>
+      </div>
+      <div id="insightsBox" style="font-size:.76rem;color:var(--dim)">
+        Нажми «Анализировать» — Claude проанализирует ${withStats.length} постов и даст рекомендации
+      </div>
+    </div>`;
+  }
+
+  /* posts without stats */
+  if(noStats.length){
+    html+=`<div>
+      <div class="an-section-title">Опубликовано без статистики (${noStats.length})</div>
+      <div style="display:flex;flex-direction:column;gap:.25rem">
+        ${noStats.map(p=>`
+          <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:.5rem .75rem;display:flex;align-items:center;gap:.6rem">
+            <div style="flex:1;font-size:.77rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.title||"")}</div>
+            <div style="font-size:.67rem;color:var(--muted)">${fmtDate(p.published_at)}</div>
+            <button class="btn-sm" onclick="openStatsForPost(${p.id})">+ Статистика</button>
+          </div>`).join("")}
+      </div>
+    </div>`;
+  }
+
+  if(!posts.length){
+    html+=`<div class="empty-state">Нет опубликованных постов.<br>Одобри и отметь пост как «Опубликовано» во вкладке Новости.</div>`;
+  }
+
+  body.innerHTML=html;
+}
+
+async function loadInsights(){
+  const btn=document.getElementById("insightsBtn");
+  const box=document.getElementById("insightsBox");
+  if(!btn||!box)return;
+  btn.disabled=true;btn.innerHTML=`<span class="spin"></span> Анализирую…`;
+  try{
+    const d=await api("POST","/api/analytics/insights");
+    box.innerHTML=`<div class="insights-box">${esc(d.insights)}</div>`;
+  }catch(e){box.innerHTML=`<div style="color:var(--hot);font-size:.76rem">Ошибка: ${e.message}</div>`;}
+  finally{if(btn){btn.disabled=false;btn.textContent="Анализировать";}}
+}
+
+async function uploadStatsPDF(input){
+  const file=input.files[0];if(!file)return;
+  const resultEl=document.getElementById("pdfResult");
+  resultEl.innerHTML=`<div style="font-size:.76rem;color:var(--muted);padding:.4rem 0"><span class="spin" style="border-top-color:var(--accent)"></span> Читаю PDF…</div>`;
+  const form=new FormData();form.append("file",file);
+  try{
+    const r=await fetch("/api/stats/upload-pdf",{method:"POST",body:form});
+    if(!r.ok)throw new Error(await r.text());
+    const d=await r.json();
+    const p=d.parsed;
+    const candidates=d.candidates||[];
+
+    // Show parsed stats
+    let html=`<div class="pdf-parsed">
+      <div style="font-size:.72rem;font-weight:700;color:var(--green);margin-bottom:.1rem">✓ PDF прочитан — ${p.pub_date_raw||"дата не найдена"}</div>
+      <div class="pdf-stat-row">
+        <span class="pdf-stat-pill">👁 Views <b>${fmtBig(p.views)}</b></span>
+        <span class="pdf-stat-pill">📡 Reach <b>${fmtBig(p.reach)}</b></span>
+        <span class="pdf-stat-pill">⏱ Watch <b>${p.watch_time||"—"}</b></span>
+        <span class="pdf-stat-pill">❤️ Likes <b>${fmtBig(p.likes)}</b></span>
+        <span class="pdf-stat-pill">💬 Comm <b>${fmtBig(p.comments)}</b></span>
+        <span class="pdf-stat-pill">↗️ Share <b>${fmtBig(p.shares)}</b></span>
+        <span class="pdf-stat-pill">🔖 Save <b>${fmtBig(p.saves)}</b></span>
+      </div>
+      <div style="margin-top:.2rem">
+        <div style="font-size:.65rem;color:var(--muted);margin-bottom:.25rem">Выбери пост к которому привязать статистику:</div>
+        <select id="pdfPostSelect" style="width:100%;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text);padding:.3rem .5rem;font-size:.76rem">
+          <option value="">— выбери пост —</option>
+          ${candidates.map(c=>`<option value="${c.id}">[${fmtDate(c.published_at)}] ${esc((c.title||"").slice(0,60))}</option>`).join("")}
+        </select>
+      </div>
+      <button onclick="savePDFStats(${JSON.stringify(p).replace(/"/g,'&quot;')})"
+              style="padding:.33rem .7rem;background:var(--purple);color:#fff;border:none;border-radius:6px;font-size:.73rem;font-weight:600;cursor:pointer;margin-top:.15rem">
+        💾 Сохранить статистику
+      </button>
+    </div>`;
+    resultEl.innerHTML=html;
+  }catch(e){resultEl.innerHTML=`<div style="color:var(--hot);font-size:.76rem;padding:.3rem 0">Ошибка: ${e.message}</div>`;}
+  input.value="";
+}
+
+async function savePDFStats(parsed){
+  const sel=document.getElementById("pdfPostSelect");
+  const id=parseInt(sel?.value||"0");
+  if(!id){toast("Выбери пост из списка",true);return;}
+  try{
+    await api("PATCH",`/api/news/${id}/stats`,{
+      views:parsed.views, reach:parsed.reach, watch_time:parsed.watch_time,
+      likes:parsed.likes, comments:parsed.comments,
+      shares:parsed.shares||parsed.reposts, saves:parsed.saves,
+      platform:"instagram",
+    });
+    document.getElementById("pdfResult").innerHTML=`<div style="color:var(--green);font-size:.76rem;padding:.3rem 0">✓ Статистика сохранена</div>`;
+    toast("Статистика сохранена ✓");
+    setTimeout(loadAnalytics, 800);
+  }catch(e){toast("Ошибка: "+e.message,true);}
+}
+
+function openStatsForPost(id){
+  // Switch to news view and select the post
+  switchView("news");
+  setTab("published");
+  setTimeout(()=>{
+    const n=news.find(x=>x.id===id);
+    if(n){selectedId=id;renderFeed();renderDetail(n);}
+  },200);
+}
 </script>
 </body>
 </html>

@@ -30,7 +30,7 @@ from pathlib import Path
 from datetime import datetime, timedelta
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Request, BackgroundTasks
+from fastapi import FastAPI, HTTPException, Request, BackgroundTasks, UploadFile, File
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -80,6 +80,9 @@ def run_migrations(conn: sqlite3.Connection):
         "ALTER TABLE news ADD COLUMN stats_comments INTEGER DEFAULT 0",
         "ALTER TABLE news ADD COLUMN stats_shares INTEGER DEFAULT 0",
         "ALTER TABLE news ADD COLUMN stats_saves INTEGER DEFAULT 0",
+        "ALTER TABLE news ADD COLUMN stats_reach INTEGER DEFAULT 0",
+        "ALTER TABLE news ADD COLUMN stats_watch_time TEXT",
+        "ALTER TABLE news ADD COLUMN stats_platform TEXT DEFAULT 'instagram'",
     ]:
         try:
             conn.execute(sql)
@@ -333,7 +336,8 @@ async def api_news(
                    tts_script, approved, generated_at, collected, sent_tg,
                    reviewed_script, gpt_comment, description, preview_titles,
                    published_at,
-                   stats_views, stats_likes, stats_comments, stats_shares, stats_saves
+                   stats_views, stats_likes, stats_comments, stats_shares, stats_saves,
+                   stats_reach, stats_watch_time, stats_platform
             FROM news
             WHERE {' AND '.join(where)}
             ORDER BY {order}
@@ -417,13 +421,14 @@ async def api_publish(news_id: int, request: Request):
 
 @app.patch("/api/news/{news_id}/stats")
 async def api_update_stats(news_id: int, request: Request):
-    """Save post statistics (views, likes, comments, shares, saves)."""
+    """Save post statistics."""
     require_auth(request)
     body = await request.json()
     conn = sqlite3.connect(DB_PATH)
     conn.execute(
         """UPDATE news SET
-           stats_views=?, stats_likes=?, stats_comments=?, stats_shares=?, stats_saves=?
+           stats_views=?, stats_likes=?, stats_comments=?, stats_shares=?, stats_saves=?,
+           stats_reach=?, stats_watch_time=?, stats_platform=?
            WHERE id=?""",
         (
             int(body.get("views", 0) or 0),
@@ -431,12 +436,215 @@ async def api_update_stats(news_id: int, request: Request):
             int(body.get("comments", 0) or 0),
             int(body.get("shares", 0) or 0),
             int(body.get("saves", 0) or 0),
+            int(body.get("reach", 0) or 0),
+            str(body.get("watch_time", "") or ""),
+            str(body.get("platform", "instagram") or "instagram"),
             news_id,
         ),
     )
     conn.commit()
     conn.close()
     return {"id": news_id, "saved": True}
+
+
+# ── PDF STATS PARSER ──────────────────────────────────────────────────────
+
+def _parse_reels_pdf(file_bytes: bytes) -> dict:
+    """Parse Instagram Reels stats PDF exported from Meta Edits app."""
+    import io
+    try:
+        import pdfplumber
+    except ImportError:
+        raise HTTPException(status_code=500, detail="pdfplumber не установлен. Запустите: pip install pdfplumber")
+
+    result: dict = {
+        "platform": "instagram",
+        "views": 0, "reach": 0, "watch_time": "",
+        "likes": 0, "comments": 0, "reposts": 0, "shares": 0, "saves": 0,
+        "caption_snippet": "", "pub_date_raw": "",
+    }
+
+    def parse_num(s: str) -> int:
+        s = s.strip().replace("\xa0", " ")
+        if "тыс" in s:
+            m = re.search(r"[\d,\.]+", s)
+            if m:
+                return int(float(m.group().replace(",", ".")) * 1000)
+        m = re.search(r"[\d]+", s.replace(" ", ""))
+        return int(m.group()) if m else 0
+
+    with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
+        full_text = "\n".join(p.extract_text() or "" for p in pdf.pages)
+
+    # Views
+    m = re.search(r"Просмотры\s+([\d\s,\.]+(?:тыс\.?)?)", full_text)
+    if m: result["views"] = parse_num(m.group(1))
+
+    # Reach
+    m = re.search(r"Охваченные аккаунты\s+([\d\s,\.]+(?:тыс\.?)?)", full_text)
+    if m: result["reach"] = parse_num(m.group(1))
+
+    # Avg watch time
+    m = re.search(r"Среднее время просмотра\s+([\d,\.]+ ?с\.?)", full_text)
+    if m: result["watch_time"] = m.group(1).strip()
+
+    # Likes (label is "Нравится" or «"Нравится"»)
+    m = re.search(r'"?Нравится"?\s+([\d\s,\.]+(?:тыс\.?)?)', full_text)
+    if m: result["likes"] = parse_num(m.group(1))
+
+    # Comments
+    m = re.search(r"Комментарии\s+([\d\s,\.]+(?:тыс\.?)?)", full_text)
+    if m: result["comments"] = parse_num(m.group(1))
+
+    # Reposts
+    m = re.search(r"Репосты\s+([\d\s,\.]+(?:тыс\.?)?)", full_text)
+    if m: result["reposts"] = parse_num(m.group(1))
+
+    # Shares (Поделились)
+    m = re.search(r"Поделились\s+([\d\s,\.]+(?:тыс\.?)?)", full_text)
+    if m: result["shares"] = parse_num(m.group(1))
+
+    # Saves
+    m = re.search(r"Сохранения\s+([\d\s,\.]+(?:тыс\.?)?)", full_text)
+    if m: result["saves"] = parse_num(m.group(1))
+
+    # Publish date: "16 апр 2026 г. в 20:32"
+    m = re.search(r"(\d{1,2}\s+\w+\s+\d{4}\s+г\.\s+в\s+\d{1,2}:\d{2})", full_text)
+    if m: result["pub_date_raw"] = m.group(1).strip()
+
+    # Caption snippet (text under "Подпись")
+    m = re.search(r"Подпись\s+(.+?)(?:Просмотры|Охваченные|\Z)", full_text, re.DOTALL)
+    if m: result["caption_snippet"] = m.group(1).strip()[:300]
+
+    return result
+
+
+@app.post("/api/stats/upload-pdf")
+async def api_upload_stats_pdf(request: Request, file: UploadFile = File(...)):
+    """Upload Reels PDF from Meta Edits, parse stats, return + candidate posts."""
+    require_auth(request)
+    content = await file.read()
+    parsed = await asyncio.to_thread(_parse_reels_pdf, content)
+
+    # Find candidate posts: published items within ±2 days of pub_date_raw
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    candidates = conn.execute(
+        """SELECT id, title, published_at, score FROM news
+           WHERE published_at IS NOT NULL
+           ORDER BY published_at DESC LIMIT 30"""
+    ).fetchall()
+    conn.close()
+
+    return {
+        "parsed": parsed,
+        "candidates": [dict(r) for r in candidates],
+    }
+
+
+# ── ANALYTICS ────────────────────────────────────────────────────────────
+
+@app.get("/api/analytics")
+async def api_analytics(request: Request):
+    """Return aggregated analytics data for all published posts."""
+    require_auth(request)
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    rows = conn.execute(
+        """SELECT id, title, score, published_at, stats_platform,
+                  stats_views, stats_reach, stats_likes, stats_comments,
+                  stats_shares, stats_saves, stats_watch_time,
+                  tts_script, preview_titles
+           FROM news
+           WHERE published_at IS NOT NULL
+           ORDER BY published_at DESC"""
+    ).fetchall()
+    conn.close()
+
+    posts = []
+    for r in rows:
+        d = dict(r)
+        v = d.get("stats_views") or 0
+        l = d.get("stats_likes") or 0
+        c = d.get("stats_comments") or 0
+        s = d.get("stats_shares") or 0
+        sv = d.get("stats_saves") or 0
+        er = round((l + c + s + sv) / v * 100, 2) if v > 0 else 0
+        d["engagement_rate"] = er
+        d["has_stats"] = v > 0
+        posts.append(d)
+
+    # Aggregate
+    with_stats = [p for p in posts if p["has_stats"]]
+    agg = {}
+    if with_stats:
+        agg["total_posts"]    = len(with_stats)
+        agg["total_views"]    = sum(p["stats_views"] or 0 for p in with_stats)
+        agg["avg_views"]      = round(agg["total_views"] / len(with_stats))
+        agg["avg_likes"]      = round(sum(p["stats_likes"] or 0 for p in with_stats) / len(with_stats))
+        agg["avg_er"]         = round(sum(p["engagement_rate"] for p in with_stats) / len(with_stats), 2)
+        agg["best_post"]      = max(with_stats, key=lambda p: p["stats_views"] or 0)
+        agg["best_er_post"]   = max(with_stats, key=lambda p: p["engagement_rate"])
+
+    return {"posts": posts, "aggregate": agg}
+
+
+@app.post("/api/analytics/insights")
+async def api_analytics_insights(request: Request):
+    """Ask Claude to analyze performance data and give content recommendations."""
+    require_auth(request)
+
+    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="ANTHROPIC_API_KEY не задан.")
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    rows = conn.execute(
+        """SELECT title, score, published_at, stats_views, stats_reach,
+                  stats_likes, stats_comments, stats_shares, stats_saves,
+                  stats_watch_time, tts_script
+           FROM news WHERE published_at IS NOT NULL AND stats_views > 0
+           ORDER BY published_at DESC LIMIT 20"""
+    ).fetchall()
+    conn.close()
+
+    if not rows:
+        raise HTTPException(status_code=400, detail="Нет опубликованных постов со статистикой.")
+
+    posts_data = []
+    for r in rows:
+        d = dict(r)
+        v = d.get("stats_views") or 0
+        er = round(((d.get("stats_likes") or 0) + (d.get("stats_comments") or 0) +
+                    (d.get("stats_shares") or 0) + (d.get("stats_saves") or 0)) / v * 100, 1) if v > 0 else 0
+        posts_data.append(
+            f"• «{d['title'][:60]}» | Views: {v} | Reach: {d.get('stats_reach',0)} | "
+            f"Likes: {d.get('stats_likes',0)} | Comments: {d.get('stats_comments',0)} | "
+            f"Shares: {d.get('stats_shares',0)} | Saves: {d.get('stats_saves',0)} | "
+            f"Watch: {d.get('stats_watch_time','?')} | ER: {er}% | Score: {d.get('score',0)}"
+        )
+
+    prompt = (
+        "Проанализируй статистику Reels-постов Instagram-канала UzbekNows (новости Узбекистана).\n\n"
+        "ДАННЫЕ ПОСТОВ:\n" + "\n".join(posts_data) + "\n\n"
+        "Дай конкретные инсайты по этим пунктам:\n"
+        "1. ЛУЧШИЕ ПОСТЫ — что общего у топ-3 по просмотрам и ER?\n"
+        "2. ТЕМЫ — какие темы работают лучше всего?\n"
+        "3. УДЕРЖАНИЕ — у каких постов лучшее среднее время просмотра и почему?\n"
+        "4. СЛАБЫЕ МЕСТА — что тянет вниз: ER, watch time, охват?\n"
+        "5. КОНКРЕТНЫЕ РЕКОМЕНДАЦИИ — 3 действия которые нужно сделать прямо сейчас.\n\n"
+        "Отвечай кратко, конкретно, без воды. Используй цифры из данных."
+    )
+
+    import anthropic
+    client = anthropic.AsyncAnthropic(api_key=api_key)
+    msg = await client.messages.create(
+        model="claude-sonnet-4-5",
+        max_tokens=800,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    return {"insights": msg.content[0].text.strip()}
 
 
 @app.post("/api/news/{news_id}/approve-reviewed")

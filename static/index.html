@@ -641,7 +641,10 @@ function renderFeed(){
   else if(curTab==="good")   filtered=news.filter(n=>!n.published_at&&n.priority==="good");
   else if(curTab==="reserve")filtered=news.filter(n=>!n.published_at&&n.priority==="reserve");
   else if(curTab==="approved")filtered=news.filter(n=>n.approved&&!n.published_at);
-  else if(curTab==="published")filtered=news.filter(n=>!!n.published_at);
+  else if(curTab==="published"){
+    filtered=news.filter(n=>!!n.published_at);
+    filtered.sort((a,b)=>new Date(b.published_at)-new Date(a.published_at));
+  }
   else filtered=news.filter(n=>!n.published_at);
 
   const list=document.getElementById("feedList");

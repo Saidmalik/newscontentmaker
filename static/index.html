@@ -3,358 +3,389 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>mediahub</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='85'>🎯</text></svg>">
+<title>MediaHub — Контент-завод</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 :root {
-  --bg:      #111;
-  --surface: #1a1a1a;
-  --card:    #1e1e1e;
-  --border:  #2a2a2a;
-  --border2: #333;
-  --text:    #e8e8e8;
-  --muted:   #888;
-  --dim:     #555;
-  --hot:     #ef4444;
-  --hot-bg:  rgba(239,68,68,.12);
-  --hot-bd:  rgba(239,68,68,.28);
-  --good:    #f97316;
-  --good-bg: rgba(249,115,22,.12);
-  --good-bd: rgba(249,115,22,.28);
-  --rsv:     #6b7280;
-  --rsv-bg:  rgba(107,114,128,.1);
-  --rsv-bd:  rgba(107,114,128,.22);
-  --accent:  #f97316;
-  --green:   #22c55e;
-  --blue:    #3b82f6;
-  --purple:  #8b5cf6;
+  --bg: #0a0a0b; --bg2: #111114; --bg3: #18181d; --bg4: #1f1f26;
+  --border: rgba(255,255,255,0.07); --border2: rgba(255,255,255,0.12);
+  --text: #e8e8ee; --text2: #8888a0; --text3: #55556a;
+  --accent: #ff5533; --accent2: #ff7744;
+  --gold: #f5a623; --blue: #4488ff; --green: #22cc88; --purple: #9966ff;
+  --hot: #ff4422; --good: #f5a623; --res: #555570;
+  --radius: 8px; --radius-lg: 12px;
 }
-html, body { height: 100%; overflow: hidden; }
-body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  background: var(--bg); color: var(--text); font-size: 13px; line-height: 1.5;
-  display: flex; flex-direction: column;
-}
-::-webkit-scrollbar { width: 4px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
-.layout { display: flex; flex: 1; overflow: hidden; }
+*,*::before,*::after { box-sizing:border-box; margin:0; padding:0; }
+html,body { height:100%; overflow:hidden; }
+body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); font-size:13px; line-height:1.5; }
+::-webkit-scrollbar { width:3px; height:3px; }
+::-webkit-scrollbar-track { background:transparent; }
+::-webkit-scrollbar-thumb { background:var(--bg4); border-radius:2px; }
 
-/* ── SIDEBAR ── */
+/* Noise overlay */
+body::before {
+  content:''; position:fixed; inset:0; pointer-events:none; z-index:999;
+  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+  opacity:.4;
+}
+
+.app { display:flex; height:100vh; }
+
+/* SIDEBAR */
 .sidebar {
-  width: 200px; min-width: 200px; background: var(--surface);
-  border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden;
+  width:220px; flex-shrink:0; background:var(--bg2);
+  border-right:1px solid var(--border); display:flex; flex-direction:column; overflow:hidden;
 }
-.sidebar-logo {
-  padding: .9rem .85rem .75rem; font-size: 1rem; font-weight: 800; color: var(--accent);
-  border-bottom: 1px solid var(--border); letter-spacing: -.02em;
+.logo { padding:20px 18px 16px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:10px; }
+.logo-mark {
+  width:28px; height:28px; background:var(--accent); border-radius:6px;
+  display:flex; align-items:center; justify-content:center;
+  font-family:'Syne',sans-serif; font-weight:800; font-size:14px; color:#fff; flex-shrink:0;
 }
-.sidebar-nav { padding: .55rem; flex: 1; }
-.sect-label {
-  font-size: .57rem; text-transform: uppercase; letter-spacing: .09em;
-  color: var(--dim); padding: .45rem .4rem .2rem; display: block;
+.logo-text { font-family:'Syne',sans-serif; font-weight:700; font-size:15px; letter-spacing:-0.3px; }
+.logo-sub { font-size:10px; color:var(--text3); letter-spacing:.5px; text-transform:uppercase; }
+
+/* Project switcher */
+.proj-area { padding:12px 12px 8px; border-bottom:1px solid var(--border); }
+.proj-label { font-size:10px; color:var(--text3); text-transform:uppercase; letter-spacing:.6px; margin-bottom:6px; padding:0 4px; }
+.proj-btn {
+  width:100%; padding:7px 10px; background:transparent; border:1px solid transparent;
+  border-radius:var(--radius); cursor:pointer; text-align:left;
+  color:var(--text2); font-size:12px; font-family:inherit;
+  display:flex; align-items:center; gap:8px; transition:all .15s;
 }
+.proj-btn:hover { background:var(--bg3); color:var(--text); }
+.proj-btn.active { background:rgba(255,85,51,0.1); border-color:rgba(255,85,51,0.25); color:var(--text); }
+.proj-dot { width:6px; height:6px; border-radius:50%; flex-shrink:0; }
+.proj-btn.active .proj-dot { background:var(--accent); }
+.proj-dot-gray { background:var(--res); }
+.proj-add {
+  width:100%; padding:6px 10px; background:transparent; border:1px dashed var(--border2);
+  border-radius:var(--radius); cursor:pointer; color:var(--text3); font-size:11px;
+  font-family:inherit; text-align:center; margin-top:4px; transition:all .15s;
+}
+.proj-add:hover { color:var(--text2); border-color:var(--text3); }
+
+/* Nav */
+.nav { padding:10px 12px; flex:1; overflow-y:auto; }
+.nav-section { margin-bottom:16px; }
+.nav-section-label { font-size:9px; color:var(--text3); text-transform:uppercase; letter-spacing:.8px; padding:0 6px; margin-bottom:4px; }
 .nav-item {
-  display: flex; align-items: center; gap: .42rem; padding: .38rem .6rem;
-  border-radius: 7px; color: var(--muted); font-size: .75rem; cursor: default;
-  margin-bottom: 1px; transition: all .13s;
+  display:flex; align-items:center; gap:9px; padding:7px 8px; border-radius:var(--radius);
+  cursor:pointer; color:var(--text2); font-size:12.5px; transition:all .15s; position:relative;
 }
-.nav-item.active { background: var(--card); color: var(--text); }
-.nav-item.soon   { opacity: .35; }
-.nav-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--dim); flex-shrink: 0; }
-.nav-item.active .nav-dot { background: var(--accent); }
-
-.legend { margin: .9rem .55rem 0; border-top: 1px solid var(--border); padding-top: .75rem; }
-.legend-row {
-  display: flex; align-items: flex-start; gap: .38rem; margin-bottom: .4rem;
-  font-size: .66rem; color: var(--muted); line-height: 1.4;
+.nav-item:hover { background:var(--bg3); color:var(--text); }
+.nav-item.active { background:var(--bg4); color:var(--text); }
+.nav-item.active::before {
+  content:''; position:absolute; left:0; top:20%; bottom:20%;
+  width:2px; background:var(--accent); border-radius:2px;
 }
-.legend-row b { color: var(--text); white-space: nowrap; display: block; }
+.nav-item.soon { opacity:.35; pointer-events:none; }
+.nav-icon { font-size:13px; opacity:.7; }
+.nav-badge {
+  margin-left:auto; font-size:10px; background:rgba(255,85,51,0.2); color:var(--accent);
+  padding:1px 6px; border-radius:10px; font-family:'JetBrains Mono',monospace;
+}
+.nav-badge.gold { background:rgba(245,166,35,0.15); color:var(--gold); }
 
-.sidebar-footer { padding: .6rem .85rem; border-top: 1px solid var(--border); }
-.sidebar-footer-lbl { font-size: .6rem; color: var(--dim); margin-bottom: .28rem; }
-.el-badges { display: flex; gap: .25rem; flex-wrap: wrap; }
-.el-badge { font-size: .62rem; padding: .1rem .38rem; border-radius: 4px; border: 1px solid; font-weight: 600; }
+/* Legend */
+.legend { margin:.9rem .55rem 0; border-top:1px solid var(--border); padding-top:.75rem; }
+.legend-row { display:flex; align-items:flex-start; gap:.38rem; margin-bottom:.4rem; font-size:.66rem; color:var(--text2); line-height:1.4; }
+.legend-row b { color:var(--text); white-space:nowrap; display:block; }
 
-/* ── FEED ── */
+/* ElevenLabs status */
+.sidebar-footer { padding:12px; border-top:1px solid var(--border); }
+.elevenlabs-status {
+  display:flex; align-items:center; gap:8px; padding:8px 10px;
+  background:var(--bg3); border-radius:var(--radius); border:1px solid var(--border);
+}
+.el-dot { width:6px; height:6px; border-radius:50%; background:var(--green); animation:pulse 2s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+.el-text { font-size:11px; color:var(--text2); }
+.el-badges-row { display:flex; gap:4px; flex-wrap:wrap; margin-top:3px; }
+.el-badge { font-size:10px; padding:1px 6px; border-radius:4px; border:1px solid; font-weight:600; font-family:'JetBrains Mono',monospace; }
+
+/* Main */
+.main { flex:1; display:flex; overflow:hidden; }
+
+/* FEED */
 .feed {
-  flex: 1; min-width: 0; display: flex; flex-direction: column;
-  border-right: 1px solid var(--border); overflow: hidden;
+  width:420px; flex-shrink:0; display:flex; flex-direction:column;
+  border-right:1px solid var(--border); overflow:hidden;
 }
 .feed-header {
-  padding: .65rem .85rem; border-bottom: 1px solid var(--border);
-  display: flex; align-items: center; gap: .55rem; flex-shrink: 0;
+  padding:14px 16px 12px; border-bottom:1px solid var(--border);
+  display:flex; align-items:center; gap:10px; flex-shrink:0;
 }
-.feed-title { font-size: .88rem; font-weight: 700; }
-.feed-updated { font-size: .68rem; color: var(--muted); }
-.btn-collect {
-  margin-left: auto; padding: .33rem .8rem; background: var(--accent);
-  color: #fff; border: none; border-radius: 7px; font-size: .74rem; font-weight: 600; cursor: pointer;
+.feed-title { font-family:'Syne',sans-serif; font-weight:700; font-size:15px; flex:1; }
+.feed-time { font-size:10px; color:var(--text3); font-family:'JetBrains Mono',monospace; }
+.collect-btn {
+  padding:7px 14px; background:var(--accent); border:none; border-radius:var(--radius);
+  color:#fff; font-size:12px; font-weight:500; font-family:inherit;
+  cursor:pointer; transition:all .15s; display:flex; align-items:center; gap:6px;
 }
-.btn-collect:hover { opacity: .85; }
-.btn-collect:disabled { opacity: .4; cursor: not-allowed; }
+.collect-btn:hover { background:var(--accent2); transform:translateY(-1px); }
+.collect-btn:active { transform:translateY(0); }
+.collect-btn:disabled { opacity:.4; cursor:not-allowed; transform:none; }
 
-/* filter bar */
-.filter-bar {
-  display: flex; align-items: center; gap: .4rem; flex-wrap: wrap;
-  padding: .42rem .85rem; border-bottom: 1px solid var(--border); background: var(--surface); flex-shrink: 0;
+/* Filters */
+.filters-bar {
+  padding:10px 16px; border-bottom:1px solid var(--border);
+  display:flex; align-items:center; gap:8px; flex-wrap:wrap; flex-shrink:0;
 }
-.filter-group { display: flex; align-items: center; gap: .2rem; }
-.filter-lbl { font-size: .65rem; color: var(--dim); white-space: nowrap; }
-.flt-btn {
-  padding: .2rem .55rem; border-radius: 5px; border: 1px solid var(--border2);
-  background: transparent; color: var(--muted); font-size: .68rem; cursor: pointer; transition: all .12s;
+.filter-row { display:flex; align-items:center; gap:6px; flex:1; }
+.filter-select {
+  background:var(--bg3); border:1px solid var(--border2);
+  color:var(--text); font-size:11px; font-family:inherit;
+  padding:4px 8px; border-radius:6px; cursor:pointer;
 }
-.flt-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
-.flt-btn:hover:not(.active) { color: var(--text); }
-.flt-score-input {
-  width: 44px; padding: .19rem .35rem; border: 1px solid var(--border2); border-radius: 5px;
-  background: var(--bg); color: var(--text); font-size: .72rem; text-align: center;
+.filter-score { display:flex; align-items:center; gap:5px; font-size:11px; color:var(--text2); }
+.score-input {
+  width:38px; background:var(--bg3); border:1px solid var(--border2);
+  color:var(--text); font-size:11px; padding:3px 6px;
+  border-radius:5px; text-align:center; font-family:'JetBrains Mono',monospace;
 }
+.sort-btns { display:flex; gap:4px; }
 .sort-btn {
-  padding: .2rem .55rem; border-radius: 5px; border: 1px solid var(--border2);
-  background: transparent; color: var(--muted); font-size: .68rem; cursor: pointer;
+  padding:4px 10px; border-radius:5px; font-size:11px;
+  background:var(--bg3); border:1px solid var(--border);
+  color:var(--text2); cursor:pointer; font-family:inherit; transition:all .15s;
 }
-.sort-btn.active { background: var(--card); color: var(--text); }
-.sort-btn:hover:not(.active) { color: var(--text); }
+.sort-btn.active { background:var(--bg4); color:var(--text); border-color:var(--border2); }
 
-/* tabs */
-.feed-tabs {
-  display: flex; padding: .4rem .7rem; gap: .22rem;
-  border-bottom: 1px solid var(--border); flex-shrink: 0; flex-wrap: wrap;
+/* Tabs */
+.tabs { display:flex; gap:0; border-bottom:1px solid var(--border); padding:0 16px; overflow-x:auto; flex-shrink:0; }
+.tab {
+  padding:8px 12px; font-size:12px; cursor:pointer;
+  color:var(--text3); border-bottom:2px solid transparent;
+  white-space:nowrap; transition:all .15s; display:flex; align-items:center; gap:5px;
 }
-.tab-btn {
-  padding: .25rem .7rem; border-radius: 20px; border: 1px solid transparent;
-  background: transparent; color: var(--muted); font-size: .71rem; cursor: pointer; transition: all .13s;
+.tab:hover { color:var(--text2); }
+.tab.active { color:var(--text); border-bottom-color:var(--accent); }
+.tab-count {
+  font-size:10px; font-family:'JetBrains Mono',monospace;
+  padding:1px 5px; border-radius:8px; background:var(--bg4); color:var(--text2);
 }
-.tab-btn.active { background: var(--card); color: var(--text); border-color: var(--border2); }
-.tab-btn:hover:not(.active) { color: var(--text); }
-.tcnt {
-  display: inline-flex; align-items: center; justify-content: center;
-  min-width: 15px; height: 14px; border-radius: 7px; padding: 0 3px;
-  font-size: .59rem; font-weight: 700; margin-left: 2px;
-}
-.tcnt.hot  { background: var(--hot-bg);  color: var(--hot); }
-.tcnt.good { background: var(--good-bg); color: var(--good); }
-.tcnt.rsv  { background: var(--rsv-bg);  color: var(--rsv); }
-.tcnt.all  { background: var(--card);    color: var(--muted); }
-.tcnt.pub  { background: rgba(139,92,246,.15); color: var(--purple); }
+.tab.active .tab-count { background:rgba(255,85,51,.15); color:var(--accent); }
 
-.feed-list { flex: 1; overflow-y: auto; padding: .4rem; display: flex; flex-direction: column; gap: .28rem; }
+/* News list */
+.news-list { flex:1; overflow-y:auto; padding:8px; display:flex; flex-direction:column; gap:5px; }
 
-/* card */
+/* News card */
+@keyframes fadeIn { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:none} }
 .news-card {
-  background: var(--card); border: 1px solid var(--border); border-radius: 9px;
-  padding: .6rem .7rem; cursor: pointer; transition: border-color .13s;
+  border:1px solid var(--border); border-radius:var(--radius-lg);
+  padding:11px 13px; cursor:pointer; transition:all .15s;
+  background:var(--bg2); animation:fadeIn .2s ease;
 }
-.news-card:hover    { border-color: var(--border2); }
-.news-card.selected { border-color: var(--accent); }
-.news-card.approved { border-left: 2px solid var(--green); }
-.news-card.is-published { border-left: 2px solid var(--purple); }
+.news-card:hover { border-color:var(--border2); background:var(--bg3); }
+.news-card.selected { border-color:rgba(255,85,51,0.4); background:rgba(255,85,51,0.04); }
+.news-card.approved { border-color:rgba(34,204,136,0.2); }
+.news-card.is-published { border-color:rgba(68,136,255,0.2); }
 
-.card-top { display: flex; align-items: center; gap: .4rem; margin-bottom: .3rem; }
-.pri-badge {
-  display: inline-flex; align-items: center; gap: 2px; padding: .1rem .42rem;
-  border-radius: 20px; font-size: .59rem; font-weight: 700; white-space: nowrap; flex-shrink: 0;
+.card-top { display:flex; align-items:flex-start; gap:8px; margin-bottom:6px; }
+.priority-badge {
+  font-size:10px; font-weight:600; padding:2px 8px; border-radius:20px;
+  flex-shrink:0; margin-top:1px; letter-spacing:.3px; text-transform:uppercase;
 }
-.pri-badge.hot     { background: var(--hot-bg); color: var(--hot); border: 1px solid var(--hot-bd); }
-.pri-badge.good    { background: var(--good-bg); color: var(--good); border: 1px solid var(--good-bd); }
-.pri-badge.reserve { background: var(--rsv-bg); color: var(--rsv); border: 1px solid var(--rsv-bd); }
-.pri-badge.published-badge { background: rgba(139,92,246,.15); color: var(--purple); border: 1px solid rgba(139,92,246,.3); }
+.badge-hot { background:rgba(255,68,34,.15); color:#ff6644; border:1px solid rgba(255,68,34,.2); }
+.badge-good { background:rgba(245,166,35,.12); color:#f5a623; border:1px solid rgba(245,166,35,.2); }
+.badge-res { background:rgba(85,85,112,.15); color:#8888a0; border:1px solid rgba(85,85,112,.2); }
+.badge-ok { background:rgba(34,204,136,.12); color:var(--green); border:1px solid rgba(34,204,136,.2); }
+.badge-pub { background:rgba(68,136,255,.12); color:var(--blue); border:1px solid rgba(68,136,255,.2); }
 
-.card-title { font-size: .79rem; font-weight: 600; line-height: 1.4; }
+.card-title { font-size:13px; font-weight:500; line-height:1.45; flex:1; }
 .card-meta {
-  display: flex; align-items: center; gap: .3rem; flex-wrap: wrap;
-  font-size: .65rem; color: var(--muted); margin: .28rem 0 .35rem;
+  display:flex; align-items:center; gap:6px; flex-wrap:wrap;
+  font-size:11px; color:var(--text3); margin-bottom:7px;
+  font-family:'JetBrains Mono',monospace;
 }
-.meta-sep   { color: var(--dim); }
-.meta-score { color: var(--text); font-weight: 600; }
-.meta-tts   { color: var(--green); }
-.meta-pub   { color: var(--purple); }
+.meta-dot { width:2px; height:2px; border-radius:50%; background:var(--text3); flex-shrink:0; }
+.meta-tts { color:var(--green); }
+.meta-pub { color:var(--blue); }
+.meta-score { color:var(--text); font-weight:600; }
 
-/* stats mini in card */
-.card-stats {
-  display: flex; gap: .5rem; margin: .25rem 0 .35rem;
-  font-size: .65rem; color: var(--muted);
-}
-.cs-item { display: flex; align-items: center; gap: 2px; }
-.cs-val  { color: var(--text); font-weight: 600; }
+/* Stats mini */
+.card-stats { display:flex; gap:8px; margin-bottom:7px; font-size:11px; color:var(--text3); font-family:'JetBrains Mono',monospace; }
+.cs-val { color:var(--text); font-weight:600; }
 
-.score-bar-wrap { height: 3px; background: var(--border); border-radius: 2px; margin-bottom: .45rem; }
-.score-bar { height: 100%; border-radius: 2px; }
-.score-bar.hot     { background: linear-gradient(90deg, var(--hot), #f97316); }
-.score-bar.good    { background: linear-gradient(90deg, #f97316, #eab308); }
-.score-bar.reserve { background: var(--rsv); }
-.score-bar.published-bar { background: linear-gradient(90deg, var(--purple), var(--blue)); }
+/* Score bar */
+.score-track { height:2px; background:var(--bg4); border-radius:2px; margin-bottom:8px; overflow:hidden; }
+.score-fill { height:100%; border-radius:2px; transition:width .3s; }
+.fill-hot { background:linear-gradient(90deg,#ff4422,#ff6644); }
+.fill-good { background:linear-gradient(90deg,#c87a10,#f5a623); }
+.fill-res { background:var(--res); }
+.fill-pub { background:linear-gradient(90deg,var(--purple),var(--blue)); }
 
-.card-btns { display: flex; gap: .25rem; }
+/* Card buttons */
+.card-btns { display:flex; gap:5px; align-items:center; }
 .btn-sm {
-  padding: .24rem .55rem; border-radius: 6px; border: 1px solid var(--border2);
-  background: transparent; color: var(--muted); font-size: .69rem; cursor: pointer; transition: all .12s;
+  padding:4px 10px; border-radius:6px; font-size:11px; font-family:inherit;
+  border:1px solid var(--border2); background:transparent;
+  color:var(--text2); cursor:pointer; transition:all .12s;
 }
-.btn-sm:hover { color: var(--text); border-color: var(--text); }
-.btn-sm.gen { color: var(--accent); border-color: var(--good-bd); }
-.btn-sm.gen:hover { background: var(--good-bg); }
-.btn-sm.tts-done { color: var(--green); border-color: rgba(34,197,94,.25); }
-.btn-sm.del { color: var(--dim); }
-.btn-sm.del:hover { color: var(--hot); border-color: var(--hot); }
-.btn-sm.mark-pub { color: var(--purple); border-color: rgba(139,92,246,.3); }
-.btn-sm.mark-pub:hover { background: rgba(139,92,246,.1); }
+.btn-sm:hover { color:var(--text); border-color:var(--text3); }
+.btn-sm.gen { color:var(--accent); border-color:rgba(255,85,51,.25); background:rgba(255,85,51,.07); }
+.btn-sm.gen:hover { background:rgba(255,85,51,.15); }
+.btn-sm.tts-done { color:var(--green); border-color:rgba(34,204,136,.25); }
+.btn-sm.mark-pub { color:var(--blue); border-color:rgba(68,136,255,.25); }
+.btn-sm.mark-pub:hover { background:rgba(68,136,255,.1); }
+.btn-sm.del { color:var(--text3); }
+.btn-sm.del:hover { color:var(--hot); border-color:var(--hot); }
 
-/* ── DETAIL ── */
-.detail { width: 360px; min-width: 300px; max-width: 420px; display: flex; flex-direction: column; overflow: hidden; }
+/* DETAIL */
+.detail { flex:1; display:flex; flex-direction:column; overflow:hidden; min-width:0; }
 .detail-empty {
-  flex: 1; display: flex; flex-direction: column;
-  align-items: center; justify-content: center; color: var(--dim); gap: .3rem; text-align: center; padding: 2rem;
+  flex:1; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; color:var(--text3); gap:.3rem; text-align:center; padding:2rem;
 }
-.detail-empty svg { opacity: .2; margin-bottom: .25rem; }
-.d-header { padding: .7rem .85rem; border-bottom: 1px solid var(--border); flex-shrink: 0; }
-.d-source { font-size: .65rem; color: var(--muted); margin-bottom: .15rem; display: flex; align-items: center; gap: .35rem; }
-.d-title { font-size: .83rem; font-weight: 600; line-height: 1.45; }
-.d-title a { color: var(--text); text-decoration: none; }
-.d-title a:hover { color: var(--accent); }
-.d-meta { margin-top: .38rem; font-size: .67rem; color: var(--muted); display: flex; align-items: center; gap: .38rem; flex-wrap: wrap; }
-.d-score-val { color: var(--accent); font-weight: 700; }
-.d-body { flex: 1; overflow-y: auto; padding: .7rem .85rem; display: flex; flex-direction: column; gap: .7rem; }
-.blk-label {
-  font-size: .58rem; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); margin-bottom: .28rem;
-  display: flex; align-items: center; justify-content: space-between;
+
+/* Detail header */
+.d-header { padding:14px 18px 12px; border-bottom:1px solid var(--border); flex-shrink:0; }
+.d-source { font-size:11px; color:var(--text3); margin-bottom:6px; display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+.source-tag {
+  font-size:10px; color:var(--text3); font-family:'JetBrains Mono',monospace;
+  background:var(--bg3); padding:2px 7px; border-radius:4px; border:1px solid var(--border);
 }
-.blk-actions { display: flex; gap: .18rem; align-items: center; }
-.btn-lbl {
-  padding: .08rem .35rem; border-radius: 4px; border: 1px solid var(--border2);
-  background: transparent; color: var(--dim); font-size: .61rem; cursor: pointer;
+.d-title { font-family:'Syne',sans-serif; font-size:15px; font-weight:700; line-height:1.35; }
+.d-title a { color:var(--text); text-decoration:none; }
+.d-title a:hover { color:var(--accent); }
+.d-meta { margin-top:6px; font-size:11px; color:var(--text3); display:flex; align-items:center; gap:6px; flex-wrap:wrap; font-family:'JetBrains Mono',monospace; }
+.d-score-val { color:var(--accent); font-weight:700; }
+
+/* Detail body */
+.d-body { flex:1; overflow-y:auto; padding:14px 18px; display:flex; flex-direction:column; gap:14px; }
+
+/* Sections */
+.section-header { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+.section-label {
+  font-size:10px; font-weight:600; text-transform:uppercase;
+  letter-spacing:.7px; color:var(--text3); display:flex; align-items:center; gap:6px;
 }
-.btn-lbl:hover { color: var(--text); }
-.dirty-dot { width: 5px; height: 5px; border-radius: 50%; background: #f59e0b; display: none; flex-shrink: 0; }
+.char-count { font-family:'JetBrains Mono',monospace; color:var(--text3); font-weight:400; text-transform:none; letter-spacing:0; font-size:10px; }
+.section-actions { margin-left:auto; display:flex; gap:4px; align-items:center; }
+.dirty-dot { width:5px; height:5px; border-radius:50%; background:#f5a623; display:none; flex-shrink:0; }
+.copy-btn {
+  padding:3px 9px; font-size:10px; font-family:inherit;
+  background:var(--bg3); border:1px solid var(--border2);
+  border-radius:5px; color:var(--text3); cursor:pointer; transition:all .15s;
+}
+.copy-btn:hover { color:var(--text); border-color:var(--text2); }
+
+/* TTS textarea */
 .d-ta {
-  width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 7px;
-  color: var(--text); font-family: inherit; font-size: .78rem; line-height: 1.6;
-  padding: .52rem .65rem; resize: vertical; outline: none; min-height: 60px;
+  width:100%; background:var(--bg3); border:1px solid var(--border);
+  border-radius:var(--radius); color:var(--text2); font-family:inherit;
+  font-size:13px; line-height:1.65; padding:12px 13px;
+  resize:vertical; outline:none; min-height:60px;
 }
-.d-ta:focus { border-color: var(--accent); }
+.d-ta:focus { border-color:rgba(255,85,51,.4); color:var(--text); }
 
-.prev-list { display: flex; flex-direction: column; gap: .25rem; }
-.prev-pill {
-  background: var(--card); border: 1px solid var(--border2); border-radius: 7px;
-  padding: .35rem .6rem; font-size: .75rem; font-weight: 700; color: var(--accent);
-  cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: .3rem;
+/* Description box */
+.desc-ta {
+  width:100%; background:var(--bg3); border:1px solid var(--border);
+  border-radius:var(--radius); color:var(--text2); font-family:inherit;
+  font-size:12.5px; line-height:1.6; padding:11px 13px;
+  resize:vertical; outline:none; min-height:50px;
 }
-.prev-pill:hover { background: var(--good-bg); border-color: var(--good-bd); }
-.prev-hint { font-size: .58rem; color: var(--dim); font-weight: 400; }
+.desc-ta:focus { border-color:rgba(255,85,51,.4); color:var(--text); }
 
-/* stats form */
-.stats-form {
-  background: rgba(139,92,246,.07); border: 1px solid rgba(139,92,246,.2);
-  border-radius: 8px; padding: .65rem .75rem;
+/* Preview pills */
+.preview-list { display:flex; flex-direction:column; gap:5px; }
+.preview-pill {
+  display:flex; align-items:center; background:var(--bg3);
+  border:1px solid var(--border); border-radius:var(--radius);
+  overflow:hidden; cursor:pointer; transition:border-color .15s;
 }
-.stats-grid {
-  display: grid; grid-template-columns: 1fr 1fr; gap: .4rem .6rem; margin-top: .35rem;
+.preview-pill:hover { border-color:var(--border2); }
+.preview-text { flex:1; padding:8px 12px; font-size:12px; font-weight:600; letter-spacing:.5px; color:var(--text); }
+.preview-pill:nth-child(1) .preview-text { color:#ff6644; }
+.preview-pill:nth-child(2) .preview-text { color:#f5a623; }
+.preview-pill:nth-child(3) .preview-text { color:#4488ff; }
+.preview-copy {
+  padding:8px 12px; font-size:10px; color:var(--text3);
+  border-left:1px solid var(--border); font-family:'JetBrains Mono',monospace;
+  transition:color .15s;
 }
-.stat-field { display: flex; flex-direction: column; gap: .18rem; }
-.stat-label { font-size: .62rem; color: var(--muted); }
-.stat-input {
-  background: var(--bg); border: 1px solid var(--border2); border-radius: 6px;
-  color: var(--text); font-size: .8rem; padding: .28rem .45rem; width: 100%; outline: none;
-}
-.stat-input:focus { border-color: var(--purple); }
-.btn-save-stats {
-  margin-top: .55rem; width: 100%; padding: .33rem; border-radius: 6px;
-  background: var(--purple); color: #fff; border: none; font-size: .74rem; font-weight: 600; cursor: pointer;
-}
-.btn-save-stats:hover { opacity: .85; }
+.preview-pill:hover .preview-copy { color:var(--text2); }
 
-/* stats display (read-only) */
-.stats-display { display: grid; grid-template-columns: repeat(3,1fr); gap: .35rem; }
-.stat-pill {
-  background: var(--card); border: 1px solid var(--border); border-radius: 7px;
-  padding: .35rem .4rem; text-align: center;
-}
-.stat-pill-val { font-size: .88rem; font-weight: 700; color: var(--text); display: block; }
-.stat-pill-lbl { font-size: .6rem; color: var(--dim); display: block; margin-top: 1px; }
+/* Stats display */
+.stats-display { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; }
+.stat-pill { background:var(--bg3); border:1px solid var(--border); border-radius:var(--radius); padding:8px; text-align:center; }
+.stat-pill-val { font-size:15px; font-weight:700; color:var(--text); display:block; font-family:'JetBrains Mono',monospace; }
+.stat-pill-lbl { font-size:10px; color:var(--text3); display:block; margin-top:2px; }
 
+/* Detail footer */
 .d-footer {
-  padding: .65rem .85rem; border-top: 1px solid var(--border);
-  display: flex; gap: .3rem; flex-wrap: wrap; flex-shrink: 0; align-items: center;
+  padding:12px 18px; border-top:1px solid var(--border);
+  display:flex; gap:6px; flex-wrap:wrap; flex-shrink:0; align-items:center;
 }
 .btn-act {
-  padding: .33rem .75rem; border-radius: 7px; font-size: .73rem; font-weight: 600;
-  cursor: pointer; border: 1px solid transparent; transition: opacity .12s; white-space: nowrap;
+  padding:8px 14px; border-radius:var(--radius); font-size:12px; font-weight:500;
+  cursor:pointer; border:1px solid transparent; transition:all .15s; white-space:nowrap; font-family:inherit;
 }
-.btn-act:disabled { opacity: .4; cursor: not-allowed; }
-.ba-approve { background: var(--green); color: #fff; }
-.ba-approve:hover:not(:disabled) { opacity: .85; }
-.ba-publish { background: var(--purple); color: #fff; }
-.ba-publish:hover:not(:disabled) { opacity: .85; }
-.ba-gen     { background: var(--accent); color: #fff; }
-.ba-gen:hover:not(:disabled) { opacity: .85; }
-.ba-regen   { background: transparent; color: var(--muted); border-color: var(--border2); }
-.ba-regen:hover:not(:disabled) { color: var(--text); border-color: var(--text); }
-.ba-speak   { background: #0d9488; color: #fff; }
-.ba-speak:hover:not(:disabled) { opacity: .85; }
+.btn-act:disabled { opacity:.4; cursor:not-allowed; }
+.ba-approve { background:rgba(34,204,136,.12); border-color:rgba(34,204,136,.25); color:var(--green); }
+.ba-approve:hover:not(:disabled) { background:rgba(34,204,136,.2); }
+.ba-publish { background:rgba(68,136,255,.1); border-color:rgba(68,136,255,.25); color:var(--blue); }
+.ba-publish:hover:not(:disabled) { background:rgba(68,136,255,.18); }
+.ba-gen { background:var(--accent); border-color:var(--accent); color:#fff; }
+.ba-gen:hover:not(:disabled) { background:var(--accent2); }
+.ba-speak { background:rgba(153,102,255,.1); border-color:rgba(153,102,255,.25); color:var(--purple); }
+.ba-speak:hover:not(:disabled) { background:rgba(153,102,255,.18); }
+.ba-regen { background:var(--bg3); border-color:var(--border2); color:var(--text2); }
+.ba-regen:hover:not(:disabled) { background:var(--bg4); color:var(--text); }
 .el-sel {
-  padding: .3rem .42rem; border: 1px solid var(--border2); border-radius: 6px;
-  background: var(--bg); color: var(--text); font-size: .71rem; cursor: pointer;
+  padding:7px 10px; border-radius:var(--radius);
+  background:var(--bg3); border:1px solid var(--border2);
+  color:var(--text); font-size:11px; font-family:inherit; cursor:pointer;
 }
 
-/* spinner / toast */
+/* Spinner / Toast */
 .spin {
-  display: inline-block; width: 10px; height: 10px;
-  border: 2px solid rgba(255,255,255,.3); border-top-color: #fff;
-  border-radius: 50%; animation: rot .5s linear infinite;
+  display:inline-block; width:10px; height:10px;
+  border:2px solid rgba(255,255,255,.3); border-top-color:#fff;
+  border-radius:50%; animation:rot .5s linear infinite;
 }
-@keyframes rot { to { transform: rotate(360deg); } }
+@keyframes rot { to{transform:rotate(360deg)} }
 .toast {
-  position: fixed; bottom: 1rem; right: 1rem; background: #1e293b; color: #fff;
-  padding: .45rem .9rem; border-radius: 8px; font-size: .76rem;
-  opacity: 0; transform: translateY(5px); transition: opacity .16s, transform .16s;
-  z-index: 999; pointer-events: none; max-width: 280px;
+  position:fixed; top:1rem; right:1rem; background:#1e293b; color:#fff;
+  padding:.45rem .9rem; border-radius:8px; font-size:.76rem;
+  opacity:0; transform:translateY(-5px); transition:opacity .16s,transform .16s;
+  z-index:1000; pointer-events:none; max-width:280px;
 }
-.toast.on  { opacity: 1; transform: none; }
-.toast.err { background: var(--hot); }
-.empty-state { text-align: center; padding: 2rem 1rem; color: var(--dim); font-size: .78rem; }
-@media (max-width: 700px) { .sidebar, .detail { display: none; } }
+.toast.on { opacity:1; transform:none; }
+.toast.err { background:var(--hot); }
+.empty-state { text-align:center; padding:2rem 1rem; color:var(--text3); font-size:.78rem; }
 
-/* ── ANALYTICS ── */
+/* ANALYTICS */
 .analytics-view { flex:1; overflow-y:auto; padding:1rem; display:flex; flex-direction:column; gap:.9rem; }
 .agg-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:.6rem; }
 .agg-card {
-  background:var(--card); border:1px solid var(--border); border-radius:10px;
+  background:var(--bg3); border:1px solid var(--border); border-radius:var(--radius-lg);
   padding:.75rem .85rem; text-align:center;
 }
-.agg-val { font-size:1.4rem; font-weight:800; color:var(--accent); display:block; }
-.agg-lbl { font-size:.65rem; color:var(--muted); margin-top:.15rem; display:block; }
-
+.agg-val { font-size:1.4rem; font-weight:800; color:var(--accent); display:block; font-family:'JetBrains Mono',monospace; }
+.agg-lbl { font-size:.65rem; color:var(--text2); margin-top:.15rem; display:block; }
 .an-section-title {
   font-size:.7rem; text-transform:uppercase; letter-spacing:.08em;
-  color:var(--muted); margin-bottom:.45rem; display:flex; align-items:center;
+  color:var(--text2); margin-bottom:.45rem; display:flex; align-items:center;
   justify-content:space-between; gap:.5rem;
 }
 .an-table-wrap { overflow-x:auto; }
-.an-table {
-  width:100%; border-collapse:collapse; font-size:.76rem;
-}
-.an-table th {
-  text-align:left; padding:.38rem .6rem; font-size:.63rem; font-weight:600;
-  color:var(--muted); border-bottom:1px solid var(--border2); white-space:nowrap;
-}
-.an-table td {
-  padding:.42rem .6rem; border-bottom:1px solid var(--border);
-  color:var(--text); vertical-align:middle;
-}
+.an-table { width:100%; border-collapse:collapse; font-size:.76rem; }
+.an-table th { text-align:left; padding:.38rem .6rem; font-size:.63rem; font-weight:600; color:var(--text2); border-bottom:1px solid var(--border2); white-space:nowrap; }
+.an-table td { padding:.42rem .6rem; border-bottom:1px solid var(--border); color:var(--text); vertical-align:middle; }
 .an-table tr:hover td { background:rgba(255,255,255,.02); }
-.an-table .num { text-align:right; font-weight:600; font-variant-numeric:tabular-nums; }
+.an-table .num { text-align:right; font-weight:600; font-variant-numeric:tabular-nums; font-family:'JetBrains Mono',monospace; }
 .an-table .er-good { color:var(--green); }
-.an-table .er-ok   { color:var(--good); }
-.an-table .er-low  { color:var(--rsv); }
+.an-table .er-ok   { color:var(--gold); }
+.an-table .er-low  { color:var(--res); }
 .an-bar-wrap { width:60px; height:5px; background:var(--border); border-radius:3px; display:inline-block; vertical-align:middle; }
 .an-bar { height:100%; border-radius:3px; background:var(--accent); }
-
 .insights-box {
-  background:var(--card); border:1px solid rgba(139,92,246,.3); border-radius:10px;
-  padding:.85rem 1rem; font-size:.8rem; line-height:1.65; color:var(--text);
-  white-space:pre-wrap;
+  background:var(--bg3); border:1px solid rgba(153,102,255,.3); border-radius:var(--radius-lg);
+  padding:.85rem 1rem; font-size:.8rem; line-height:1.65; color:var(--text); white-space:pre-wrap;
 }
 .btn-insights {
   padding:.38rem .9rem; background:var(--purple); color:#fff; border:none;
@@ -362,15 +393,13 @@ body {
 }
 .btn-insights:hover { opacity:.85; }
 .btn-insights:disabled { opacity:.4; cursor:not-allowed; }
-
-/* PDF upload area */
 .pdf-upload-area {
-  border:2px dashed var(--border2); border-radius:10px; padding:1.2rem;
+  border:2px dashed var(--border2); border-radius:var(--radius-lg); padding:1.2rem;
   text-align:center; cursor:pointer; transition:border-color .15s;
 }
 .pdf-upload-area:hover { border-color:var(--purple); }
 .pdf-parsed {
-  background:var(--card); border:1px solid var(--border); border-radius:10px;
+  background:var(--bg3); border:1px solid var(--border); border-radius:var(--radius-lg);
   padding:.85rem 1rem; font-size:.78rem; display:flex; flex-direction:column; gap:.55rem;
 }
 .pdf-stat-row { display:flex; flex-wrap:wrap; gap:.4rem; }
@@ -379,107 +408,140 @@ body {
   padding:.22rem .6rem; font-size:.73rem; display:flex; gap:.3rem; align-items:center;
 }
 .pdf-stat-pill b { color:var(--accent); }
-
-/* platform badge */
-.plat-badge {
-  font-size:.6rem; padding:.08rem .38rem; border-radius:4px; border:1px solid;
-  font-weight:600; white-space:nowrap;
-}
+.plat-badge { font-size:.6rem; padding:.08rem .38rem; border-radius:4px; border:1px solid; font-weight:600; white-space:nowrap; }
 .plat-instagram { color:#e1306c; border-color:rgba(225,48,108,.3); background:rgba(225,48,108,.08); }
 .plat-telegram  { color:#2ca5e0; border-color:rgba(44,165,224,.3); background:rgba(44,165,224,.08); }
-.plat-tiktok    { color:#ee1d52; border-color:rgba(238,29,82,.3);  background:rgba(238,29,82,.08); }
-.plat-youtube   { color:#ff0000; border-color:rgba(255,0,0,.3);    background:rgba(255,0,0,.08); }
+.plat-tiktok    { color:#ee1d52; border-color:rgba(238,29,82,.3); background:rgba(238,29,82,.08); }
+.plat-youtube   { color:#ff0000; border-color:rgba(255,0,0,.3); background:rgba(255,0,0,.08); }
+
+@media (max-width:700px) { .sidebar,.detail { display:none; } }
 </style>
 </head>
 <body>
-<div class="layout">
+<div class="app">
 
   <!-- SIDEBAR -->
-  <aside class="sidebar">
-    <div class="sidebar-logo">🎯 mediahub</div>
-    <div class="sidebar-nav">
-      <span class="sect-label">Раздел</span>
-      <div class="nav-item active" id="nav-news"      onclick="switchView('news')"><span class="nav-dot"></span>Новости</div>
-      <div class="nav-item"        id="nav-analytics" onclick="switchView('analytics')"><span class="nav-dot"></span>Аналитика</div>
-      <div class="nav-item soon"><span class="nav-dot"></span>Настройки</div>
+  <div class="sidebar">
+    <div class="logo">
+      <div class="logo-mark">M</div>
+      <div>
+        <div class="logo-text">MediaHub</div>
+        <div class="logo-sub">Контент-завод</div>
+      </div>
+    </div>
+
+    <div class="proj-area">
+      <div class="proj-label">Проект</div>
+      <button class="proj-btn active">
+        <div class="proj-dot"></div>uzbeknews RU
+      </button>
+      <button class="proj-btn">
+        <div class="proj-dot proj-dot-gray"></div>uzbeknews UZ
+      </button>
+      <button class="proj-add">+ Добавить проект</button>
+    </div>
+
+    <nav class="nav">
+      <div class="nav-section">
+        <div class="nav-section-label">Производство</div>
+        <div class="nav-item active" id="nav-news" onclick="switchView('news')">
+          <span class="nav-icon">◈</span> Новости
+          <span class="nav-badge" id="navBadgeCount">—</span>
+        </div>
+        <div class="nav-item" id="nav-analytics" onclick="switchView('analytics')">
+          <span class="nav-icon">◎</span> Аналитика
+        </div>
+        <div class="nav-item soon">
+          <span class="nav-icon">◷</span> Настройки
+        </div>
+      </div>
       <div class="legend">
-        <div class="legend-row"><span>✓</span><span><b>Одобрить</b> — готово к публикации. Ничего не публикуется автоматически.</span></div>
-        <div class="legend-row"><span>📤</span><span><b>Опубликовано</b> — ты опубликовал вручную. Нажми чтобы переместить туда.</span></div>
-        <div class="legend-row"><span>📊</span><span><b>Статистика</b> — добавляй просмотры/лайки после публикации.</span></div>
+        <div class="legend-row"><span>✓</span><span><b>Одобрить</b> — готово к публикации.</span></div>
+        <div class="legend-row"><span>📤</span><span><b>Опубликовано</b> — ты опубликовал вручную.</span></div>
+        <div class="legend-row"><span>📊</span><span><b>Аналитика</b> — загрузи PDF из Edits.</span></div>
       </div>
-    </div>
+    </nav>
+
     <div class="sidebar-footer">
-      <div class="sidebar-footer-lbl">ElevenLabs</div>
-      <div class="el-badges" id="elBadges"></div>
-    </div>
-  </aside>
-
-  <!-- FEED -->
-  <main class="feed">
-    <div class="feed-header">
-      <span class="feed-title">Лента новостей</span>
-      <span class="feed-updated" id="updatedAt"></span>
-      <button class="btn-collect" id="collectBtn" onclick="collectNow()">Собрать сейчас</button>
-    </div>
-
-    <div class="filter-bar">
-      <div class="filter-group">
-        <span class="filter-lbl">Период:</span>
-        <select class="el-sel" id="periodSelect" onchange="setPeriod(this.value)" style="font-size:.72rem;padding:.22rem .5rem">
-          <option value="today">Сегодня</option>
-          <option value="yesterday">Вчера</option>
-          <option value="3days">3 дня</option>
-          <option value="all" selected>Всё время</option>
-        </select>
-      </div>
-      <div class="filter-group" style="margin-left:.3rem">
-        <span class="filter-lbl">Score ≥</span>
-        <input type="number" class="flt-score-input" id="minScore" value="1" min="0" max="20" onchange="load()">
-      </div>
-      <div class="filter-group" style="margin-left:auto">
-        <span class="filter-lbl">Сорт:</span>
-        <button class="sort-btn active" id="sort-score" onclick="setSort('score')">★ Рейтинг</button>
-        <button class="sort-btn" id="sort-date" onclick="setSort('date')">🕐 Дата</button>
+      <div class="elevenlabs-status">
+        <div class="el-dot" id="elDot"></div>
+        <div style="flex:1">
+          <div class="el-text">ElevenLabs</div>
+          <div class="el-badges-row" id="elBadges"></div>
+        </div>
       </div>
     </div>
+  </div>
 
-    <div class="feed-tabs">
-      <button class="tab-btn active" data-tab="all"       onclick="setTab('all')">Все <span class="tcnt all" id="cnt-all">—</span></button>
-      <button class="tab-btn"        data-tab="hot"       onclick="setTab('hot')">🔥 Горящие <span class="tcnt hot" id="cnt-hot">—</span></button>
-      <button class="tab-btn"        data-tab="good"      onclick="setTab('good')">⚡ Хорошие <span class="tcnt good" id="cnt-good">—</span></button>
-      <button class="tab-btn"        data-tab="reserve"   onclick="setTab('reserve')">📋 Резерв <span class="tcnt rsv" id="cnt-reserve">—</span></button>
-      <button class="tab-btn"        data-tab="approved"  onclick="setTab('approved')">✓ Одобренные</button>
-      <button class="tab-btn"        data-tab="published" onclick="setTab('published')">📤 Опубликовано <span class="tcnt pub" id="cnt-pub">—</span></button>
+  <!-- MAIN -->
+  <div class="main">
+
+    <!-- FEED (news) -->
+    <div class="feed" id="newsFeed">
+      <div class="feed-header">
+        <div class="feed-title">Лента новостей</div>
+        <div class="feed-time" id="updatedAt"></div>
+        <button class="collect-btn" id="collectBtn" onclick="collectNow()">⬇ Собрать</button>
+      </div>
+
+      <div class="filters-bar">
+        <div class="filter-row">
+          <select class="filter-select" id="periodSelect" onchange="setPeriod(this.value)">
+            <option value="today">Сегодня</option>
+            <option value="yesterday">Вчера</option>
+            <option value="3days">3 дня</option>
+            <option value="all" selected>Всё время</option>
+          </select>
+          <div class="filter-score">
+            Score ≥ <input type="number" class="score-input" id="minScore" value="1" min="0" max="20" onchange="load()">
+          </div>
+        </div>
+        <div class="sort-btns">
+          <button class="sort-btn active" id="sort-score" onclick="setSort('score')">★ Рейтинг</button>
+          <button class="sort-btn" id="sort-date" onclick="setSort('date')">⊙ Дата</button>
+        </div>
+      </div>
+
+      <div class="tabs">
+        <div class="tab active" data-tab="all" onclick="setTab('all')">Все <span class="tab-count" id="cnt-all">—</span></div>
+        <div class="tab" data-tab="hot" onclick="setTab('hot')">🔥 Горящие <span class="tab-count" id="cnt-hot">—</span></div>
+        <div class="tab" data-tab="good" onclick="setTab('good')">⚡ Хорошие <span class="tab-count" id="cnt-good">—</span></div>
+        <div class="tab" data-tab="reserve" onclick="setTab('reserve')">◫ Резерв <span class="tab-count" id="cnt-reserve">—</span></div>
+        <div class="tab" data-tab="approved" onclick="setTab('approved')">✓ Одобренные</div>
+        <div class="tab" data-tab="published" onclick="setTab('published')">⬡ Опубликовано <span class="tab-count" id="cnt-pub">—</span></div>
+      </div>
+
+      <div class="news-list" id="feedList"><div class="empty-state">Загрузка…</div></div>
     </div>
 
-    <div class="feed-list" id="feedList"><div class="empty-state">Загрузка…</div></div>
-  </main>
+    <!-- FEED (analytics) -->
+    <div class="feed" id="analyticsView" style="display:none">
+      <div class="feed-header">
+        <div class="feed-title">Аналитика</div>
+        <div class="feed-time" id="anUpdated"></div>
+        <button class="collect-btn" onclick="loadAnalytics()">↻ Обновить</button>
+      </div>
+      <div class="analytics-view" id="analyticsBody">
+        <div class="empty-state">Нажми «Обновить» или опубликуй первый пост</div>
+      </div>
+    </div>
 
-  <!-- ANALYTICS VIEW -->
-  <main class="feed" id="analyticsView" style="display:none">
-    <div class="feed-header">
-      <span class="feed-title">📊 Аналитика</span>
-      <span class="feed-updated" id="anUpdated"></span>
-      <button class="btn-collect" onclick="loadAnalytics()">↻ Обновить</button>
+    <!-- DETAIL -->
+    <div class="detail">
+      <div class="detail-empty" id="detailEmpty">
+        <svg width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.4" viewBox="0 0 24 24" style="opacity:.2;margin-bottom:.25rem">
+          <rect x="3" y="3" width="18" height="18" rx="2.5"/>
+          <path d="M7 8h10M7 12h6M7 16h8"/>
+        </svg>
+        <div style="font-size:.78rem">Выбери новость</div>
+        <div style="font-size:.68rem;color:var(--text3)">чтобы увидеть детали и скрипт</div>
+      </div>
+      <div id="detailContent" style="display:none;flex:1;flex-direction:column;overflow:hidden"></div>
     </div>
-    <div class="analytics-view" id="analyticsBody">
-      <div class="empty-state">Нажми «Обновить» или опубликуй первый пост</div>
-    </div>
-  </main>
 
-  <!-- DETAIL -->
-  <aside class="detail">
-    <div class="detail-empty" id="detailEmpty">
-      <svg width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.4" viewBox="0 0 24 24">
-        <rect x="3" y="3" width="18" height="18" rx="2.5"/>
-        <path d="M7 8h10M7 12h6M7 16h8"/>
-      </svg>
-      <div style="font-size:.78rem">Выбери новость</div>
-      <div style="font-size:.68rem">чтобы увидеть детали и скрипт</div>
-    </div>
-    <div id="detailContent" style="display:none;flex:1;flex-direction:column;overflow:hidden"></div>
-  </aside>
-</div>
+  </div><!-- /main -->
+</div><!-- /app -->
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -487,8 +549,8 @@ body {
 let news=[], curTab="all", curSort="score", curPeriod="all", selectedId=null;
 const MONTHS=["янв","фев","мар","апр","май","июн","июл","авг","сен","окт","ноя","дек"];
 
-/* ── HTTP ── */
-async function api(method, path, body) {
+/* HTTP */
+async function api(method,path,body){
   const opts={method};
   if(body!==undefined){opts.headers={"Content-Type":"application/json"};opts.body=JSON.stringify(body);}
   const r=await fetch(path,opts);
@@ -498,14 +560,14 @@ async function api(method, path, body) {
   return r.json();
 }
 
-/* ── Toast ── */
+/* Toast */
 function toast(msg,err=false){
   const el=document.getElementById("toast");
   el.textContent=msg;el.className="toast on"+(err?" err":"");
   clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove("on"),3500);
 }
 
-/* ── Helpers ── */
+/* Helpers */
 function esc(s){return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");}
 function fmtDate(str){
   if(!str)return"";
@@ -513,7 +575,8 @@ function fmtDate(str){
   return`${d.getDate()} ${MONTHS[d.getMonth()]}, ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;}
   catch(_){return str.slice(0,10);}
 }
-function priLabel(p){return p==="hot"?"🔥 Горящая":p==="good"?"⚡ Хорошая":"📋 Резерв";}
+function priLabel(p){return p==="hot"?"🔥 Горящая":p==="good"?"⚡ Хорошая":"◫ Резерв";}
+function priBadge(p){return p==="hot"?"badge-hot":p==="good"?"badge-good":"badge-res";}
 function fmtNum(n){if(!n||n===0)return"—";return n>=1000?Math.round(n/1000)+"k":String(n);}
 function fmtCr(n){return n<0?"Err":n>=1000?Math.round(n/1000)+"k":n+" chr";}
 function periodDates(p){
@@ -524,13 +587,8 @@ function periodDates(p){
   return{date_from:"",date_to:""};
 }
 
-/* ── Filters ── */
-function setPeriod(p){
-  curPeriod=p;
-  const sel=document.getElementById("periodSelect");
-  if(sel) sel.value=p;
-  load();
-}
+/* Filters */
+function setPeriod(p){curPeriod=p;document.getElementById("periodSelect").value=p;load();}
 function setSort(s){
   curSort=s;
   document.getElementById("sort-score").classList.toggle("active",s==="score");
@@ -539,23 +597,20 @@ function setSort(s){
 }
 function setTab(tab){
   curTab=tab;
-  document.querySelectorAll(".tab-btn").forEach(b=>b.classList.toggle("active",b.dataset.tab===tab));
+  document.querySelectorAll(".tab").forEach(b=>b.classList.toggle("active",b.dataset.tab===tab));
   renderFeed();
 }
 
-/* ── Load ── */
+/* Load */
 async function load(){
   const min=parseInt(document.getElementById("minScore").value)||1;
   const{date_from,date_to}=periodDates(curPeriod);
   const p=new URLSearchParams({min_score:min,limit:200,sort:curSort,...(date_from?{date_from}:{}),...(date_to?{date_to}:{})});
   try{
     news=await api("GET",`/api/news?${p}`)||[];
-    // also load published separately (no score filter)
     const pub=await api("GET","/api/news?tab=published&min_score=0&limit=200")||[];
-    // merge: add published ones not already in news
     const ids=new Set(news.map(n=>n.id));
     pub.forEach(n=>{if(!ids.has(n.id))news.push(n);});
-
     document.getElementById("updatedAt").textContent=
       "Обновлено "+new Date().toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"});
     updateCounts();renderFeed();
@@ -576,17 +631,18 @@ function updateCounts(){
   document.getElementById("cnt-good").textContent=good;
   document.getElementById("cnt-reserve").textContent=rsv;
   document.getElementById("cnt-pub").textContent=pub;
+  document.getElementById("navBadgeCount").textContent=all;
 }
 
-/* ── Render feed ── */
+/* Render feed */
 function renderFeed(){
   let filtered=news;
-  if(curTab==="hot")      filtered=news.filter(n=>!n.published_at&&n.priority==="hot");
-  else if(curTab==="good")filtered=news.filter(n=>!n.published_at&&n.priority==="good");
+  if(curTab==="hot")         filtered=news.filter(n=>!n.published_at&&n.priority==="hot");
+  else if(curTab==="good")   filtered=news.filter(n=>!n.published_at&&n.priority==="good");
   else if(curTab==="reserve")filtered=news.filter(n=>!n.published_at&&n.priority==="reserve");
   else if(curTab==="approved")filtered=news.filter(n=>n.approved&&!n.published_at);
   else if(curTab==="published")filtered=news.filter(n=>!!n.published_at);
-  else filtered=news.filter(n=>!n.published_at); // "all" hides published
+  else filtered=news.filter(n=>!n.published_at);
 
   const list=document.getElementById("feedList");
   if(!filtered.length){list.innerHTML=`<div class="empty-state">Нет новостей в этой категории</div>`;return;}
@@ -596,18 +652,17 @@ function renderFeed(){
 function cardHtml(n,isPubTab=false){
   const p=n.priority||"reserve";
   const isPublished=!!n.published_at;
-  const barCls=isPublished?"published-bar":p;
+  const barCls=isPublished?"fill-pub":p==="hot"?"fill-hot":p==="good"?"fill-good":"fill-res";
   const barW=Math.min(100,Math.round((n.score/10)*100));
   const hasTTS=!!n.tts_script;
-
   const hasStats=n.stats_views||n.stats_likes||n.stats_comments||n.stats_shares;
 
   const statsRow=isPublished&&hasStats?`
     <div class="card-stats">
-      <span class="cs-item">👁 <span class="cs-val">${fmtNum(n.stats_views)}</span></span>
-      <span class="cs-item">❤️ <span class="cs-val">${fmtNum(n.stats_likes)}</span></span>
-      <span class="cs-item">💬 <span class="cs-val">${fmtNum(n.stats_comments)}</span></span>
-      <span class="cs-item">↗️ <span class="cs-val">${fmtNum(n.stats_shares)}</span></span>
+      <span>👁 <span class="cs-val">${fmtNum(n.stats_views)}</span></span>
+      <span>❤️ <span class="cs-val">${fmtNum(n.stats_likes)}</span></span>
+      <span>💬 <span class="cs-val">${fmtNum(n.stats_comments)}</span></span>
+      <span>↗️ <span class="cs-val">${fmtNum(n.stats_shares)}</span></span>
     </div>`:"";
 
   const btns=isPubTab
@@ -625,27 +680,27 @@ function cardHtml(n,isPubTab=false){
          id="card-${n.id}" onclick="selectCard(${n.id})">
       <div class="card-top">
         ${isPublished
-          ?`<span class="pri-badge published-badge">📤 Опубликовано</span>`
-          :`<span class="pri-badge ${p}">${priLabel(p)}</span>`}
-        ${n.approved&&!isPublished?'<span style="font-size:.59rem;color:var(--green);margin-left:auto">✓ Одобрено</span>':""}
+          ?`<span class="priority-badge badge-pub">⬡ Опубликовано</span>`
+          :`<span class="priority-badge ${priBadge(p)}">${priLabel(p)}</span>`}
+        ${n.approved&&!isPublished?`<span style="font-size:10px;color:var(--green);margin-left:auto">✓ Одобрено</span>`:""}
       </div>
       <div class="card-title">${esc(n.title)}</div>
       <div class="card-meta">
         <span>${esc(n.source||"")}</span>
-        <span class="meta-sep">·</span>
+        <span class="meta-dot"></span>
         <span>${fmtDate(n.published||n.collected)}</span>
-        <span class="meta-sep">·</span>
+        <span class="meta-dot"></span>
         <span>Score <span class="meta-score">${n.score}</span></span>
-        ${hasTTS?'<span class="meta-sep">·</span><span class="meta-tts">✓ TTS</span>':""}
-        ${isPublished?`<span class="meta-sep">·</span><span class="meta-pub">📤 ${fmtDate(n.published_at)}</span>`:""}
+        ${hasTTS?`<span class="meta-dot"></span><span class="meta-tts">✓ TTS</span>`:""}
+        ${isPublished?`<span class="meta-dot"></span><span class="meta-pub">📤 ${fmtDate(n.published_at)}</span>`:""}
       </div>
       ${statsRow}
-      <div class="score-bar-wrap"><div class="score-bar ${barCls}" style="width:${barW}%"></div></div>
+      <div class="score-track"><div class="score-fill ${barCls}" style="width:${barW}%"></div></div>
       <div class="card-btns" onclick="event.stopPropagation()">${btns}</div>
     </div>`;
 }
 
-/* ── Select / Detail ── */
+/* Select / Detail */
 function selectCard(id){
   selectedId=id;
   document.querySelectorAll(".news-card").forEach(el=>el.classList.toggle("selected",el.id==="card-"+id));
@@ -666,54 +721,67 @@ function renderDetail(n){
   const hasTTS=!!n.tts_script;
   const hasDesc=!!n.description;
   const isPublished=!!n.published_at;
+  const charCount=n.tts_script?(n.tts_script.length):0;
 
   const ttsBlock=hasTTS?`
     <div>
-      <div class="blk-label">🎙 TTS (Claude)
-        <div class="blk-actions">
+      <div class="section-header">
+        <div class="section-label">▶ TTS (Claude)
+          <span class="char-count">Символов: <span id="char-count-${n.id}">${charCount}</span></span>
+        </div>
+        <div class="section-actions">
           <span class="dirty-dot" id="dirty-tts-${n.id}"></span>
-          <button class="btn-lbl" onclick="saveTTS(${n.id})">Сохранить</button>
-          <button class="btn-lbl" onclick="copyTA('tts-${n.id}')">Copy</button>
+          <button class="copy-btn" onclick="saveTTS(${n.id})">Сохранить</button>
+          <button class="copy-btn" onclick="copyTA('tts-${n.id}')">Copy</button>
         </div>
       </div>
-      <textarea class="d-ta" id="tts-${n.id}" oninput="markDirty('tts',${n.id})" rows="8">${esc(n.tts_script)}</textarea>
-    </div>`:
-    `<div style="font-size:.75rem;color:var(--dim);text-align:center;padding:.5rem 0">
+      <textarea class="d-ta" id="tts-${n.id}" rows="9"
+        oninput="markDirty('tts',${n.id});document.getElementById('char-count-${n.id}').textContent=this.value.length"
+      >${esc(n.tts_script)}</textarea>
+    </div>`
+    :`<div style="font-size:.75rem;color:var(--text3);text-align:center;padding:.5rem 0">
       Нажми «Генерировать» для создания TTS, описания и превью</div>`;
 
   const descBlock=hasDesc?`
     <div>
-      <div class="blk-label">📝 Описание
-        <div class="blk-actions">
+      <div class="section-header">
+        <div class="section-label">◫ Описание</div>
+        <div class="section-actions">
           <span class="dirty-dot" id="dirty-desc-${n.id}"></span>
-          <button class="btn-lbl" onclick="saveDesc(${n.id})">Сохранить</button>
-          <button class="btn-lbl" onclick="copyTA('desc-${n.id}')">Copy</button>
+          <button class="copy-btn" onclick="saveDesc(${n.id})">Сохранить</button>
+          <button class="copy-btn" onclick="copyTA('desc-${n.id}')">Copy</button>
         </div>
       </div>
-      <textarea class="d-ta" id="desc-${n.id}" oninput="markDirty('desc',${n.id})" rows="7">${esc(n.description)}</textarea>
+      <textarea class="desc-ta" id="desc-${n.id}" rows="7"
+        oninput="markDirty('desc',${n.id})"
+      >${esc(n.description)}</textarea>
     </div>`:"";
 
   const prevBlock=previews.length?`
     <div>
-      <div class="blk-label">🖼 Превью — нажми чтобы скопировать</div>
-      <div class="prev-list">${previews.map(pv=>`
-        <div class="prev-pill" onclick="copyPrev(this)"><span>${esc(pv)}</span><span class="prev-hint">copy</span></div>`).join("")}
+      <div class="section-header">
+        <div class="section-label">◈ Превью — нажми чтобы скопировать</div>
+      </div>
+      <div class="preview-list">${previews.map(pv=>`
+        <div class="preview-pill" onclick="copyPrev(this)">
+          <div class="preview-text">${esc(pv)}</div>
+          <div class="preview-copy">copy</div>
+        </div>`).join("")}
       </div>
     </div>`:"";
 
-  /* stats block — shown for published items */
   const statsBlock=isPublished?`
     <div>
-      <div class="blk-label">📊 Статистика публикации</div>
+      <div class="section-header"><div class="section-label">📊 Статистика публикации</div></div>
       ${(n.stats_views||n.stats_likes||n.stats_comments||n.stats_shares||n.stats_saves)?`
-      <div class="stats-display" style="margin-bottom:.55rem">
+      <div class="stats-display" style="margin-bottom:10px">
         <div class="stat-pill"><span class="stat-pill-val">${fmtNum(n.stats_views)}</span><span class="stat-pill-lbl">👁 Просмотры</span></div>
         <div class="stat-pill"><span class="stat-pill-val">${fmtNum(n.stats_likes)}</span><span class="stat-pill-lbl">❤️ Лайки</span></div>
         <div class="stat-pill"><span class="stat-pill-val">${fmtNum(n.stats_comments)}</span><span class="stat-pill-lbl">💬 Комменты</span></div>
         <div class="stat-pill"><span class="stat-pill-val">${fmtNum(n.stats_shares)}</span><span class="stat-pill-lbl">↗️ Репосты</span></div>
         <div class="stat-pill"><span class="stat-pill-val">${fmtNum(n.stats_saves)}</span><span class="stat-pill-lbl">🔖 Сохранения</span></div>
       </div>`:""}
-      <div style="background:rgba(139,92,246,.07);border:1px solid rgba(139,92,246,.2);border-radius:8px;padding:.6rem .75rem;font-size:.74rem;color:var(--muted);text-align:center">
+      <div style="background:rgba(153,102,255,.07);border:1px solid rgba(153,102,255,.2);border-radius:8px;padding:.6rem .75rem;font-size:.74rem;color:var(--text2);text-align:center">
         📄 Загрузи PDF из Edits во вкладке <b style="color:var(--text)">Аналитика</b> — статистика привяжется автоматически
       </div>
     </div>`:"";
@@ -723,46 +791,45 @@ function renderDetail(n){
   dc.innerHTML=`
     <div class="d-header">
       <div class="d-source">
-        ${esc(n.source||"")} ·
+        <span class="source-tag">${esc(n.source||"")}</span>
         ${isPublished
-          ?`<span class="pri-badge published-badge" style="display:inline-flex">📤 Опубликовано</span>`
-          :`<span class="pri-badge ${p}" style="display:inline-flex">${priLabel(p)}</span>`}
+          ?`<span class="priority-badge badge-pub">⬡ Опубликовано</span>`
+          :`<span class="priority-badge ${priBadge(p)}">${priLabel(p)}</span>`}
+        ${n.approved&&!isPublished?`<span class="priority-badge badge-ok">✓ Одобрено</span>`:""}
       </div>
       <div class="d-title"><a href="${esc(n.url)}" target="_blank" rel="noopener">${esc(n.title)}</a></div>
       <div class="d-meta">
         Score: <span class="d-score-val">${n.score}</span>
         · ${fmtDate(n.published||n.collected)}
         ${pubDate}
-        ${n.approved&&!isPublished?'· <span style="color:var(--green)">✓ Одобрено</span>':""}
       </div>
     </div>
     <div class="d-body">${ttsBlock}${descBlock}${prevBlock}${statsBlock}</div>
     <div class="d-footer">
       ${isPublished?`
-        <button class="btn-act ba-regen" onclick="regenNews(${n.id})" title="Сгенерировать заново">↺ Заново</button>
+        <button class="btn-act ba-regen" onclick="regenNews(${n.id})">↺ Заново</button>
       `:hasTTS?`
-        <button class="btn-act ba-approve" id="apr-${n.id}" onclick="approveNews(${n.id})" ${n.approved?"disabled":""}
-                title="Пометить как готовое к публикации">
-          ${n.approved?"✓ Одобрено":"Одобрить"}</button>
-        ${n.approved?`<button class="btn-act ba-publish" onclick="markPublished(${n.id})" title="Я опубликовал этот пост">📤 Опубликовано</button>`:""}
+        <button class="btn-act ba-approve" id="apr-${n.id}" onclick="approveNews(${n.id})" ${n.approved?"disabled":""}>
+          ${n.approved?"✓ Одобрено":"✓ Одобрить"}</button>
+        ${n.approved?`<button class="btn-act ba-publish" onclick="markPublished(${n.id})">⬡ Опубликовано</button>`:""}
         <select class="el-sel" id="el-${n.id}">
           <option value="0">🤖 Авто</option><option value="1">Акк 1</option><option value="2">Акк 2</option>
         </select>
         <button class="btn-act ba-speak" onclick="speakNews(${n.id})">🎙 Озвучить</button>
-        <button class="btn-act ba-regen" onclick="regenNews(${n.id})" title="Сгенерировать заново">↺</button>
+        <button class="btn-act ba-regen" onclick="regenNews(${n.id})">↺</button>
       `:`
         <button class="btn-act ba-gen" onclick="generateCard(${n.id})">✨ Генерировать</button>
       `}
     </div>`;
 }
 
-/* ── Actions ── */
+/* Actions */
 async function collectNow(){
   const btn=document.getElementById("collectBtn");
   btn.disabled=true;btn.innerHTML=`<span class="spin"></span> Сбор…`;
   try{await api("POST","/api/collect");toast("Сбор запущен — обновление через ~20с");setTimeout(load,20000);}
   catch(e){toast("Ошибка: "+e.message,true);}
-  finally{setTimeout(()=>{btn.disabled=false;btn.textContent="Собрать сейчас";},15000);}
+  finally{setTimeout(()=>{btn.disabled=false;btn.textContent="⬇ Собрать";},15000);}
 }
 
 async function generateCard(id){
@@ -809,23 +876,6 @@ async function markPublished(id){
   }catch(e){toast("Ошибка: "+e.message,true);}
 }
 
-async function saveStats(id){
-  const v=n=>parseInt(document.getElementById(n)?.value||"0")||0;
-  try{
-    await api("PATCH",`/api/news/${id}/stats`,{
-      views:v(`sv-${id}`),likes:v(`sl-${id}`),
-      comments:v(`sc-${id}`),shares:v(`ss-${id}`),saves:v(`sk-${id}`)
-    });
-    const n=news.find(x=>x.id===id);
-    if(n){
-      n.stats_views=v(`sv-${id}`);n.stats_likes=v(`sl-${id}`);
-      n.stats_comments=v(`sc-${id}`);n.stats_shares=v(`ss-${id}`);n.stats_saves=v(`sk-${id}`);
-    }
-    renderFeed();if(selectedId===id&&n)renderDetail(n);
-    toast("Статистика сохранена ✓");
-  }catch(e){toast("Ошибка: "+e.message,true);}
-}
-
 async function delCard(id){
   if(!confirm("Удалить новость из базы? Это нельзя отменить."))return;
   try{
@@ -836,7 +886,7 @@ async function delCard(id){
   }catch(e){toast("Ошибка: "+e.message,true);}
 }
 
-/* ── Save text ── */
+/* Save text */
 function markDirty(type,id){const d=document.getElementById(`dirty-${type}-${id}`);if(d)d.style.display="inline-block";}
 async function saveTTS(id){
   const ta=document.getElementById("tts-"+id);if(!ta)return;
@@ -859,7 +909,7 @@ async function saveDesc(id){
   }catch(e){toast("Ошибка: "+e.message,true);}
 }
 
-/* ── Copy ── */
+/* Copy */
 async function copyTA(elId){
   const el=document.getElementById(elId);if(!el)return;
   try{await navigator.clipboard.writeText(el.value||el.textContent);}
@@ -867,12 +917,12 @@ async function copyTA(elId){
   toast("Скопировано ✓");
 }
 async function copyPrev(el){
-  const text=el.querySelector("span")?.textContent?.trim()||"";
+  const text=el.querySelector(".preview-text")?.textContent?.trim()||"";
   try{await navigator.clipboard.writeText(text);}catch(_){}
   toast("Превью скопировано ✓");
 }
 
-/* ── Speak ── */
+/* Speak */
 async function speakNews(id){
   const dirty=document.getElementById("dirty-tts-"+id);
   if(dirty&&dirty.style.display!=="none")await saveTTS(id);
@@ -894,39 +944,39 @@ async function speakNews(id){
   finally{if(btn){btn.disabled=false;btn.innerHTML="🎙 Озвучить";}}
 }
 
-/* ── ElevenLabs credits ── */
+/* ElevenLabs credits */
 async function loadCredits(){
   try{
     const d=await api("GET","/api/elevenlabs/credits");if(!d)return;
     const el=document.getElementById("elBadges");el.innerHTML="";
+    let anyOk=false;
     for(const[acc,chars]of Object.entries(d)){
-      const color=chars>5000?"#22c55e":chars>0?"#f97316":"#ef4444";
+      const color=chars>5000?"var(--green)":chars>0?"var(--gold)":"var(--hot)";
+      if(chars>0)anyOk=true;
       el.innerHTML+=`<span class="el-badge" style="color:${color};border-color:${color}">🎙${acc} ${fmtCr(chars)}</span>`;
     }
+    document.getElementById("elDot").style.background=anyOk?"var(--green)":"var(--hot)";
   }catch(_){}
 }
 
-load();loadCredits();
-
-/* ── VIEW SWITCHER ── */
+/* View switcher */
 function switchView(view){
-  const isNews = view==="news";
-  document.getElementById("nav-news").classList.toggle("active", isNews);
-  document.getElementById("nav-analytics").classList.toggle("active", !isNews);
-  // feed + detail
-  document.querySelector(".feed:not(#analyticsView)").style.display = isNews?"flex":"none";
-  document.querySelector(".detail").style.display = isNews?"flex":"none";
-  document.getElementById("analyticsView").style.display = isNews?"none":"flex";
-  if(!isNews) loadAnalytics();
+  const isNews=view==="news";
+  document.getElementById("nav-news").classList.toggle("active",isNews);
+  document.getElementById("nav-analytics").classList.toggle("active",!isNews);
+  document.getElementById("newsFeed").style.display=isNews?"flex":"none";
+  document.querySelector(".detail").style.display=isNews?"flex":"none";
+  document.getElementById("analyticsView").style.display=isNews?"none":"flex";
+  if(!isNews)loadAnalytics();
 }
 
-/* ── ANALYTICS ── */
+/* Analytics */
 async function loadAnalytics(){
-  const body = document.getElementById("analyticsBody");
+  const body=document.getElementById("analyticsBody");
   body.innerHTML=`<div class="empty-state"><span class="spin" style="border-top-color:var(--accent);width:18px;height:18px;border-width:3px"></span></div>`;
   document.getElementById("anUpdated").textContent="";
   try{
-    const d = await api("GET","/api/analytics");
+    const d=await api("GET","/api/analytics");
     if(!d){body.innerHTML=`<div class="empty-state">Нет данных</div>`;return;}
     renderAnalytics(d);
     document.getElementById("anUpdated").textContent=
@@ -942,12 +992,11 @@ function platBadge(p){
 }
 
 function renderAnalytics(d){
-  const {posts, aggregate: agg} = d;
-  const body = document.getElementById("analyticsBody");
+  const{posts,aggregate:agg}=d;
+  const body=document.getElementById("analyticsBody");
   let html="";
 
-  /* aggregate cards */
-  if(agg && agg.total_posts){
+  if(agg&&agg.total_posts){
     html+=`<div>
       <div class="an-section-title">Общая статистика · ${agg.total_posts} постов с данными</div>
       <div class="agg-grid">
@@ -958,10 +1007,10 @@ function renderAnalytics(d){
       </div>
     </div>`;
     if(agg.best_post){
-      html+=`<div style="background:var(--card);border:1px solid rgba(34,197,94,.25);border-radius:10px;padding:.75rem .9rem;font-size:.78rem">
+      html+=`<div style="background:var(--bg3);border:1px solid rgba(34,204,136,.25);border-radius:var(--radius-lg);padding:.75rem .9rem;font-size:.78rem">
         <div style="color:var(--green);font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;margin-bottom:.3rem">🏆 Лучший пост по просмотрам</div>
         <div style="font-weight:600;margin-bottom:.2rem">${esc(agg.best_post.title||"")}</div>
-        <div style="color:var(--muted)">
+        <div style="color:var(--text2)">
           👁 ${fmtBig(agg.best_post.stats_views)} просмотров &nbsp;·&nbsp;
           ER ${agg.best_post.engagement_rate}% &nbsp;·&nbsp;
           ⏱ ${agg.best_post.stats_watch_time||"—"}
@@ -970,46 +1019,39 @@ function renderAnalytics(d){
     }
   }
 
-  /* PDF upload block */
   html+=`<div>
     <div class="an-section-title">
       📤 Загрузить статистику
-      <span style="font-size:.62rem;color:var(--dim)">PDF из Meta Edits / Instagram</span>
+      <span style="font-size:.62rem;color:var(--text3)">PDF из Meta Edits / Instagram</span>
     </div>
     <div class="pdf-upload-area" onclick="document.getElementById('pdfInput').click()">
       <input type="file" id="pdfInput" accept=".pdf" style="display:none" onchange="uploadStatsPDF(this)">
       <div style="font-size:1.5rem;margin-bottom:.35rem">📄</div>
       <div style="font-size:.8rem;color:var(--text)">Нажми чтобы загрузить PDF из Edits</div>
-      <div style="font-size:.68rem;color:var(--muted);margin-top:.2rem">Instagram Reels · Telegram · TikTok · YouTube Shorts — скоро</div>
+      <div style="font-size:.68rem;color:var(--text2);margin-top:.2rem">Instagram Reels · Telegram · TikTok · YouTube Shorts — скоро</div>
     </div>
     <div id="pdfResult" style="margin-top:.5rem"></div>
   </div>`;
 
-  /* posts table */
-  const withStats = posts.filter(p=>p.has_stats);
-  const noStats   = posts.filter(p=>!p.has_stats);
+  const withStats=posts.filter(p=>p.has_stats);
+  const noStats=posts.filter(p=>!p.has_stats);
 
   if(withStats.length){
-    const sorted = [...withStats].sort((a,b)=>(b.stats_views||0)-(a.stats_views||0));
+    const sorted=[...withStats].sort((a,b)=>(b.stats_views||0)-(a.stats_views||0));
     html+=`<div>
       <div class="an-section-title">Все опубликованные посты · сортировка по просмотрам</div>
       <div class="an-table-wrap"><table class="an-table">
         <thead><tr>
-          <th>Пост</th>
-          <th>Платформа</th>
-          <th class="num">👁 Views</th>
-          <th class="num">📡 Reach</th>
-          <th class="num">❤️ Likes</th>
-          <th class="num">↗️ Share</th>
-          <th class="num">🔖 Save</th>
-          <th class="num">⏱ Watch</th>
-          <th class="num">ER%</th>
-          <th class="num">Score</th>
+          <th>Пост</th><th>Платформа</th>
+          <th class="num">👁 Views</th><th class="num">📡 Reach</th>
+          <th class="num">❤️ Likes</th><th class="num">↗️ Share</th>
+          <th class="num">🔖 Save</th><th class="num">⏱ Watch</th>
+          <th class="num">ER%</th><th class="num">Score</th>
         </tr></thead>
         <tbody>
           ${sorted.map(p=>{
-            const maxV = sorted[0].stats_views||1;
-            const barW = Math.round(((p.stats_views||0)/maxV)*100);
+            const maxV=sorted[0].stats_views||1;
+            const barW=Math.round(((p.stats_views||0)/maxV)*100);
             return`<tr>
               <td style="max-width:180px">
                 <div style="font-size:.75rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
@@ -1022,7 +1064,7 @@ function renderAnalytics(d){
               <td class="num">${fmtBig(p.stats_likes)}</td>
               <td class="num">${fmtBig(p.stats_shares)}</td>
               <td class="num">${fmtBig(p.stats_saves)}</td>
-              <td class="num" style="color:var(--muted)">${p.stats_watch_time||"—"}</td>
+              <td class="num" style="color:var(--text2)">${p.stats_watch_time||"—"}</td>
               <td class="num ${erClass(p.engagement_rate)}">${p.engagement_rate}%</td>
               <td class="num" style="color:var(--accent)">${p.score}</td>
             </tr>`;
@@ -1032,28 +1074,26 @@ function renderAnalytics(d){
     </div>`;
   }
 
-  /* Claude insights */
   if(withStats.length>=3){
     html+=`<div>
       <div class="an-section-title">
         🤖 Claude-инсайты
         <button class="btn-insights" id="insightsBtn" onclick="loadInsights()">Анализировать</button>
       </div>
-      <div id="insightsBox" style="font-size:.76rem;color:var(--dim)">
+      <div id="insightsBox" style="font-size:.76rem;color:var(--text2)">
         Нажми «Анализировать» — Claude проанализирует ${withStats.length} постов и даст рекомендации
       </div>
     </div>`;
   }
 
-  /* posts without stats */
   if(noStats.length){
     html+=`<div>
       <div class="an-section-title">Опубликовано без статистики (${noStats.length})</div>
       <div style="display:flex;flex-direction:column;gap:.25rem">
         ${noStats.map(p=>`
-          <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:.5rem .75rem;display:flex;align-items:center;gap:.6rem">
+          <div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:.5rem .75rem;display:flex;align-items:center;gap:.6rem">
             <div style="flex:1;font-size:.77rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.title||"")}</div>
-            <div style="font-size:.67rem;color:var(--muted)">${fmtDate(p.published_at)}</div>
+            <div style="font-size:.67rem;color:var(--text2)">${fmtDate(p.published_at)}</div>
             <button class="btn-sm" onclick="openStatsForPost(${p.id})">+ Статистика</button>
           </div>`).join("")}
       </div>
@@ -1082,7 +1122,7 @@ async function loadInsights(){
 async function uploadStatsPDF(input){
   const file=input.files[0];if(!file)return;
   const resultEl=document.getElementById("pdfResult");
-  resultEl.innerHTML=`<div style="font-size:.76rem;color:var(--muted);padding:.4rem 0"><span class="spin" style="border-top-color:var(--accent)"></span> Читаю PDF…</div>`;
+  resultEl.innerHTML=`<div style="font-size:.76rem;color:var(--text2);padding:.4rem 0"><span class="spin" style="border-top-color:var(--accent)"></span> Читаю PDF…</div>`;
   const form=new FormData();form.append("file",file);
   try{
     const r=await fetch("/api/stats/upload-pdf",{method:"POST",body:form});
@@ -1090,8 +1130,6 @@ async function uploadStatsPDF(input){
     const d=await r.json();
     const p=d.parsed;
     const candidates=d.candidates||[];
-
-    // Show parsed stats
     let html=`<div class="pdf-parsed">
       <div style="font-size:.72rem;font-weight:700;color:var(--green);margin-bottom:.1rem">✓ PDF прочитан — ${p.pub_date_raw||"дата не найдена"}</div>
       <div class="pdf-stat-row">
@@ -1104,7 +1142,7 @@ async function uploadStatsPDF(input){
         <span class="pdf-stat-pill">🔖 Save <b>${fmtBig(p.saves)}</b></span>
       </div>
       <div style="margin-top:.2rem">
-        <div style="font-size:.65rem;color:var(--muted);margin-bottom:.25rem">Выбери пост к которому привязать статистику:</div>
+        <div style="font-size:.65rem;color:var(--text2);margin-bottom:.25rem">Выбери пост к которому привязать статистику:</div>
         <select id="pdfPostSelect" style="width:100%;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text);padding:.3rem .5rem;font-size:.76rem">
           <option value="">— выбери пост —</option>
           ${candidates.map(c=>`<option value="${c.id}">[${fmtDate(c.published_at)}] ${esc((c.title||"").slice(0,60))}</option>`).join("")}
@@ -1126,26 +1164,34 @@ async function savePDFStats(parsed){
   if(!id){toast("Выбери пост из списка",true);return;}
   try{
     await api("PATCH",`/api/news/${id}/stats`,{
-      views:parsed.views, reach:parsed.reach, watch_time:parsed.watch_time,
-      likes:parsed.likes, comments:parsed.comments,
-      shares:parsed.shares||parsed.reposts, saves:parsed.saves,
+      views:parsed.views,reach:parsed.reach,watch_time:parsed.watch_time,
+      likes:parsed.likes,comments:parsed.comments,
+      shares:parsed.shares||parsed.reposts,saves:parsed.saves,
       platform:"instagram",
     });
     document.getElementById("pdfResult").innerHTML=`<div style="color:var(--green);font-size:.76rem;padding:.3rem 0">✓ Статистика сохранена</div>`;
     toast("Статистика сохранена ✓");
-    setTimeout(loadAnalytics, 800);
+    setTimeout(loadAnalytics,800);
   }catch(e){toast("Ошибка: "+e.message,true);}
 }
 
 function openStatsForPost(id){
-  // Switch to news view and select the post
-  switchView("news");
-  setTab("published");
+  switchView("news");setTab("published");
   setTimeout(()=>{
     const n=news.find(x=>x.id===id);
     if(n){selectedId=id;renderFeed();renderDetail(n);}
   },200);
 }
+
+/* Project switcher */
+document.querySelectorAll(".proj-btn:not(.proj-add)").forEach(btn=>{
+  btn.addEventListener("click",function(){
+    document.querySelectorAll(".proj-btn:not(.proj-add)").forEach(b=>b.classList.remove("active"));
+    this.classList.add("active");
+  });
+});
+
+load();loadCredits();
 </script>
 </body>
 </html>

@@ -327,7 +327,10 @@ async def api_news(
         where.append("date(collected) <= ?")
         params.append(date_to)
 
-    order = "score DESC, collected DESC" if sort == "score" else "collected DESC"
+    if tab == "published":
+        order = "published_at DESC"
+    else:
+        order = "score DESC, collected DESC" if sort == "score" else "collected DESC"
 
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row

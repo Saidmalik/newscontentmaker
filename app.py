@@ -187,9 +187,21 @@ async def lifespan(app: FastAPI):
     scheduler.start()
     log(f"Scheduler started. DB: {DB_PATH}")
 
+    # Telegram auto-channel scheduler (запускается если TG_API_ID задан)
+    tg_sched = None
+    if os.environ.get("TG_API_ID"):
+        try:
+            from src.tg_scheduler import start_tg_scheduler
+            tg_sched = start_tg_scheduler()
+            log("TG Scheduler started ✓")
+        except Exception as e:
+            log(f"TG Scheduler init failed (OK if session not set up): {e}")
+
     yield
 
     scheduler.shutdown()
+    if tg_sched:
+        tg_sched.shutdown()
 
 
 # ── APP ───────────────────────────────────────────────────────────────────

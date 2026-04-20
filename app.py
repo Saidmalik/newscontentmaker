@@ -678,12 +678,12 @@ async def api_approve_reviewed(news_id: int, request: Request):
 
 @app.post("/api/news/{news_id}/gpt-review")
 async def api_gpt_review(news_id: int, request: Request):
-    """GPT-4o-mini review of TTS only. Uses description + URL as context."""
+    """Claude review of TTS only. Uses description + URL as context."""
     require_auth(request)
 
-    api_key = os.environ.get("OPENAI_API_KEY", "")
+    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
     if not api_key:
-        raise HTTPException(status_code=400, detail="OPENAI_API_KEY не задан в Railway Variables")
+        raise HTTPException(status_code=400, detail="ANTHROPIC_API_KEY не задан")
 
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
@@ -702,7 +702,6 @@ async def api_gpt_review(news_id: int, request: Request):
 
     system = _load_system_prompt()
 
-    # ~400-600 input tokens total — очень дёшево
     context_parts = [f"TTS СКРИПТ (оригинал):\n{tts}"]
     if description:
         context_parts.append(f"ОПИСАНИЕ (для проверки фактов):\n{description[:700]}")
@@ -710,29 +709,27 @@ async def api_gpt_review(news_id: int, request: Request):
         context_parts.append(f"ИСТОЧНИК: {url}")
 
     prompt = (
-        "ЗАДАЧА: Проверь и улучши TTS-скрипт по правилам выше. "
-        "Используй описание и источник только чтобы убедиться в точности фактов.\n\n"
+        "ЗАДАЧА: Проверь и улучши TTS-скрипт строго по правилам выше.\n"
+        "Используй описание и источник только для проверки точности фактов.\n\n"
         + "\n\n".join(context_parts)
         + "\n\nОтветь СТРОГО в этом формате (без лишних слов):\n"
-        "СКРИПТ: [готовый TTS — только текст]\n"
+        "СКРИПТ: [улучшенный TTS — только текст, готовый к озвучке]\n"
         "КОММЕНТАРИЙ: [1-2 предложения что именно изменил и почему]"
     )
 
-    import openai
-    client = openai.AsyncOpenAI(api_key=api_key)
+    import anthropic
+    client = anthropic.AsyncAnthropic(api_key=api_key)
     try:
-        resp = await client.chat.completions.create(
-            model="gpt-4o-mini",
+        msg = await client.messages.create(
+            model="claude-sonnet-4-5",
             max_tokens=500,
-            messages=[
-                {"role": "system", "content": system},
-                {"role": "user",   "content": prompt},
-            ]
+            system=system,
+            messages=[{"role": "user", "content": prompt}],
         )
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"OpenAI ошибка: {e}")
+        raise HTTPException(status_code=502, detail=f"Claude ошибка: {e}")
 
-    raw = resp.choices[0].message.content.strip()
+    raw = msg.content[0].text.strip()
 
     # Parse СКРИПТ: / КОММЕНТАРИЙ:
     script, comment = "", ""

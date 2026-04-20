@@ -774,7 +774,8 @@ async def api_delete(news_id: int, request: Request):
 # ── API: ELEVENLABS CREDITS ───────────────────────────────────────────────
 
 def _get_el_credits_sync(api_key: str) -> int:
-    """Returns remaining characters for an ElevenLabs account. -1 on error."""
+    """Returns remaining characters for an ElevenLabs account.
+    Returns -1 if credits can't be fetched (treat as 'unknown, assume available')."""
     try:
         r = req_lib.get(
             "https://api.elevenlabs.io/v1/user",
@@ -783,18 +784,23 @@ def _get_el_credits_sync(api_key: str) -> int:
         )
         if r.ok:
             sub = r.json().get("subscription", {})
-            return sub.get("character_limit", 0) - sub.get("character_count", 0)
+            limit = sub.get("character_limit", 0)
+            count = sub.get("character_count", 0)
+            # If limit==0 — API returned no subscription data, assume funded
+            if limit == 0:
+                return -1
+            return max(0, limit - count)
     except Exception:
         pass
-    return -1
+    return -1  # network error — assume available, let EL API decide
 
 
 EL_MIN_CHARS = 200  # минимум символов для одной озвучки
 
 async def _pick_el_account() -> tuple[str, str, int]:
     """Auto-select ElevenLabs account with FEWEST credits that still has enough.
+    -1 means 'unknown credits' (API error) — treated as viable.
     Logic: use the account that's running lower first (save the fuller one).
-    Falls back to account with most credits if both are below minimum.
     Returns (api_key, voice_id, account_number).
     """
     accounts = []
@@ -813,18 +819,21 @@ async def _pick_el_account() -> tuple[str, str, int]:
             detail="Нет настроенных ElevenLabs аккаунтов. Добавьте ELEVENLABS_API_KEY_1 и ELEVENLABS_VOICE_ID_1."
         )
 
-    # Prefer account with fewest credits that is still above minimum
-    viable = [a for a in accounts if a[0] >= EL_MIN_CHARS]
+    # -1 = unknown credits (API error) → treat as viable (assume funded)
+    # viable = accounts with confirmed enough credits OR unknown
+    viable = [a for a in accounts if a[0] < 0 or a[0] >= EL_MIN_CHARS]
     if viable:
-        # Use the one with least credits (burn it first)
-        chosen = min(viable, key=lambda a: a[0])
+        # Among viable: prefer known ones first (lowest confirmed credits)
+        # fall back to unknown (-1) if all are unknown
+        known = [a for a in viable if a[0] >= 0]
+        chosen = min(known, key=lambda a: a[0]) if known else viable[0]
     else:
-        # All below minimum — pick the one with most to give best chance
+        # All accounts confirmed at 0 credits — truly empty
         chosen = max(accounts, key=lambda a: a[0])
-        if chosen[0] <= 0:
+        if chosen[0] == 0:
             raise HTTPException(
                 status_code=402,
-                detail="На всех аккаунтах ElevenLabs недостаточно кредитов (нужно минимум 200). Пополните баланс."
+                detail="На всех аккаунтах ElevenLabs 0 кредитов. Пополните баланс на elevenlabs.io."
             )
 
     return chosen[1], chosen[2], chosen[3]

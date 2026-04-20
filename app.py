@@ -676,6 +676,94 @@ async def api_approve_reviewed(news_id: int, request: Request):
     return {"id": news_id, "approved": True, "used": "reviewed"}
 
 
+@app.post("/api/news/{news_id}/gpt-review")
+async def api_gpt_review(news_id: int, request: Request):
+    """GPT-4o-mini review of TTS only. Uses description + URL as context."""
+    require_auth(request)
+
+    api_key = os.environ.get("OPENAI_API_KEY", "")
+    if not api_key:
+        raise HTTPException(status_code=400, detail="OPENAI_API_KEY не задан в Railway Variables")
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    row = conn.execute("SELECT * FROM news WHERE id=?", (news_id,)).fetchone()
+    conn.close()
+    if not row:
+        raise HTTPException(status_code=404, detail="Новость не найдена")
+
+    item = dict(row)
+    tts         = (item.get("tts_script") or "").strip()
+    description = (item.get("description") or "").strip()
+    url         = (item.get("url") or "").strip()
+
+    if not tts:
+        raise HTTPException(status_code=400, detail="TTS скрипт пустой — сначала сгенерируй")
+
+    system = _load_system_prompt()
+
+    # ~400-600 input tokens total — очень дёшево
+    context_parts = [f"TTS СКРИПТ (оригинал):\n{tts}"]
+    if description:
+        context_parts.append(f"ОПИСАНИЕ (для проверки фактов):\n{description[:700]}")
+    if url:
+        context_parts.append(f"ИСТОЧНИК: {url}")
+
+    prompt = (
+        "ЗАДАЧА: Проверь и улучши TTS-скрипт по правилам выше. "
+        "Используй описание и источник только чтобы убедиться в точности фактов.\n\n"
+        + "\n\n".join(context_parts)
+        + "\n\nОтветь СТРОГО в этом формате (без лишних слов):\n"
+        "СКРИПТ: [готовый TTS — только текст]\n"
+        "КОММЕНТАРИЙ: [1-2 предложения что именно изменил и почему]"
+    )
+
+    import openai
+    client = openai.AsyncOpenAI(api_key=api_key)
+    try:
+        resp = await client.chat.completions.create(
+            model="gpt-4o-mini",
+            max_tokens=500,
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user",   "content": prompt},
+            ]
+        )
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"OpenAI ошибка: {e}")
+
+    raw = resp.choices[0].message.content.strip()
+
+    # Parse СКРИПТ: / КОММЕНТАРИЙ:
+    script, comment = "", ""
+    current = None
+    for line in raw.splitlines():
+        if line.startswith("СКРИПТ:"):
+            current = "s"; script = line[7:].strip()
+        elif line.startswith("КОММЕНТАРИЙ:"):
+            current = "c"; comment = line[12:].strip()
+        elif current == "s" and line.strip():
+            script += "\n" + line
+        elif current == "c" and line.strip():
+            comment += " " + line.strip()
+
+    if not script:
+        script = raw  # fallback
+
+    script  = script.strip()
+    comment = comment.strip()
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute(
+        "UPDATE news SET reviewed_script=?, gpt_comment=? WHERE id=?",
+        (script, comment, news_id)
+    )
+    conn.commit()
+    conn.close()
+
+    return {"id": news_id, "reviewed_script": script, "gpt_comment": comment}
+
+
 @app.delete("/api/news/{news_id}")
 async def api_delete(news_id: int, request: Request):
     require_auth(request)

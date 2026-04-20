@@ -335,6 +335,8 @@ body::before {
 .ba-speak:hover:not(:disabled) { background:rgba(153,102,255,.18); }
 .ba-regen { background:var(--bg3); border-color:var(--border2); color:var(--text2); }
 .ba-regen:hover:not(:disabled) { background:var(--bg4); color:var(--text); }
+.ba-gpt { background:rgba(16,185,129,.08); border-color:rgba(16,185,129,.25); color:#10b981; }
+.ba-gpt:hover:not(:disabled) { background:rgba(16,185,129,.18); }
 .el-sel {
   padding:7px 10px; border-radius:var(--radius);
   background:var(--bg3); border:1px solid var(--border2);
@@ -814,6 +816,7 @@ function renderDetail(n){
       `:hasTTS?`
         <button class="btn-act ba-approve" id="apr-${n.id}" onclick="approveNews(${n.id})" ${n.approved?"disabled":""}>
           ${n.approved?"✓ Одобрено":"✓ Одобрить"}</button>
+        <button class="btn-act ba-gpt" onclick="gptReview(${n.id})" title="GPT проверит TTS и улучшит по правилам">✦ GPT</button>
         ${n.approved?`<button class="btn-act ba-publish" onclick="markPublished(${n.id})">⬡ Опубликовано</button>`:""}
         <select class="el-sel" id="el-${n.id}">
           <option value="0">🤖 Авто</option><option value="1">Акк 1</option><option value="2">Акк 2</option>
@@ -868,6 +871,31 @@ async function approveNews(id){
     renderFeed();updateCounts();if(selectedId===id&&n)renderDetail(n);
     toast("Одобрено ✓ — теперь можешь нажать «Опубликовано»");
   }catch(e){toast("Ошибка: "+e.message,true);}
+}
+
+async function gptReview(id){
+  const btn=document.querySelector(".ba-gpt");
+  if(btn){btn.disabled=true;btn.innerHTML=`<span class="spin" style="border-top-color:#10b981"></span>`;}
+  toast("GPT проверяет TTS…");
+  try{
+    const res=await api("POST",`/api/news/${id}/gpt-review`);
+    if(!res)return;
+    // Обновить textarea и счётчик
+    const ta=document.getElementById("tts-"+id);
+    if(ta){
+      ta.value=res.reviewed_script;
+      const cc=document.getElementById("char-count-"+id);
+      if(cc)cc.textContent=res.reviewed_script.length;
+      markDirty("tts",id);
+    }
+    // Обновить в массиве
+    const n=news.find(x=>x.id===id);
+    if(n)n.tts_script=res.reviewed_script;
+    // Показать комментарий GPT
+    const msg=res.gpt_comment?`✦ GPT: ${res.gpt_comment}`:"✦ GPT проверил TTS ✓";
+    toast(msg);
+  }catch(e){toast("GPT: "+e.message,true);}
+  finally{if(btn){btn.disabled=false;btn.innerHTML="✦ GPT";}}
 }
 
 async function markPublished(id){

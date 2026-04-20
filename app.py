@@ -30,6 +30,7 @@ from pathlib import Path
 from datetime import datetime, timedelta
 from contextlib import asynccontextmanager
 
+import httpx
 from fastapi import FastAPI, HTTPException, Request, BackgroundTasks, UploadFile, File
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -1038,4 +1039,200 @@ async def _do_generate(news_id: int) -> dict:
         "tts_script": script,
         "description": description,
         "preview_titles": previews,
+    }
+
+
+# ── META / INSTAGRAM OAUTH ────────────────────────────────────────────────────
+#
+# ENV vars needed (add to Railway Variables):
+#   META_APP_SECRET=dd3c70868143795c8036b6758253ee21
+#
+# Flow:
+#   1. Open /api/meta/auth  → redirects to Meta login
+#   2. Meta calls back /api/meta/auth/callback → saves long-lived token to DB
+#   3. Check /api/meta/status → shows saved token + Instagram account ID
+#
+# Token is saved in news.db table `meta_config` (key-value store).
+
+META_APP_ID     = "785663281089923"
+META_APP_SECRET = os.environ.get("META_APP_SECRET", "")
+META_REDIRECT   = "https://web-production-6394a.up.railway.app/api/meta/auth/callback"
+META_SCOPES     = ",".join([
+    "instagram_basic",
+    "instagram_content_publish",
+    "instagram_manage_insights",
+    "pages_show_list",
+    "pages_read_engagement",
+])
+GRAPH_URL = "https://graph.facebook.com/v19.0"
+
+
+def _meta_db_init(conn: sqlite3.Connection):
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS meta_config (
+            key   TEXT PRIMARY KEY,
+            value TEXT
+        )
+    """)
+    conn.commit()
+
+
+def _meta_set(conn: sqlite3.Connection, key: str, value: str):
+    conn.execute(
+        "INSERT INTO meta_config(key, value) VALUES(?,?) "
+        "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+        (key, value),
+    )
+    conn.commit()
+
+
+def _meta_get(conn: sqlite3.Connection, key: str) -> str:
+    row = conn.execute("SELECT value FROM meta_config WHERE key=?", (key,)).fetchone()
+    return row[0] if row else ""
+
+
+@app.get("/api/meta/auth")
+async def meta_auth_start():
+    """Redirect to Meta OAuth login. Open this URL in browser."""
+    oauth_url = (
+        f"https://www.facebook.com/v19.0/dialog/oauth"
+        f"?client_id={META_APP_ID}"
+        f"&redirect_uri={META_REDIRECT}"
+        f"&scope={META_SCOPES}"
+        f"&response_type=code"
+    )
+    return RedirectResponse(url=oauth_url)
+
+
+@app.get("/api/meta/auth/callback")
+async def meta_auth_callback(request: Request):
+    """Meta redirects here after login. Exchanges code → long-lived token, saves to DB."""
+    code  = request.query_params.get("code")
+    error = request.query_params.get("error_description")
+
+    if error or not code:
+        return HTMLResponse(
+            f"<h2>Ошибка авторизации</h2><p>{error or 'Код не получен'}</p>",
+            status_code=400,
+        )
+
+    if not META_APP_SECRET:
+        return HTMLResponse(
+            "<h2>Ошибка</h2><p>META_APP_SECRET не задан в Railway Variables.</p>",
+            status_code=500,
+        )
+
+    async with httpx.AsyncClient() as client:
+        # 1. Exchange code → short-lived token
+        r1 = await client.get(f"{GRAPH_URL}/oauth/access_token", params={
+            "client_id": META_APP_ID,
+            "client_secret": META_APP_SECRET,
+            "redirect_uri": META_REDIRECT,
+            "code": code,
+        })
+        data1 = r1.json()
+        if "error" in data1:
+            return HTMLResponse(f"<h2>Ошибка токена</h2><pre>{data1}</pre>", status_code=400)
+        short_token = data1["access_token"]
+
+        # 2. Exchange short-lived → long-lived (60 days)
+        r2 = await client.get(f"{GRAPH_URL}/oauth/access_token", params={
+            "grant_type": "fb_exchange_token",
+            "client_id": META_APP_ID,
+            "client_secret": META_APP_SECRET,
+            "fb_exchange_token": short_token,
+        })
+        data2 = r2.json()
+        if "error" in data2:
+            return HTMLResponse(f"<h2>Ошибка long-lived токена</h2><pre>{data2}</pre>", status_code=400)
+        long_token = data2["access_token"]
+
+        # 3. Get Facebook Pages list
+        r3 = await client.get(f"{GRAPH_URL}/me/accounts", params={"access_token": long_token})
+        pages_data = r3.json()
+
+        # 4. Find Instagram Business Account
+        ig_account_id = None
+        ig_username   = None
+        for page in pages_data.get("data", []):
+            r4 = await client.get(f"{GRAPH_URL}/{page['id']}", params={
+                "fields": "instagram_business_account",
+                "access_token": long_token,
+            })
+            ig = r4.json().get("instagram_business_account")
+            if ig:
+                ig_account_id = ig["id"]
+                r5 = await client.get(f"{GRAPH_URL}/{ig_account_id}", params={
+                    "fields": "username",
+                    "access_token": long_token,
+                })
+                ig_username = r5.json().get("username", ig_account_id)
+                break
+
+    # 5. Save to DB
+    conn = sqlite3.connect(DB_PATH)
+    _meta_db_init(conn)
+    _meta_set(conn, "access_token", long_token)
+    _meta_set(conn, "token_saved_at", datetime.now().isoformat())
+    if ig_account_id:
+        _meta_set(conn, "instagram_account_id", ig_account_id)
+    if ig_username:
+        _meta_set(conn, "instagram_username", ig_username)
+    conn.close()
+
+    ig_info = (
+        f"<p><b>Instagram:</b> @{ig_username} (ID: {ig_account_id})</p>"
+        if ig_account_id else
+        "<p style='color:orange'>Instagram Business Account не найден — убедись что страница Facebook привязана к Instagram.</p>"
+    )
+
+    return HTMLResponse(f"""<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Meta подключён</title>
+  <style>
+    body{{font-family:sans-serif;display:flex;justify-content:center;align-items:center;
+         min-height:100vh;margin:0;background:#0a0a0b;color:#fff}}
+    .card{{background:#1a1a1b;padding:40px 48px;border-radius:12px;
+           max-width:500px;text-align:center;border:1px solid #2a2a2b}}
+    .check{{font-size:64px}}
+    h1{{color:#22cc88;margin:16px 0 8px}}
+    p{{color:#aaa;line-height:1.6}}
+    .token{{font-size:11px;color:#555;word-break:break-all;margin-top:16px;
+            background:#111;padding:8px;border-radius:6px}}
+    a{{color:#ff5533;text-decoration:none}}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="check">✅</div>
+    <h1>Meta подключён!</h1>
+    <p>Long-lived токен (60 дней) сохранён в базе данных.</p>
+    {ig_info}
+    <p class="token">Токен: {long_token[:32]}…</p>
+    <p style="margin-top:24px"><a href="/">← Вернуться в MediaHub</a></p>
+  </div>
+</body>
+</html>""")
+
+
+@app.get("/api/meta/status")
+async def meta_status(request: Request):
+    """Check if Meta token is saved. Returns token info without exposing the full token."""
+    require_auth(request)
+    conn = sqlite3.connect(DB_PATH)
+    _meta_db_init(conn)
+    token      = _meta_get(conn, "access_token")
+    saved_at   = _meta_get(conn, "token_saved_at")
+    ig_id      = _meta_get(conn, "instagram_account_id")
+    ig_user    = _meta_get(conn, "instagram_username")
+    conn.close()
+
+    return {
+        "connected": bool(token),
+        "token_preview": token[:16] + "…" if token else None,
+        "saved_at": saved_at,
+        "instagram_account_id": ig_id,
+        "instagram_username": ig_user,
     }

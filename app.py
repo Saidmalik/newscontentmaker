@@ -46,9 +46,11 @@ from auto_collect import (
 )
 
 DB_PATH        = Path(os.environ.get("DB_PATH", str(BASE_DIR / "data" / "news.db")))
+VIDEOS_DIR     = DB_PATH.parent / "videos"
 PREFS_PATH     = BASE_DIR / "config" / "preferences.yaml"
 SYSPROMPT_PATH = BASE_DIR / "config" / "system_prompt.md"
 APP_PASSWORD   = os.environ.get("APP_PASSWORD", "")
+CAPCUT_PATH    = os.environ.get("CAPCUT_EXPORT_PATH", "")
 
 
 def _load_system_prompt() -> str:
@@ -85,6 +87,7 @@ def run_migrations(conn: sqlite3.Connection):
         "ALTER TABLE news ADD COLUMN stats_watch_time TEXT",
         "ALTER TABLE news ADD COLUMN stats_platform TEXT DEFAULT 'instagram'",
         "ALTER TABLE news ADD COLUMN instagram_media_id TEXT",
+        "ALTER TABLE news ADD COLUMN instagram_permalink TEXT",
     ]:
         try:
             conn.execute(sql)
@@ -180,14 +183,19 @@ scheduler = AsyncIOScheduler(timezone="UTC")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    VIDEOS_DIR.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
     run_migrations(conn)
+    from src.instagram_worker import init_table as _ig_init
+    _ig_init(conn)
     conn.close()
 
     for hour in [1, 5, 9, 13, 16]:
         scheduler.add_job(scheduled_collect, "cron", hour=hour, minute=0)
-    # Daily Instagram stats refresh at 02:00 UTC (07:00 UZT)
+    # Daily Instagram live-stats refresh at 02:00 UTC (07:00 UZT)
     scheduler.add_job(_scheduled_ig_refresh, "cron", hour=2, minute=0)
+    # Hourly 24/48/72h snapshot check (at :15 to avoid overlap with other jobs)
+    scheduler.add_job(_scheduled_ig_snapshots, "cron", minute=15)
     scheduler.start()
     log(f"Scheduler started. DB: {DB_PATH}")
 
@@ -356,7 +364,8 @@ async def api_news(
                    reviewed_script, gpt_comment, description, preview_titles,
                    published_at,
                    stats_views, stats_likes, stats_comments, stats_shares, stats_saves,
-                   stats_reach, stats_watch_time, stats_platform
+                   stats_reach, stats_watch_time, stats_platform,
+                   instagram_media_id, instagram_permalink
             FROM news
             WHERE {' AND '.join(where)}
             ORDER BY {order}
@@ -1473,6 +1482,168 @@ async def api_refresh_stats(request: Request):
 
     log(f"IG stats refresh: {updated} updated, {len(errors)} errors")
     return {"updated": updated, "errors": errors}
+
+
+# ── INSTAGRAM PUBLISHING ─────────────────────────────────────────────────────
+#
+# Flow:
+#   1. POST /api/news/{id}/upload-video  → saves .mp4 to /data/videos/{id}.mp4
+#   2. POST /api/news/{id}/publish-reel  → uploads to Meta + publishes, returns permalink
+#
+# CapCut path (local only):
+#   Set CAPCUT_EXPORT_PATH env var to the folder where CapCut exports .mp4 files.
+#   GET /api/capcut/videos scans that folder and returns available files.
+#   On Railway this env var won't be set, so the endpoint returns [].
+
+
+@app.get("/api/capcut/videos")
+async def api_capcut_videos(request: Request):
+    """List .mp4 files from CAPCUT_EXPORT_PATH (local use only).
+    Returns [] if path not configured or not accessible from the server."""
+    require_auth(request)
+    if not CAPCUT_PATH:
+        return []
+    folder = Path(CAPCUT_PATH)
+    if not folder.exists():
+        return []
+    files = sorted(
+        [f for f in folder.glob("*.mp4")],
+        key=lambda f: f.stat().st_mtime,
+        reverse=True,
+    )[:20]
+    return [
+        {
+            "name":     f.name,
+            "path":     str(f),
+            "size_mb":  round(f.stat().st_size / 1024 / 1024, 1),
+            "modified": datetime.fromtimestamp(f.stat().st_mtime).isoformat(),
+        }
+        for f in files
+    ]
+
+
+@app.post("/api/news/{news_id}/upload-video")
+async def api_upload_video(news_id: int, request: Request, file: UploadFile = File(...)):
+    """Upload a video file for a news item. Saved to /data/videos/{news_id}.mp4."""
+    require_auth(request)
+    VIDEOS_DIR.mkdir(parents=True, exist_ok=True)
+    dest = VIDEOS_DIR / f"{news_id}.mp4"
+    content = await file.read()
+    dest.write_bytes(content)
+    size_mb = round(len(content) / 1024 / 1024, 1)
+    log(f"Video uploaded for news #{news_id}: {size_mb} MB → {dest}")
+    return {"news_id": news_id, "size_mb": size_mb, "ready": True}
+
+
+@app.post("/api/news/{news_id}/publish-reel")
+async def api_publish_reel(news_id: int, request: Request):
+    """Publish uploaded video as an Instagram Reel.
+    Video must be uploaded via upload-video first."""
+    require_auth(request)
+
+    video_path = VIDEOS_DIR / f"{news_id}.mp4"
+    if not video_path.exists():
+        raise HTTPException(
+            status_code=404,
+            detail="Видео не найдено. Сначала загрузи видео.",
+        )
+
+    body = {}
+    try:
+        body = await request.json()
+    except Exception:
+        pass
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    row = conn.execute("SELECT description, title FROM news WHERE id=?", (news_id,)).fetchone()
+    conn.close()
+    if not row:
+        raise HTTPException(status_code=404, detail="Новость не найдена")
+
+    caption = (body.get("caption") or row["description"] or row["title"] or "").strip()
+
+    from src import instagram_worker as ig_worker
+
+    try:
+        ig_conn = sqlite3.connect(DB_PATH)
+        ig_worker.init_table(ig_conn)
+
+        media_id = await ig_worker.publish_reel(
+            news_id=news_id,
+            video_path=video_path,
+            caption=caption,
+            db_conn=ig_conn,
+        )
+
+        now_iso   = datetime.now().isoformat()
+        permalink = await ig_worker._get_permalink(media_id)
+        ig_conn.execute(
+            """UPDATE news SET instagram_media_id=?, instagram_permalink=?,
+               published_at=COALESCE(published_at,?) WHERE id=?""",
+            (media_id, permalink, now_iso, news_id),
+        )
+        ig_conn.commit()
+        ig_conn.close()
+
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Instagram ошибка: {e}")
+
+    log(f"Reel published news #{news_id} → {media_id}  {permalink}")
+
+    return {
+        "news_id":   news_id,
+        "media_id":  media_id,
+        "permalink": permalink,
+        "published": True,
+    }
+
+
+@app.get("/api/ig-posts")
+async def api_ig_posts(request: Request):
+    """List posts published to Instagram via MediaHub (ig_posts table)."""
+    require_auth(request)
+    from src.instagram_worker import init_table as _ig_init
+
+    conn = sqlite3.connect(DB_PATH)
+    _ig_init(conn)
+    conn.row_factory = sqlite3.Row
+    rows = conn.execute(
+        """SELECT p.id, p.news_id, p.media_id, p.permalink, p.published_at,
+                  p.caption, p.post_type,
+                  p.stats_views, p.stats_reach, p.stats_likes, p.stats_comments,
+                  p.stats_shares, p.stats_saves, p.stats_watch_time, p.stats_updated_at,
+                  p.stats_24h, p.stats_48h, p.stats_72h,
+                  n.title AS news_title, n.score
+           FROM ig_posts p
+           LEFT JOIN news n ON p.news_id = n.id
+           ORDER BY p.published_at DESC LIMIT 50"""
+    ).fetchall()
+    conn.close()
+
+    result = []
+    for r in rows:
+        d = dict(r)
+        for col in ("stats_24h", "stats_48h", "stats_72h"):
+            if d.get(col):
+                try:
+                    d[col] = json.loads(d[col])
+                except Exception:
+                    pass
+        result.append(d)
+    return result
+
+
+async def _scheduled_ig_snapshots():
+    """Hourly job: save 24/48/72h stats snapshots for posts published from MediaHub."""
+    from src import instagram_worker as ig_worker
+    try:
+        saved = await ig_worker.run_snapshot_jobs(DB_PATH)
+        if saved > 0:
+            log(f"[IG Snapshots] {saved} snapshots saved")
+            _tg_notify(f"📊 IG снапшоты: {saved} сохранено (24/48/72ч)")
+    except Exception as e:
+        log(f"[IG Snapshots] Error: {e}")
 
 
 async def _scheduled_ig_refresh():

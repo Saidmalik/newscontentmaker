@@ -417,6 +417,85 @@ body::before {
 .plat-youtube   { color:#ff0000; border-color:rgba(255,0,0,.3); background:rgba(255,0,0,.08); }
 
 @media (max-width:700px) { .sidebar,.detail { display:none; } }
+
+/* ── Publish-to-Instagram button ── */
+.ba-ig { background:rgba(225,48,108,.1); border-color:rgba(225,48,108,.3); color:#e1306c; }
+.ba-ig:hover:not(:disabled) { background:rgba(225,48,108,.2); }
+
+/* ── Instagram Publish Modal ── */
+.ig-overlay {
+  position:fixed; inset:0; background:rgba(0,0,0,.75); z-index:2000;
+  display:flex; align-items:center; justify-content:center; padding:1rem;
+}
+.ig-card {
+  background:var(--bg2); border:1px solid var(--border2); border-radius:14px;
+  width:100%; max-width:480px; display:flex; flex-direction:column;
+  box-shadow:0 24px 60px rgba(0,0,0,.6);
+}
+.ig-card-head {
+  padding:16px 20px 12px; border-bottom:1px solid var(--border);
+  display:flex; align-items:center; justify-content:space-between;
+}
+.ig-card-head span { font-size:.9rem; font-weight:600; }
+.ig-close-btn {
+  background:none; border:none; color:var(--text2); cursor:pointer;
+  font-size:1rem; padding:2px 6px; border-radius:6px;
+}
+.ig-close-btn:hover { color:var(--text); background:var(--bg3); }
+.ig-card-body { padding:16px 20px; display:flex; flex-direction:column; gap:.9rem; }
+.ig-drop {
+  border:2px dashed var(--border2); border-radius:10px; padding:1.4rem 1rem;
+  text-align:center; cursor:pointer; transition:border-color .15s, background .15s;
+  background:var(--bg3);
+}
+.ig-drop:hover, .ig-drop.drag-over { border-color:#e1306c; background:rgba(225,48,108,.05); }
+.ig-drop-icon { font-size:2.2rem; margin-bottom:.4rem; }
+.ig-drop-label { font-size:.8rem; color:var(--text); margin-bottom:.15rem; }
+.ig-drop-hint { font-size:.68rem; color:var(--text3); }
+.ig-file-ok {
+  display:flex; align-items:center; gap:.75rem;
+  background:rgba(34,204,136,.07); border:1px solid rgba(34,204,136,.25);
+  border-radius:8px; padding:.6rem .8rem;
+}
+.ig-file-icon { font-size:1.5rem; }
+.ig-file-name { font-size:.8rem; font-weight:600; color:var(--green); }
+.ig-file-size { font-size:.7rem; color:var(--text3); }
+.ig-caption-label { font-size:.68rem; color:var(--text2); margin-bottom:.25rem; }
+.ig-caption-ta {
+  width:100%; background:var(--bg3); border:1px solid var(--border2);
+  border-radius:8px; color:var(--text); font-size:.8rem; font-family:inherit;
+  padding:.55rem .7rem; resize:vertical; min-height:80px; line-height:1.5;
+}
+.ig-caption-ta:focus { outline:none; border-color:rgba(225,48,108,.5); }
+.ig-progress { display:flex; flex-direction:column; gap:.4rem; }
+.ig-progress-bar {
+  height:4px; background:var(--border); border-radius:3px; overflow:hidden;
+}
+.ig-progress-fill {
+  height:100%; background:linear-gradient(90deg,#e1306c,#833ab4);
+  border-radius:3px; transition:width .3s;
+}
+.ig-progress-text { font-size:.72rem; color:var(--text2); text-align:center; }
+.ig-result-link {
+  font-size:.75rem; color:#e1306c; word-break:break-all; text-align:center;
+  padding:.4rem; background:rgba(225,48,108,.07); border-radius:6px;
+}
+.ig-card-foot {
+  padding:12px 20px 16px; border-top:1px solid var(--border);
+  display:flex; gap:.5rem; justify-content:flex-end;
+}
+.ig-cancel-btn {
+  padding:8px 16px; background:var(--bg3); border:1px solid var(--border2);
+  border-radius:8px; color:var(--text2); font-size:.82rem; cursor:pointer; font-family:inherit;
+}
+.ig-cancel-btn:hover { color:var(--text); }
+.ig-publish-btn {
+  padding:8px 20px; background:#e1306c; border:none; border-radius:8px;
+  color:#fff; font-size:.82rem; font-weight:600; cursor:pointer; font-family:inherit;
+  transition:opacity .15s;
+}
+.ig-publish-btn:hover:not(:disabled) { opacity:.85; }
+.ig-publish-btn:disabled { opacity:.4; cursor:not-allowed; }
 </style>
 </head>
 <body>
@@ -786,6 +865,18 @@ function renderDetail(n){
         <div class="stat-pill"><span class="stat-pill-val">${fmtNum(n.stats_shares)}</span><span class="stat-pill-lbl">↗️ Репосты</span></div>
         <div class="stat-pill"><span class="stat-pill-val">${fmtNum(n.stats_saves)}</span><span class="stat-pill-lbl">🔖 Сохранения</span></div>
       </div>`:""}
+      ${n.instagram_permalink
+        ?`<div style="margin-bottom:8px">
+            <a href="${esc(n.instagram_permalink)}" target="_blank" rel="noopener"
+               style="display:inline-flex;align-items:center;gap:.4rem;font-size:.75rem;
+                      color:#e1306c;background:rgba(225,48,108,.08);border:1px solid rgba(225,48,108,.25);
+                      border-radius:7px;padding:.35rem .75rem;text-decoration:none">
+              <span>📱</span> Открыть в Instagram
+            </a>
+          </div>`
+        :`<div style="background:rgba(225,48,108,.06);border:1px solid rgba(225,48,108,.18);border-radius:8px;padding:.5rem .75rem;font-size:.73rem;color:var(--text2);text-align:center">
+            📹 Нажми «Рилс» чтобы опубликовать видео в Instagram напрямую из MediaHub
+          </div>`}
       <div style="background:rgba(153,102,255,.07);border:1px solid rgba(153,102,255,.2);border-radius:8px;padding:.6rem .75rem;font-size:.74rem;color:var(--text2);text-align:center">
         📄 Загрузи PDF из Edits во вкладке <b style="color:var(--text)">Аналитика</b> — статистика привяжется автоматически
       </div>
@@ -817,7 +908,10 @@ function renderDetail(n){
         <button class="btn-act ba-approve" id="apr-${n.id}" onclick="approveNews(${n.id})" ${n.approved?"disabled":""}>
           ${n.approved?"✓ Одобрено":"✓ Одобрить"}</button>
         <button class="btn-act ba-gpt" onclick="gptReview(${n.id})" title="GPT проверит TTS и улучшит по правилам">✦ GPT</button>
-        ${n.approved?`<button class="btn-act ba-publish" onclick="markPublished(${n.id})">⬡ Опубликовано</button>`:""}
+        ${n.approved?`
+          <button class="btn-act ba-ig" onclick="openPublishModal(${n.id})">📹 Рилс</button>
+          <button class="btn-act ba-publish" onclick="markPublished(${n.id})">⬡ Опубликовано</button>
+        `:""}
         <select class="el-sel" id="el-${n.id}">
           <option value="0">🤖 Авто</option><option value="1">Акк 1</option><option value="2">Акк 2</option>
         </select>
@@ -1222,7 +1316,157 @@ document.querySelectorAll(".proj-btn:not(.proj-add)").forEach(btn=>{
   });
 });
 
+/* ── Instagram Publish Modal ── */
+let _igNewsId=null, _igFile=null;
+
+function openPublishModal(id){
+  _igNewsId=id; _igFile=null;
+  const n=news.find(x=>x.id===id);
+  document.getElementById("igCaption").value=(n&&n.description)||(n&&n.title)||"";
+  document.getElementById("igDropZone").style.display="";
+  document.getElementById("igFileOk").style.display="none";
+  document.getElementById("igProgress").style.display="none";
+  document.getElementById("igResultLink").style.display="none";
+  document.getElementById("igProgressFill").style.width="0%";
+  document.getElementById("igPublishBtn").disabled=true;
+  document.getElementById("igPublishBtn").textContent="🚀 Опубликовать";
+  document.getElementById("igFileInput").value="";
+  document.getElementById("igOverlay").style.display="flex";
+}
+
+function closeIgModal(){
+  document.getElementById("igOverlay").style.display="none";
+  _igNewsId=null; _igFile=null;
+}
+
+function _setIgFile(file){
+  if(!file)return;
+  _igFile=file;
+  const mb=(file.size/1024/1024).toFixed(1);
+  document.getElementById("igDropZone").style.display="none";
+  document.getElementById("igFileOk").style.display="flex";
+  document.getElementById("igFileName").textContent=file.name;
+  document.getElementById("igFileSize").textContent=mb+" MB";
+  document.getElementById("igPublishBtn").disabled=false;
+}
+
+function igHandleDrop(e){
+  e.preventDefault();
+  document.getElementById("igDrop").classList.remove("drag-over");
+  const f=e.dataTransfer.files[0];
+  if(f)_setIgFile(f);
+}
+
+async function igPublish(){
+  if(!_igNewsId||!_igFile)return;
+  const caption=document.getElementById("igCaption").value.trim();
+  const btn=document.getElementById("igPublishBtn");
+  btn.disabled=true; btn.textContent="…";
+
+  const prog=document.getElementById("igProgress");
+  const fill=document.getElementById("igProgressFill");
+  const txt=document.getElementById("igProgressText");
+  prog.style.display="";
+
+  try{
+    // Step 1: upload video to server
+    txt.textContent="Загружаю видео на сервер…";fill.style.width="15%";
+    const fd=new FormData(); fd.append("file",_igFile);
+    const r1=await fetch(`/api/news/${_igNewsId}/upload-video`,{method:"POST",body:fd});
+    if(r1.status===401){location.href="/login";return;}
+    if(!r1.ok)throw new Error(await r1.text());
+    fill.style.width="45%"; txt.textContent="Загружаю на Instagram…";
+
+    // Step 2: publish to Instagram (server does resumable upload → Meta)
+    const r2=await fetch(`/api/news/${_igNewsId}/publish-reel`,{
+      method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({caption})
+    });
+    if(!r2.ok)throw new Error(await r2.text());
+    const res=await r2.json();
+
+    fill.style.width="100%"; txt.textContent="✓ Опубликовано!";
+
+    // Update in-memory news entry
+    const n=news.find(x=>x.id===_igNewsId);
+    if(n){n.instagram_permalink=res.permalink;n.instagram_media_id=res.media_id;n.published_at=new Date().toISOString();}
+
+    if(res.permalink){
+      const rl=document.getElementById("igResultLink");
+      rl.style.display="";
+      rl.innerHTML=`✓ Рилс опубликован · <a href="${esc(res.permalink)}" target="_blank" style="color:#e1306c">${esc(res.permalink)}</a>`;
+    }
+    btn.textContent="✓ Готово";
+    renderFeed(); updateCounts();
+    if(selectedId===_igNewsId&&n)renderDetail(n);
+    toast("Рилс опубликован в Instagram ✓");
+    setTimeout(closeIgModal,2200);
+
+  }catch(e){
+    prog.style.display="none";
+    btn.disabled=false; btn.textContent="🚀 Опубликовать";
+    toast("Ошибка: "+e.message,true);
+  }
+}
+
 load();loadCredits();
 </script>
+
+<!-- Instagram Publish Modal -->
+<div id="igOverlay" class="ig-overlay" style="display:none" onclick="if(event.target===this)closeIgModal()">
+  <div class="ig-card">
+    <div class="ig-card-head">
+      <span>📹 Публикация Рилса в Instagram</span>
+      <button class="ig-close-btn" onclick="closeIgModal()">✕</button>
+    </div>
+    <div class="ig-card-body">
+
+      <!-- Drop zone -->
+      <div id="igDrop" class="ig-drop"
+           onclick="document.getElementById('igFileInput').click()"
+           ondrop="igHandleDrop(event)"
+           ondragover="event.preventDefault()"
+           ondragenter="this.classList.add('drag-over')"
+           ondragleave="this.classList.remove('drag-over')">
+        <input type="file" id="igFileInput" accept="video/mp4,video/*" style="display:none"
+               onchange="_setIgFile(this.files[0])">
+        <div id="igDropZone">
+          <div class="ig-drop-icon">🎬</div>
+          <div class="ig-drop-label">Перетащи .mp4 сюда или нажми</div>
+          <div class="ig-drop-hint">Экспортируй из CapCut → перетащи сюда</div>
+        </div>
+        <div id="igFileOk" class="ig-file-ok" style="display:none">
+          <div class="ig-file-icon">✅</div>
+          <div>
+            <div class="ig-file-name" id="igFileName"></div>
+            <div class="ig-file-size" id="igFileSize"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Caption -->
+      <div>
+        <div class="ig-caption-label">Подпись (caption)</div>
+        <textarea id="igCaption" class="ig-caption-ta" rows="4"
+                  placeholder="Описание поста для Instagram…"></textarea>
+      </div>
+
+      <!-- Progress -->
+      <div id="igProgress" style="display:none">
+        <div class="ig-progress-bar"><div id="igProgressFill" class="ig-progress-fill" style="width:0%"></div></div>
+        <div id="igProgressText" class="ig-progress-text"></div>
+      </div>
+
+      <!-- Result link -->
+      <div id="igResultLink" class="ig-result-link" style="display:none"></div>
+
+    </div>
+    <div class="ig-card-foot">
+      <button class="ig-cancel-btn" onclick="closeIgModal()">Отмена</button>
+      <button id="igPublishBtn" class="ig-publish-btn" onclick="igPublish()" disabled>🚀 Опубликовать</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>

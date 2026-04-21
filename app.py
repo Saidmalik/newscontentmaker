@@ -84,6 +84,7 @@ def run_migrations(conn: sqlite3.Connection):
         "ALTER TABLE news ADD COLUMN stats_reach INTEGER DEFAULT 0",
         "ALTER TABLE news ADD COLUMN stats_watch_time TEXT",
         "ALTER TABLE news ADD COLUMN stats_platform TEXT DEFAULT 'instagram'",
+        "ALTER TABLE news ADD COLUMN instagram_media_id TEXT",
     ]:
         try:
             conn.execute(sql)
@@ -185,6 +186,8 @@ async def lifespan(app: FastAPI):
 
     for hour in [1, 5, 9, 13, 16]:
         scheduler.add_job(scheduled_collect, "cron", hour=hour, minute=0)
+    # Daily Instagram stats refresh at 02:00 UTC (07:00 UZT)
+    scheduler.add_job(_scheduled_ig_refresh, "cron", hour=2, minute=0)
     scheduler.start()
     log(f"Scheduler started. DB: {DB_PATH}")
 
@@ -1236,3 +1239,297 @@ async def meta_status(request: Request):
         "instagram_account_id": ig_id,
         "instagram_username": ig_user,
     }
+
+
+# ── INSTAGRAM STATS SYNC ─────────────────────────────────────────────────────
+#
+# Uses META_ACCESS_TOKEN (system user token, permanent) from Railway Variables.
+# INSTAGRAM_ACCOUNT_ID = 17841477793587741  (@uzbekknows)
+#
+# Endpoints:
+#   GET  /api/meta/account-stats   — followers, posts count
+#   GET  /api/meta/ig-reels        — recent reels + live insights
+#   POST /api/meta/link-reel       — {news_id, media_id} → save stats to DB
+#   POST /api/meta/refresh-stats   — re-fetch stats for all linked reels
+
+
+async def _ig_get(path: str, params: dict = None) -> dict:
+    """Make an authenticated Instagram Graph API request (system user token)."""
+    token = os.environ.get("META_ACCESS_TOKEN", "")
+    if not token:
+        raise HTTPException(
+            status_code=500,
+            detail="META_ACCESS_TOKEN не задан в Railway Variables. "
+                   "Добавь через Railway Dashboard → Variables.",
+        )
+    if params is None:
+        params = {}
+    async with httpx.AsyncClient(timeout=30) as client:
+        r = await client.get(
+            f"{GRAPH_URL}/{path}",
+            params={"access_token": token, **params},
+        )
+    return r.json()
+
+
+@app.get("/api/meta/account-stats")
+async def api_meta_account_stats(request: Request):
+    """Return Instagram account info: followers, posts count, username."""
+    require_auth(request)
+    ig_id = os.environ.get("INSTAGRAM_ACCOUNT_ID", "17841477793587741")
+    data = await _ig_get(ig_id, {
+        "fields": "username,followers_count,media_count,profile_picture_url",
+    })
+    if "error" in data:
+        raise HTTPException(status_code=502, detail=str(data["error"]))
+    return data
+
+
+@app.get("/api/meta/ig-reels")
+async def api_ig_reels(request: Request, limit: int = 30):
+    """Fetch recent Instagram Reels with live insights from Meta Graph API."""
+    require_auth(request)
+    ig_id = os.environ.get("INSTAGRAM_ACCOUNT_ID", "17841477793587741")
+
+    # 1. Get media list
+    media_data = await _ig_get(f"{ig_id}/media", {
+        "fields": "id,media_type,timestamp,permalink,like_count,comments_count,caption",
+        "limit": limit,
+    })
+    if "error" in media_data:
+        raise HTTPException(status_code=502, detail=str(media_data["error"]))
+
+    # Reels only (media_type == REELS or VIDEO)
+    reels = [m for m in media_data.get("data", [])
+             if m.get("media_type") in ("REELS", "VIDEO")]
+
+    # 2. Fetch insights for each reel, check DB link
+    conn = sqlite3.connect(DB_PATH)
+    linked_map = {
+        row[0]: (row[1], row[2])
+        for row in conn.execute(
+            "SELECT instagram_media_id, id, title FROM news "
+            "WHERE instagram_media_id IS NOT NULL AND instagram_media_id != ''"
+        ).fetchall()
+    }
+    conn.close()
+
+    result = []
+    for reel in reels:
+        media_id = reel["id"]
+        ins_data = await _ig_get(f"{media_id}/insights", {
+            "metric": "plays,reach,saved,shares,ig_reels_avg_watch_time,total_interactions",
+        })
+        insights = {
+            i["name"]: i.get("value", 0)
+            for i in ins_data.get("data", [])
+        }
+        avg_ms    = insights.get("ig_reels_avg_watch_time", 0)
+        watch_str = f"{avg_ms / 1000:.1f}с" if avg_ms else ""
+
+        linked = linked_map.get(media_id)
+        result.append({
+            "media_id":          media_id,
+            "timestamp":         reel.get("timestamp", ""),
+            "permalink":         reel.get("permalink", ""),
+            "caption_snippet":   (reel.get("caption") or "")[:120],
+            "likes":             reel.get("like_count", 0),
+            "comments":          reel.get("comments_count", 0),
+            "views":             insights.get("plays", 0),
+            "reach":             insights.get("reach", 0),
+            "saves":             insights.get("saved", 0),
+            "shares":            insights.get("shares", 0),
+            "avg_watch_time_ms": avg_ms,
+            "watch_time":        watch_str,
+            "linked_news_id":    linked[0] if linked else None,
+            "linked_news_title": linked[1] if linked else None,
+        })
+
+    return result
+
+
+@app.post("/api/meta/link-reel")
+async def api_link_reel(request: Request):
+    """Link an Instagram reel to a news entry and immediately save its stats to DB.
+
+    Body: {"news_id": 42, "media_id": "17846368219941196"}
+    """
+    require_auth(request)
+    body     = await request.json()
+    news_id  = int(body.get("news_id", 0))
+    media_id = str(body.get("media_id", "")).strip()
+
+    if not news_id or not media_id:
+        raise HTTPException(status_code=400, detail="news_id и media_id обязательны")
+
+    # Fetch insights
+    ins_data = await _ig_get(f"{media_id}/insights", {
+        "metric": "plays,reach,saved,shares,ig_reels_avg_watch_time",
+    })
+    # Fetch media meta (likes, comments, timestamp)
+    med_data = await _ig_get(media_id, {
+        "fields": "like_count,comments_count,timestamp",
+    })
+
+    if "error" in ins_data:
+        raise HTTPException(status_code=502, detail=str(ins_data["error"]))
+    if "error" in med_data:
+        raise HTTPException(status_code=502, detail=str(med_data["error"]))
+
+    insights  = {i["name"]: i.get("value", 0) for i in ins_data.get("data", [])}
+    avg_ms    = insights.get("ig_reels_avg_watch_time", 0)
+    watch_str = f"{avg_ms / 1000:.1f}с" if avg_ms else ""
+
+    views    = insights.get("plays", 0)
+    reach    = insights.get("reach", 0)
+    saves    = insights.get("saved", 0)
+    shares   = insights.get("shares", 0)
+    likes    = med_data.get("like_count", 0)
+    comments = med_data.get("comments_count", 0)
+    pub_ts   = med_data.get("timestamp", "")
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute(
+        """UPDATE news SET
+               stats_views=?,     stats_likes=?,    stats_comments=?,
+               stats_shares=?,    stats_saves=?,    stats_reach=?,
+               stats_watch_time=?, stats_platform='instagram',
+               instagram_media_id=?,
+               published_at=COALESCE(published_at, ?)
+           WHERE id=?""",
+        (views, likes, comments, shares, saves, reach,
+         watch_str, media_id, pub_ts, news_id),
+    )
+    conn.commit()
+    conn.close()
+
+    return {
+        "news_id": news_id, "media_id": media_id, "saved": True,
+        "views": views, "reach": reach, "likes": likes,
+        "comments": comments, "saves": saves, "shares": shares,
+        "watch_time": watch_str,
+    }
+
+
+@app.post("/api/meta/refresh-stats")
+async def api_refresh_stats(request: Request):
+    """Re-fetch live stats for all news entries that have instagram_media_id set."""
+    require_auth(request)
+
+    conn = sqlite3.connect(DB_PATH)
+    rows = conn.execute(
+        "SELECT id, instagram_media_id FROM news "
+        "WHERE instagram_media_id IS NOT NULL AND instagram_media_id != ''"
+    ).fetchall()
+    conn.close()
+
+    if not rows:
+        return {"updated": 0, "message": "Нет привязанных Reels. Сначала привяжи через /api/meta/ig-reels."}
+
+    updated = 0
+    errors: list[str] = []
+
+    for (news_id, media_id) in rows:
+        try:
+            ins_data = await _ig_get(f"{media_id}/insights", {
+                "metric": "plays,reach,saved,shares,ig_reels_avg_watch_time",
+            })
+            med_data = await _ig_get(media_id, {
+                "fields": "like_count,comments_count",
+            })
+
+            if "error" in ins_data:
+                errors.append(f"#{news_id} ({media_id}): {ins_data['error']}")
+                continue
+
+            insights  = {i["name"]: i.get("value", 0) for i in ins_data.get("data", [])}
+            avg_ms    = insights.get("ig_reels_avg_watch_time", 0)
+            watch_str = f"{avg_ms / 1000:.1f}с" if avg_ms else ""
+
+            conn = sqlite3.connect(DB_PATH)
+            conn.execute(
+                """UPDATE news SET
+                       stats_views=?,     stats_likes=?,    stats_comments=?,
+                       stats_shares=?,    stats_saves=?,    stats_reach=?,
+                       stats_watch_time=?
+                   WHERE id=?""",
+                (
+                    insights.get("plays", 0),
+                    med_data.get("like_count", 0),
+                    med_data.get("comments_count", 0),
+                    insights.get("shares", 0),
+                    insights.get("saved", 0),
+                    insights.get("reach", 0),
+                    watch_str,
+                    news_id,
+                ),
+            )
+            conn.commit()
+            conn.close()
+            updated += 1
+
+        except Exception as e:
+            errors.append(f"#{news_id}: {e}")
+
+    log(f"IG stats refresh: {updated} updated, {len(errors)} errors")
+    return {"updated": updated, "errors": errors}
+
+
+async def _scheduled_ig_refresh():
+    """Daily job: silently refresh Instagram stats for all linked reels."""
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        rows = conn.execute(
+            "SELECT id, instagram_media_id FROM news "
+            "WHERE instagram_media_id IS NOT NULL AND instagram_media_id != ''"
+        ).fetchall()
+        conn.close()
+
+        if not rows:
+            return
+
+        updated = 0
+        for (news_id, media_id) in rows:
+            try:
+                ins_data = await _ig_get(f"{media_id}/insights", {
+                    "metric": "plays,reach,saved,shares,ig_reels_avg_watch_time",
+                })
+                med_data = await _ig_get(media_id, {"fields": "like_count,comments_count"})
+
+                if "error" in ins_data:
+                    continue
+
+                insights  = {i["name"]: i.get("value", 0) for i in ins_data.get("data", [])}
+                avg_ms    = insights.get("ig_reels_avg_watch_time", 0)
+                watch_str = f"{avg_ms / 1000:.1f}с" if avg_ms else ""
+
+                conn = sqlite3.connect(DB_PATH)
+                conn.execute(
+                    """UPDATE news SET
+                           stats_views=?, stats_likes=?, stats_comments=?,
+                           stats_shares=?, stats_saves=?, stats_reach=?,
+                           stats_watch_time=?
+                       WHERE id=?""",
+                    (
+                        insights.get("plays", 0),
+                        med_data.get("like_count", 0),
+                        med_data.get("comments_count", 0),
+                        insights.get("shares", 0),
+                        insights.get("saved", 0),
+                        insights.get("reach", 0),
+                        watch_str,
+                        news_id,
+                    ),
+                )
+                conn.commit()
+                conn.close()
+                updated += 1
+            except Exception:
+                pass
+
+        log(f"[IG Auto-refresh] Updated {updated}/{len(rows)} reels stats")
+        if updated > 0:
+            _tg_notify(f"📊 Instagram статистика обновлена: {updated} рилс")
+
+    except Exception as e:
+        log(f"[IG Auto-refresh] Error: {e}")

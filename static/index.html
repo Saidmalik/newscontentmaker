@@ -496,6 +496,43 @@ body::before {
 }
 .ig-publish-btn:hover:not(:disabled) { opacity:.85; }
 .ig-publish-btn:disabled { opacity:.4; cursor:not-allowed; }
+
+/* ── Select mode ── */
+.select-btn {
+  padding:5px 10px; border-radius:6px; border:1px solid var(--border2);
+  background:transparent; color:var(--text2); font-size:11px; font-family:inherit;
+  cursor:pointer; transition:all .15s; white-space:nowrap;
+}
+.select-btn:hover { background:var(--bg3); color:var(--text); }
+.select-btn.active { background:rgba(245,166,35,.12); border-color:rgba(245,166,35,.3); color:var(--gold); }
+.news-card.card-sel { border-color:rgba(245,166,35,.4)!important; background:rgba(245,166,35,.04)!important; }
+.card-cb-wrap {
+  position:absolute; top:10px; right:10px; z-index:2;
+  width:18px; height:18px; cursor:pointer;
+}
+.card-cb-wrap input[type=checkbox] {
+  width:16px; height:16px; cursor:pointer; accent-color:var(--gold);
+}
+.news-card { position:relative; }
+.select-bar {
+  display:none; align-items:center; gap:.5rem; flex-shrink:0;
+  padding:8px 12px; background:rgba(245,166,35,.08);
+  border-top:1px solid rgba(245,166,35,.2); border-bottom:1px solid rgba(245,166,35,.2);
+}
+.select-bar-count { font-size:.75rem; color:var(--gold); font-weight:600; white-space:nowrap; }
+.select-bar-btn {
+  padding:5px 11px; border-radius:6px; font-size:.75rem; font-weight:500;
+  cursor:pointer; border:1px solid transparent; font-family:inherit; white-space:nowrap;
+}
+.sb-gen { background:rgba(255,85,51,.1); border-color:rgba(255,85,51,.3); color:var(--accent); }
+.sb-gen:hover:not(:disabled) { background:rgba(255,85,51,.2); }
+.sb-appr { background:rgba(34,204,136,.1); border-color:rgba(34,204,136,.3); color:var(--green); }
+.sb-appr:hover:not(:disabled) { background:rgba(34,204,136,.2); }
+.sb-del { background:rgba(255,68,34,.08); border-color:rgba(255,68,34,.2); color:var(--hot); }
+.sb-del:hover:not(:disabled) { background:rgba(255,68,34,.15); }
+.sb-clear { background:transparent; border-color:var(--border2); color:var(--text3); }
+.sb-clear:hover { color:var(--text2); }
+.select-bar-btn:disabled { opacity:.4; cursor:not-allowed; }
 </style>
 </head>
 <body>
@@ -562,6 +599,7 @@ body::before {
       <div class="feed-header">
         <div class="feed-title">Лента новостей</div>
         <div class="feed-time" id="updatedAt"></div>
+        <button class="select-btn" id="selectModeBtn" onclick="toggleSelectMode()">☐ Выбор</button>
         <button class="collect-btn" id="collectBtn" onclick="collectNow()">⬇ Собрать</button>
       </div>
 
@@ -590,6 +628,14 @@ body::before {
         <div class="tab" data-tab="reserve" onclick="setTab('reserve')">◫ Резерв <span class="tab-count" id="cnt-reserve">—</span></div>
         <div class="tab" data-tab="approved" onclick="setTab('approved')">✓ Одобренные</div>
         <div class="tab" data-tab="published" onclick="setTab('published')">⬡ Опубликовано <span class="tab-count" id="cnt-pub">—</span></div>
+      </div>
+
+      <div class="select-bar" id="selectBar">
+        <span class="select-bar-count">Выбрано: <span id="selectCount">0</span></span>
+        <button class="select-bar-btn sb-gen" id="sbGenBtn" onclick="batchGenerate()" disabled>✨ Генерировать</button>
+        <button class="select-bar-btn sb-appr" id="sbApprBtn" onclick="batchApprove()" disabled>✓ Одобрить</button>
+        <button class="select-bar-btn sb-del" id="sbDelBtn" onclick="batchDelete()" disabled>✕ Удалить</button>
+        <button class="select-bar-btn sb-clear" onclick="clearSelection()" style="margin-left:auto">Сбросить</button>
       </div>
 
       <div class="news-list" id="feedList"><div class="empty-state">Загрузка…</div></div>
@@ -628,6 +674,7 @@ body::before {
 <script>
 "use strict";
 let news=[], curTab="all", curSort="score", curPeriod="all", selectedId=null;
+let selectMode=false, selectedIds=new Set();
 const MONTHS=["янв","фев","мар","апр","май","июн","июл","авг","сен","окт","ноя","дек"];
 
 /* HTTP */
@@ -759,9 +806,11 @@ function cardHtml(n,isPubTab=false){
         :`<button class="btn-sm tts-done" onclick="selectCard(${n.id})">Открыть скрипт →</button>`
     )+`<button class="btn-sm del" title="Удалить" onclick="event.stopPropagation();delCard(${n.id})">✕</button>`;
 
+  const isSel=selectedIds.has(n.id);
   return`
-    <div class="news-card${selectedId===n.id?" selected":""}${n.approved&&!isPublished?" approved":""}${isPublished?" is-published":""}"
+    <div class="news-card${selectedId===n.id?" selected":""}${n.approved&&!isPublished?" approved":""}${isPublished?" is-published":""}${selectMode&&isSel?" card-sel":""}"
          id="card-${n.id}" onclick="selectCard(${n.id})">
+    ${selectMode?`<div class="card-cb-wrap" onclick="event.stopPropagation();toggleSelectItem(${n.id})"><input type="checkbox" id="cb-${n.id}" ${isSel?"checked":""}></div>`:""}
       <div class="card-top">
         ${isPublished
           ?`<span class="priority-badge badge-pub">⬡ Опубликовано</span>`
@@ -784,8 +833,79 @@ function cardHtml(n,isPubTab=false){
     </div>`;
 }
 
+/* Select mode */
+function toggleSelectMode(){
+  selectMode=!selectMode;
+  if(!selectMode){selectedIds.clear();}
+  document.getElementById("selectModeBtn").classList.toggle("active",selectMode);
+  document.getElementById("selectBar").style.display=selectMode?"flex":"none";
+  renderFeed();
+  _updateSelectBar();
+}
+function toggleSelectItem(id){
+  if(selectedIds.has(id))selectedIds.delete(id);else selectedIds.add(id);
+  const card=document.getElementById("card-"+id);
+  if(card)card.classList.toggle("card-sel",selectedIds.has(id));
+  const cb=document.getElementById("cb-"+id);
+  if(cb)cb.checked=selectedIds.has(id);
+  _updateSelectBar();
+}
+function _updateSelectBar(){
+  const n=selectedIds.size;
+  document.getElementById("selectCount").textContent=n;
+  ["sbGenBtn","sbApprBtn","sbDelBtn"].forEach(id=>{
+    const b=document.getElementById(id);if(b)b.disabled=n===0;
+  });
+}
+function clearSelection(){selectedIds.clear();renderFeed();_updateSelectBar();}
+
+async function batchGenerate(){
+  const ids=[...selectedIds];if(!ids.length)return;
+  const btn=document.getElementById("sbGenBtn");
+  btn.disabled=true;
+  let done=0;
+  for(const id of ids){
+    btn.innerHTML=`<span class="spin" style="border-top-color:var(--accent)"></span> ${done}/${ids.length}`;
+    try{
+      const res=await api("POST",`/api/news/${id}/generate`);
+      if(res){const n=news.find(x=>x.id===id);if(n){n.tts_script=res.tts_script;n.description=res.description;n.preview_titles=res.preview_titles||[];}done++;}
+    }catch(_){}
+  }
+  renderFeed();
+  toast(`Сгенерировано ${done}/${ids.length} ✓`);
+  btn.disabled=false;btn.textContent="✨ Генерировать";
+}
+
+async function batchApprove(){
+  const ids=[...selectedIds].filter(id=>{const n=news.find(x=>x.id===id);return n&&n.tts_script;});
+  if(!ids.length){toast("Сначала сгенерируй TTS для выбранных",true);return;}
+  const btn=document.getElementById("sbApprBtn");btn.disabled=true;
+  let done=0;
+  for(const id of ids){
+    try{await api("POST",`/api/news/${id}/approve`);const n=news.find(x=>x.id===id);if(n){n.approved=1;done++;}}catch(_){}
+  }
+  renderFeed();updateCounts();
+  toast(`Одобрено ${done}/${ids.length} ✓`);
+  btn.disabled=false;
+}
+
+async function batchDelete(){
+  if(!confirm(`Удалить ${selectedIds.size} новостей? Нельзя отменить.`))return;
+  const ids=[...selectedIds];
+  const btn=document.getElementById("sbDelBtn");btn.disabled=true;
+  let done=0;
+  for(const id of ids){
+    try{await api("DELETE",`/api/news/${id}`);news=news.filter(x=>x.id!==id);selectedIds.delete(id);done++;}catch(_){}
+  }
+  if(selectedId&&!news.find(x=>x.id===selectedId))clearDetail();
+  renderFeed();updateCounts();_updateSelectBar();
+  toast(`Удалено ${done} ✓`);
+  btn.disabled=false;
+}
+
 /* Select / Detail */
 function selectCard(id){
+  if(selectMode){toggleSelectItem(id);return;}
   selectedId=id;
   document.querySelectorAll(".news-card").forEach(el=>el.classList.toggle("selected",el.id==="card-"+id));
   const n=news.find(x=>x.id===id);if(n)renderDetail(n);

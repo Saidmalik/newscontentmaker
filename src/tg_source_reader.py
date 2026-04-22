@@ -310,6 +310,33 @@ async def _save_photo(message, client: TelegramClient) -> str | None:
         return None
 
 
+# ── SESSION BOOTSTRAP ────────────────────────────────────────────────────────
+
+def _bootstrap_session() -> None:
+    """
+    If TG_SESSION_B64 env var is set, decode it and write to the session file.
+    Allows deploying to Railway without a persistent Volume — store the session
+    as a base64 string in Railway Variables instead.
+
+    To get TG_SESSION_B64:
+        1. Run locally:  python src/tg_source_reader.py --auth
+        2. Copy the printed TG_SESSION_B64 value
+        3. Add it to Railway Variables as TG_SESSION_B64
+    """
+    b64 = os.environ.get("TG_SESSION_B64", "")
+    if not b64:
+        return
+    session_file = Path(SESSION + ".session")
+    if session_file.exists():
+        return  # already present, don't overwrite
+    try:
+        session_file.parent.mkdir(parents=True, exist_ok=True)
+        session_file.write_bytes(base64.b64decode(b64))
+        log.info("TG session bootstrapped from TG_SESSION_B64 → %s", session_file)
+    except Exception as e:
+        log.error("TG session bootstrap failed: %s", e)
+
+
 # ── ГЛАВНАЯ ФУНКЦИЯ ──────────────────────────────────────────────────────────
 
 async def read_all_sources(lookback_hours: int = LOOKBACK_HRS) -> int:
@@ -321,6 +348,7 @@ async def read_all_sources(lookback_hours: int = LOOKBACK_HRS) -> int:
         log.error("TG_API_ID / TG_API_HASH не заданы — пропуск")
         return 0
 
+    _bootstrap_session()
     init_tg_db()
     since = datetime.now(timezone.utc) - timedelta(hours=lookback_hours)
     total = 0
@@ -366,7 +394,15 @@ async def auth_interactive():
         me = await client.get_me()
         print(f"\n✅ Авторизован: {me.first_name} (@{me.username or 'нет username'})")
         print(f"   Сессия сохранена: {SESSION}.session")
-        print("   Следующий шаг: скопируй файл на Railway Volume в /data/")
+
+        session_file = Path(SESSION + ".session")
+        if session_file.exists():
+            b64 = base64.b64encode(session_file.read_bytes()).decode()
+            print("\n" + "="*60)
+            print("📋 Добавь в Railway Variables:")
+            print(f"   TG_SESSION_B64 = {b64}")
+            print("="*60)
+            print("\n   (или скопируй файл на Railway Volume в /data/)")
 
 
 if __name__ == "__main__":

@@ -497,8 +497,9 @@ body::before {
 .ig-publish-btn:hover:not(:disabled) { opacity:.85; }
 .ig-publish-btn:disabled { opacity:.4; cursor:not-allowed; }
 
-/* ── Star button ── */
+/* ── Star / Preselect buttons ── */
 .btn-starred { color:var(--gold)!important; border-color:rgba(245,166,35,.3)!important; }
+.btn-pre { color:var(--gold)!important; border-color:rgba(245,166,35,.3)!important; background:rgba(245,166,35,.08)!important; }
 
 /* ── Select mode ── */
 .select-btn {
@@ -529,8 +530,8 @@ body::before {
 }
 .sb-gen { background:rgba(255,85,51,.1); border-color:rgba(255,85,51,.3); color:var(--accent); }
 .sb-gen:hover:not(:disabled) { background:rgba(255,85,51,.2); }
-.sb-appr { background:rgba(34,204,136,.1); border-color:rgba(34,204,136,.3); color:var(--green); }
-.sb-appr:hover:not(:disabled) { background:rgba(34,204,136,.2); }
+.sb-pre { background:rgba(245,166,35,.1); border-color:rgba(245,166,35,.3); color:var(--gold); }
+.sb-pre:hover:not(:disabled) { background:rgba(245,166,35,.2); }
 .sb-del { background:rgba(255,68,34,.08); border-color:rgba(255,68,34,.2); color:var(--hot); }
 .sb-del:hover:not(:disabled) { background:rgba(255,68,34,.15); }
 .sb-clear { background:transparent; border-color:var(--border2); color:var(--text3); }
@@ -629,6 +630,7 @@ body::before {
         <div class="tab" data-tab="hot" onclick="setTab('hot')">🔥 Горящие <span class="tab-count" id="cnt-hot">—</span></div>
         <div class="tab" data-tab="good" onclick="setTab('good')">⚡ Хорошие <span class="tab-count" id="cnt-good">—</span></div>
         <div class="tab" data-tab="reserve" onclick="setTab('reserve')">◫ Резерв <span class="tab-count" id="cnt-reserve">—</span></div>
+        <div class="tab" data-tab="preselected" onclick="setTab('preselected')">☆ Предотбор <span class="tab-count" id="cnt-pre">—</span></div>
         <div class="tab" data-tab="starred" onclick="setTab('starred')">⭐ Выбранные <span class="tab-count" id="cnt-star">—</span></div>
         <div class="tab" data-tab="approved" onclick="setTab('approved')">✓ Одобренные</div>
         <div class="tab" data-tab="published" onclick="setTab('published')">⬡ Опубликовано <span class="tab-count" id="cnt-pub">—</span></div>
@@ -637,7 +639,7 @@ body::before {
       <div class="select-bar" id="selectBar">
         <span class="select-bar-count">Выбрано: <span id="selectCount">0</span></span>
         <button class="select-bar-btn sb-gen" id="sbGenBtn" onclick="batchGenerate()" disabled>✨ Генерировать</button>
-        <button class="select-bar-btn sb-appr" id="sbApprBtn" onclick="batchApprove()" disabled>✓ Одобрить</button>
+        <button class="select-bar-btn sb-pre" id="sbPreBtn" onclick="batchPreselect()" disabled>☆ В предотбор</button>
         <button class="select-bar-btn sb-del" id="sbDelBtn" onclick="batchDelete()" disabled>✕ Удалить</button>
         <button class="select-bar-btn sb-clear" onclick="clearSelection()" style="margin-left:auto">Сбросить</button>
       </div>
@@ -759,10 +761,12 @@ function updateCounts(){
     if(p==="hot")hot++;else if(p==="good")good++;else rsv++;
   });
   const star=news.filter(n=>n.starred).length;
+  const pre=news.filter(n=>n.preselected&&!n.published_at).length;
   document.getElementById("cnt-all").textContent=all;
   document.getElementById("cnt-hot").textContent=hot;
   document.getElementById("cnt-good").textContent=good;
   document.getElementById("cnt-reserve").textContent=rsv;
+  document.getElementById("cnt-pre").textContent=pre||"—";
   document.getElementById("cnt-star").textContent=star||"—";
   document.getElementById("cnt-pub").textContent=pub;
   document.getElementById("navBadgeCount").textContent=all;
@@ -771,11 +775,12 @@ function updateCounts(){
 /* Render feed */
 function renderFeed(){
   let filtered=news;
-  if(curTab==="hot")         filtered=news.filter(n=>!n.published_at&&n.priority==="hot");
-  else if(curTab==="good")   filtered=news.filter(n=>!n.published_at&&n.priority==="good");
-  else if(curTab==="reserve")filtered=news.filter(n=>!n.published_at&&n.priority==="reserve");
-  else if(curTab==="starred")filtered=news.filter(n=>n.starred);
-  else if(curTab==="approved")filtered=news.filter(n=>n.approved&&!n.published_at);
+  if(curTab==="hot")            filtered=news.filter(n=>!n.published_at&&n.priority==="hot");
+  else if(curTab==="good")      filtered=news.filter(n=>!n.published_at&&n.priority==="good");
+  else if(curTab==="reserve")   filtered=news.filter(n=>!n.published_at&&n.priority==="reserve");
+  else if(curTab==="preselected")filtered=news.filter(n=>n.preselected&&!n.published_at);
+  else if(curTab==="starred")   filtered=news.filter(n=>n.starred);
+  else if(curTab==="approved")  filtered=news.filter(n=>n.approved&&!n.published_at);
   else if(curTab==="published"){
     filtered=news.filter(n=>!!n.published_at);
     filtered.sort((a,b)=>new Date(b.published_at)-new Date(a.published_at));
@@ -784,7 +789,18 @@ function renderFeed(){
 
   const list=document.getElementById("feedList");
   if(!filtered.length){list.innerHTML=`<div class="empty-state">Нет новостей в этой категории</div>`;return;}
-  list.innerHTML=filtered.map(n=>cardHtml(n,curTab==="published")).join("");
+
+  let prefix="";
+  if(curTab==="preselected"&&filtered.length){
+    const noTTS=filtered.filter(n=>!n.tts_script).length;
+    prefix=`<div style="padding:4px 4px 0">
+      <div style="background:rgba(245,166,35,.08);border:1px solid rgba(245,166,35,.2);border-radius:8px;padding:7px 12px;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
+        <span style="color:var(--gold);font-size:.76rem;flex:1">${filtered.length} в предотборе${noTTS?` · ${noTTS} без TTS`:" · все готовы к одобрению"}</span>
+        <button class="select-bar-btn sb-gen" style="font-size:.72rem" onclick="generateAllPreselected()">✨ Генерировать все</button>
+        <button class="select-bar-btn sb-clear" style="font-size:.72rem" onclick="clearAllPreselected()">✕ Очистить</button>
+      </div></div>`;
+  }
+  list.innerHTML=prefix+filtered.map(n=>cardHtml(n,curTab==="published")).join("");
 }
 
 function cardHtml(n,isPubTab=false){
@@ -804,14 +820,17 @@ function cardHtml(n,isPubTab=false){
     </div>`:"";
 
   const starBtn=`<button class="btn-sm${n.starred?" btn-starred":""}" title="${n.starred?"Убрать из выбранных":"Добавить в выбранные"}" onclick="event.stopPropagation();starNews(${n.id})">${n.starred?"⭐":"☆"}</button>`;
+  const preBtn=curTab==="preselected"
+    ?`<button class="btn-sm btn-pre" title="Убрать из предотбора" onclick="event.stopPropagation();togglePreselect(${n.id})">☆ Убрать</button>`
+    :"";
   const btns=isPubTab
     ?`<button class="btn-sm tts-done" onclick="selectCard(${n.id})">📊 Статистика</button>${starBtn}`
     :(!hasTTS
-      ?`${starBtn}<button class="btn-sm gen" onclick="generateCard(${n.id})">✨ Генерировать</button>`
+      ?`${starBtn}${preBtn}<button class="btn-sm gen" onclick="generateCard(${n.id})">✨ Генерировать</button>`
       :n.approved
-        ?`${starBtn}<button class="btn-sm mark-pub" onclick="event.stopPropagation();markPublished(${n.id})">📤 Опубликовано</button>
+        ?`${starBtn}${preBtn}<button class="btn-sm mark-pub" onclick="event.stopPropagation();markPublished(${n.id})">📤 Опубликовано</button>
           <button class="btn-sm tts-done" onclick="selectCard(${n.id})">Открыть →</button>`
-        :`${starBtn}<button class="btn-sm tts-done" onclick="selectCard(${n.id})">Открыть скрипт →</button>`
+        :`${starBtn}${preBtn}<button class="btn-sm tts-done" onclick="selectCard(${n.id})">Открыть скрипт →</button>`
     )+`<button class="btn-sm del" title="Удалить" onclick="event.stopPropagation();delCard(${n.id})">✕</button>`;
 
   const isSel=selectedIds.has(n.id);
@@ -861,7 +880,7 @@ function toggleSelectItem(id){
 function _updateSelectBar(){
   const n=selectedIds.size;
   document.getElementById("selectCount").textContent=n;
-  ["sbGenBtn","sbApprBtn","sbDelBtn"].forEach(id=>{
+  ["sbGenBtn","sbPreBtn","sbDelBtn"].forEach(id=>{
     const b=document.getElementById(id);if(b)b.disabled=n===0;
   });
 }
@@ -884,17 +903,22 @@ async function batchGenerate(){
   btn.disabled=false;btn.textContent="✨ Генерировать";
 }
 
-async function batchApprove(){
-  const ids=[...selectedIds].filter(id=>{const n=news.find(x=>x.id===id);return n&&n.tts_script;});
-  if(!ids.length){toast("Сначала сгенерируй TTS для выбранных",true);return;}
-  const btn=document.getElementById("sbApprBtn");btn.disabled=true;
+async function batchPreselect(){
+  const ids=[...selectedIds];if(!ids.length)return;
+  const btn=document.getElementById("sbPreBtn");btn.disabled=true;
   let done=0;
   for(const id of ids){
-    try{await api("POST",`/api/news/${id}/approve`);const n=news.find(x=>x.id===id);if(n){n.approved=1;done++;}}catch(_){}
+    try{
+      const res=await api("POST",`/api/news/${id}/preselect`);
+      const n=news.find(x=>x.id===id);
+      if(n){n.preselected=res.preselected?1:0;done++;}
+    }catch(_){}
   }
+  clearSelection();
   renderFeed();updateCounts();
-  toast(`Одобрено ${done}/${ids.length} ✓`);
+  toast(`${done} новостей добавлены в Предотбор ✓`);
   btn.disabled=false;
+  setTab("preselected");
 }
 
 async function batchDelete(){
@@ -909,6 +933,31 @@ async function batchDelete(){
   renderFeed();updateCounts();_updateSelectBar();
   toast(`Удалено ${done} ✓`);
   btn.disabled=false;
+}
+
+async function generateAllPreselected(){
+  const ids=news.filter(n=>n.preselected&&!n.published_at&&!n.tts_script).map(n=>n.id);
+  if(!ids.length){toast("У всех уже есть TTS ✓");return;}
+  toast(`Генерирую ${ids.length} скриптов…`);
+  let done=0;
+  for(const id of ids){
+    try{
+      const res=await api("POST",`/api/news/${id}/generate`);
+      if(res){const n=news.find(x=>x.id===id);if(n){n.tts_script=res.tts_script;n.description=res.description;n.preview_titles=res.preview_titles||[];}done++;}
+    }catch(_){}
+    renderFeed();
+  }
+  toast(`Сгенерировано ${done}/${ids.length} ✓`);
+}
+
+async function clearAllPreselected(){
+  if(!confirm("Убрать все новости из предотбора?"))return;
+  const ids=news.filter(n=>n.preselected&&!n.published_at).map(n=>n.id);
+  for(const id of ids){
+    try{await api("POST",`/api/news/${id}/preselect`);const n=news.find(x=>x.id===id);if(n)n.preselected=0;}catch(_){}
+  }
+  renderFeed();updateCounts();
+  toast("Предотбор очищен");
 }
 
 /* Select / Detail */
@@ -1126,6 +1175,16 @@ async function markPublished(id){
     const n=news.find(x=>x.id===id);if(n)n.published_at=new Date().toISOString();
     renderFeed();updateCounts();if(selectedId===id&&n)renderDetail(n);
     toast("Отмечено как опубликовано 📤");
+  }catch(e){toast("Ошибка: "+e.message,true);}
+}
+
+async function togglePreselect(id){
+  try{
+    const res=await api("POST",`/api/news/${id}/preselect`);
+    const n=news.find(x=>x.id===id);
+    if(n)n.preselected=res.preselected?1:0;
+    renderFeed();updateCounts();
+    toast(res.preselected?"☆ Добавлено в предотбор":"Убрано из предотбора");
   }catch(e){toast("Ошибка: "+e.message,true);}
 }
 
@@ -1521,7 +1580,7 @@ async function igPublish(){
       method:"POST",headers:{"Content-Type":"application/json"},
       body:JSON.stringify({caption})
     });
-    if(!r2.ok)throw new Error(await r2.text());
+    if(!r2.ok){let m;try{const j=await r2.json();m=j.detail||JSON.stringify(j);}catch(_){m=await r2.text();}throw new Error(m);}
     const res=await r2.json();
 
     fill.style.width="100%"; txt.textContent="✓ Опубликовано!";

@@ -89,6 +89,7 @@ def run_migrations(conn: sqlite3.Connection):
         "ALTER TABLE news ADD COLUMN instagram_media_id TEXT",
         "ALTER TABLE news ADD COLUMN instagram_permalink TEXT",
         "ALTER TABLE news ADD COLUMN starred INTEGER DEFAULT 0",
+        "ALTER TABLE news ADD COLUMN preselected INTEGER DEFAULT 0",
     ]:
         try:
             conn.execute(sql)
@@ -311,15 +312,17 @@ def _score_to_priority(score: int) -> str:
 async def api_news_counts(request: Request):
     require_auth(request)
     conn = sqlite3.connect(DB_PATH)
-    rows = conn.execute("SELECT score, starred FROM news WHERE score >= 1").fetchall()
+    rows = conn.execute("SELECT score, starred, preselected FROM news WHERE score >= 1").fetchall()
     conn.close()
-    counts = {"all": 0, "hot": 0, "good": 0, "reserve": 0, "starred": 0}
-    for (score, starred) in rows:
+    counts = {"all": 0, "hot": 0, "good": 0, "reserve": 0, "starred": 0, "preselected": 0}
+    for (score, starred, preselected) in rows:
         p = _score_to_priority(score)
         counts[p] += 1
         counts["all"] += 1
         if starred:
             counts["starred"] += 1
+        if preselected:
+            counts["preselected"] += 1
     return counts
 
 
@@ -328,7 +331,7 @@ async def api_news(
     request: Request,
     min_score: int = 1,
     limit: int = 150,
-    tab: str = "all",       # all | hot | good | reserve | approved
+    tab: str = "all",       # all | hot | good | reserve | approved | preselected | starred
     sort: str = "score",    # score | date
     date_from: str = "",    # YYYY-MM-DD
     date_to: str = "",      # YYYY-MM-DD
@@ -340,6 +343,8 @@ async def api_news(
 
     if tab == "starred":
         where.append("starred = 1")
+    elif tab == "preselected":
+        where.append("preselected = 1 AND published_at IS NULL")
     elif tab == "approved":
         where.append("approved = 1 AND published_at IS NULL")
     elif tab == "published":
@@ -372,7 +377,7 @@ async def api_news(
                    published_at,
                    stats_views, stats_likes, stats_comments, stats_shares, stats_saves,
                    stats_reach, stats_watch_time, stats_platform,
-                   instagram_media_id, instagram_permalink, starred
+                   instagram_media_id, instagram_permalink, starred, preselected
             FROM news
             WHERE {' AND '.join(where)}
             ORDER BY {order}
@@ -817,6 +822,22 @@ async def api_star(news_id: int, request: Request):
     conn.commit()
     conn.close()
     return {"id": news_id, "starred": bool(new_val)}
+
+
+@app.post("/api/news/{news_id}/preselect")
+async def api_preselect(news_id: int, request: Request):
+    """Toggle preselected status (Предотбор)."""
+    require_auth(request)
+    conn = sqlite3.connect(DB_PATH)
+    row = conn.execute("SELECT preselected FROM news WHERE id=?", (news_id,)).fetchone()
+    if not row:
+        conn.close()
+        raise HTTPException(status_code=404)
+    new_val = 0 if row[0] else 1
+    conn.execute("UPDATE news SET preselected=? WHERE id=?", (new_val, news_id))
+    conn.commit()
+    conn.close()
+    return {"id": news_id, "preselected": bool(new_val)}
 
 
 # ── API: ELEVENLABS CREDITS ───────────────────────────────────────────────

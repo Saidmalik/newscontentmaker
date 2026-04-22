@@ -88,6 +88,7 @@ def run_migrations(conn: sqlite3.Connection):
         "ALTER TABLE news ADD COLUMN stats_platform TEXT DEFAULT 'instagram'",
         "ALTER TABLE news ADD COLUMN instagram_media_id TEXT",
         "ALTER TABLE news ADD COLUMN instagram_permalink TEXT",
+        "ALTER TABLE news ADD COLUMN starred INTEGER DEFAULT 0",
     ]:
         try:
             conn.execute(sql)
@@ -196,6 +197,8 @@ async def lifespan(app: FastAPI):
     scheduler.add_job(_scheduled_ig_refresh, "cron", hour=2, minute=0)
     # Hourly 24/48/72h snapshot check (at :15 to avoid overlap with other jobs)
     scheduler.add_job(_scheduled_ig_snapshots, "cron", minute=15)
+    # Daily cleanup of old unreviewed news at 00:30 UTC (05:30 UZT)
+    scheduler.add_job(_scheduled_cleanup, "cron", hour=0, minute=30)
     scheduler.start()
     log(f"Scheduler started. DB: {DB_PATH}")
 
@@ -308,13 +311,15 @@ def _score_to_priority(score: int) -> str:
 async def api_news_counts(request: Request):
     require_auth(request)
     conn = sqlite3.connect(DB_PATH)
-    rows = conn.execute("SELECT score FROM news WHERE score >= 1").fetchall()
+    rows = conn.execute("SELECT score, starred FROM news WHERE score >= 1").fetchall()
     conn.close()
-    counts = {"all": 0, "hot": 0, "good": 0, "reserve": 0}
-    for (score,) in rows:
+    counts = {"all": 0, "hot": 0, "good": 0, "reserve": 0, "starred": 0}
+    for (score, starred) in rows:
         p = _score_to_priority(score)
         counts[p] += 1
         counts["all"] += 1
+        if starred:
+            counts["starred"] += 1
     return counts
 
 
@@ -333,7 +338,9 @@ async def api_news(
     where = ["score >= ?"]
     params: list = [min_score]
 
-    if tab == "approved":
+    if tab == "starred":
+        where.append("starred = 1")
+    elif tab == "approved":
         where.append("approved = 1 AND published_at IS NULL")
     elif tab == "published":
         where.append("published_at IS NOT NULL")
@@ -365,7 +372,7 @@ async def api_news(
                    published_at,
                    stats_views, stats_likes, stats_comments, stats_shares, stats_saves,
                    stats_reach, stats_watch_time, stats_platform,
-                   instagram_media_id, instagram_permalink
+                   instagram_media_id, instagram_permalink, starred
             FROM news
             WHERE {' AND '.join(where)}
             ORDER BY {order}
@@ -794,6 +801,22 @@ async def api_delete(news_id: int, request: Request):
     conn.commit()
     conn.close()
     return {"id": news_id, "deleted": True}
+
+
+@app.post("/api/news/{news_id}/star")
+async def api_star(news_id: int, request: Request):
+    """Toggle starred status for a news item."""
+    require_auth(request)
+    conn = sqlite3.connect(DB_PATH)
+    row = conn.execute("SELECT starred FROM news WHERE id=?", (news_id,)).fetchone()
+    if not row:
+        conn.close()
+        raise HTTPException(status_code=404)
+    new_val = 0 if row[0] else 1
+    conn.execute("UPDATE news SET starred=? WHERE id=?", (new_val, news_id))
+    conn.commit()
+    conn.close()
+    return {"id": news_id, "starred": bool(new_val)}
 
 
 # ── API: ELEVENLABS CREDITS ───────────────────────────────────────────────
@@ -1632,6 +1655,32 @@ async def api_ig_posts(request: Request):
                     pass
         result.append(d)
     return result
+
+
+async def _scheduled_cleanup():
+    """Daily job: delete unreviewed news older than NEWS_RETENTION_DAYS (default 7).
+    Keeps starred, approved, and published posts regardless of age."""
+    days = int(os.environ.get("NEWS_RETENTION_DAYS", "7"))
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        result = conn.execute(
+            """DELETE FROM news
+               WHERE approved = 0
+                 AND published_at IS NULL
+                 AND starred = 0
+                 AND date(collected) <= date('now', ? || ' days')""",
+            (f"-{days}",),
+        )
+        deleted = result.rowcount
+        conn.commit()
+        conn.close()
+        if deleted > 0:
+            log(f"[Cleanup] Удалено {deleted} новостей старше {days} дней")
+            _tg_notify(f"🗑 Автоочистка: удалено {deleted} новостей старше {days} дней")
+        else:
+            log(f"[Cleanup] Нечего удалять (старше {days} дней)")
+    except Exception as e:
+        log(f"[Cleanup] Error: {e}")
 
 
 async def _scheduled_ig_snapshots():

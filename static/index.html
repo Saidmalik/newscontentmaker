@@ -497,6 +497,9 @@ body::before {
 .ig-publish-btn:hover:not(:disabled) { opacity:.85; }
 .ig-publish-btn:disabled { opacity:.4; cursor:not-allowed; }
 
+/* ── Star button ── */
+.btn-starred { color:var(--gold)!important; border-color:rgba(245,166,35,.3)!important; }
+
 /* ── Select mode ── */
 .select-btn {
   padding:5px 10px; border-radius:6px; border:1px solid var(--border2);
@@ -626,6 +629,7 @@ body::before {
         <div class="tab" data-tab="hot" onclick="setTab('hot')">🔥 Горящие <span class="tab-count" id="cnt-hot">—</span></div>
         <div class="tab" data-tab="good" onclick="setTab('good')">⚡ Хорошие <span class="tab-count" id="cnt-good">—</span></div>
         <div class="tab" data-tab="reserve" onclick="setTab('reserve')">◫ Резерв <span class="tab-count" id="cnt-reserve">—</span></div>
+        <div class="tab" data-tab="starred" onclick="setTab('starred')">⭐ Выбранные <span class="tab-count" id="cnt-star">—</span></div>
         <div class="tab" data-tab="approved" onclick="setTab('approved')">✓ Одобренные</div>
         <div class="tab" data-tab="published" onclick="setTab('published')">⬡ Опубликовано <span class="tab-count" id="cnt-pub">—</span></div>
       </div>
@@ -754,10 +758,12 @@ function updateCounts(){
     const p=n.priority||"reserve";
     if(p==="hot")hot++;else if(p==="good")good++;else rsv++;
   });
+  const star=news.filter(n=>n.starred).length;
   document.getElementById("cnt-all").textContent=all;
   document.getElementById("cnt-hot").textContent=hot;
   document.getElementById("cnt-good").textContent=good;
   document.getElementById("cnt-reserve").textContent=rsv;
+  document.getElementById("cnt-star").textContent=star||"—";
   document.getElementById("cnt-pub").textContent=pub;
   document.getElementById("navBadgeCount").textContent=all;
 }
@@ -768,6 +774,7 @@ function renderFeed(){
   if(curTab==="hot")         filtered=news.filter(n=>!n.published_at&&n.priority==="hot");
   else if(curTab==="good")   filtered=news.filter(n=>!n.published_at&&n.priority==="good");
   else if(curTab==="reserve")filtered=news.filter(n=>!n.published_at&&n.priority==="reserve");
+  else if(curTab==="starred")filtered=news.filter(n=>n.starred);
   else if(curTab==="approved")filtered=news.filter(n=>n.approved&&!n.published_at);
   else if(curTab==="published"){
     filtered=news.filter(n=>!!n.published_at);
@@ -796,14 +803,15 @@ function cardHtml(n,isPubTab=false){
       <span>↗️ <span class="cs-val">${fmtNum(n.stats_shares)}</span></span>
     </div>`:"";
 
+  const starBtn=`<button class="btn-sm${n.starred?" btn-starred":""}" title="${n.starred?"Убрать из выбранных":"Добавить в выбранные"}" onclick="event.stopPropagation();starNews(${n.id})">${n.starred?"⭐":"☆"}</button>`;
   const btns=isPubTab
-    ?`<button class="btn-sm tts-done" onclick="selectCard(${n.id})">📊 Статистика</button>`
+    ?`<button class="btn-sm tts-done" onclick="selectCard(${n.id})">📊 Статистика</button>${starBtn}`
     :(!hasTTS
-      ?`<button class="btn-sm gen" onclick="generateCard(${n.id})">✨ Генерировать</button>`
+      ?`${starBtn}<button class="btn-sm gen" onclick="generateCard(${n.id})">✨ Генерировать</button>`
       :n.approved
-        ?`<button class="btn-sm mark-pub" onclick="event.stopPropagation();markPublished(${n.id})">📤 Опубликовано</button>
+        ?`${starBtn}<button class="btn-sm mark-pub" onclick="event.stopPropagation();markPublished(${n.id})">📤 Опубликовано</button>
           <button class="btn-sm tts-done" onclick="selectCard(${n.id})">Открыть →</button>`
-        :`<button class="btn-sm tts-done" onclick="selectCard(${n.id})">Открыть скрипт →</button>`
+        :`${starBtn}<button class="btn-sm tts-done" onclick="selectCard(${n.id})">Открыть скрипт →</button>`
     )+`<button class="btn-sm del" title="Удалить" onclick="event.stopPropagation();delCard(${n.id})">✕</button>`;
 
   const isSel=selectedIds.has(n.id);
@@ -1118,6 +1126,17 @@ async function markPublished(id){
     const n=news.find(x=>x.id===id);if(n)n.published_at=new Date().toISOString();
     renderFeed();updateCounts();if(selectedId===id&&n)renderDetail(n);
     toast("Отмечено как опубликовано 📤");
+  }catch(e){toast("Ошибка: "+e.message,true);}
+}
+
+async function starNews(id){
+  try{
+    const res=await api("POST",`/api/news/${id}/star`);
+    const n=news.find(x=>x.id===id);
+    if(n)n.starred=res.starred?1:0;
+    renderFeed();updateCounts();
+    if(selectedId===id&&n)renderDetail(n);
+    toast(res.starred?"⭐ Добавлено в выбранные":"Убрано из выбранных");
   }catch(e){toast("Ошибка: "+e.message,true);}
 }
 

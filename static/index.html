@@ -421,6 +421,8 @@ body::before {
 /* ── Publish-to-Instagram button ── */
 .ba-ig { background:rgba(225,48,108,.1); border-color:rgba(225,48,108,.3); color:#e1306c; }
 .ba-ig:hover:not(:disabled) { background:rgba(225,48,108,.2); }
+.ba-tg { background:rgba(0,136,204,.1); border-color:rgba(0,136,204,.3); color:#0088cc; }
+.ba-tg:hover:not(:disabled) { background:rgba(0,136,204,.2); }
 
 /* ── Instagram Publish Modal ── */
 .ig-overlay {
@@ -497,46 +499,9 @@ body::before {
 .ig-publish-btn:hover:not(:disabled) { opacity:.85; }
 .ig-publish-btn:disabled { opacity:.4; cursor:not-allowed; }
 
-/* ── Star / Preselect buttons ── */
+/* ── Star button ── */
 .btn-starred { color:var(--gold)!important; border-color:rgba(245,166,35,.3)!important; }
-.btn-pre { color:var(--gold)!important; border-color:rgba(245,166,35,.3)!important; background:rgba(245,166,35,.08)!important; }
-
-/* ── Select mode ── */
-.select-btn {
-  padding:5px 10px; border-radius:6px; border:1px solid var(--border2);
-  background:transparent; color:var(--text2); font-size:11px; font-family:inherit;
-  cursor:pointer; transition:all .15s; white-space:nowrap;
-}
-.select-btn:hover { background:var(--bg3); color:var(--text); }
-.select-btn.active { background:rgba(245,166,35,.12); border-color:rgba(245,166,35,.3); color:var(--gold); }
-.news-card.card-sel { border-color:rgba(245,166,35,.4)!important; background:rgba(245,166,35,.04)!important; }
-.card-cb-wrap {
-  position:absolute; top:10px; right:10px; z-index:2;
-  width:18px; height:18px; cursor:pointer;
-}
-.card-cb-wrap input[type=checkbox] {
-  width:16px; height:16px; cursor:pointer; accent-color:var(--gold);
-}
 .news-card { position:relative; }
-.select-bar {
-  display:none; align-items:center; gap:.5rem; flex-shrink:0;
-  padding:8px 12px; background:rgba(245,166,35,.08);
-  border-top:1px solid rgba(245,166,35,.2); border-bottom:1px solid rgba(245,166,35,.2);
-}
-.select-bar-count { font-size:.75rem; color:var(--gold); font-weight:600; white-space:nowrap; }
-.select-bar-btn {
-  padding:5px 11px; border-radius:6px; font-size:.75rem; font-weight:500;
-  cursor:pointer; border:1px solid transparent; font-family:inherit; white-space:nowrap;
-}
-.sb-gen { background:rgba(255,85,51,.1); border-color:rgba(255,85,51,.3); color:var(--accent); }
-.sb-gen:hover:not(:disabled) { background:rgba(255,85,51,.2); }
-.sb-pre { background:rgba(245,166,35,.1); border-color:rgba(245,166,35,.3); color:var(--gold); }
-.sb-pre:hover:not(:disabled) { background:rgba(245,166,35,.2); }
-.sb-del { background:rgba(255,68,34,.08); border-color:rgba(255,68,34,.2); color:var(--hot); }
-.sb-del:hover:not(:disabled) { background:rgba(255,68,34,.15); }
-.sb-clear { background:transparent; border-color:var(--border2); color:var(--text3); }
-.sb-clear:hover { color:var(--text2); }
-.select-bar-btn:disabled { opacity:.4; cursor:not-allowed; }
 </style>
 </head>
 <body>
@@ -603,7 +568,6 @@ body::before {
       <div class="feed-header">
         <div class="feed-title">Лента новостей</div>
         <div class="feed-time" id="updatedAt"></div>
-        <button class="select-btn" id="selectModeBtn" onclick="toggleSelectMode()">☐ Выбор</button>
         <button class="collect-btn" id="collectBtn" onclick="collectNow()">⬇ Собрать</button>
       </div>
 
@@ -630,21 +594,13 @@ body::before {
         <div class="tab" data-tab="hot" onclick="setTab('hot')">🔥 Горящие <span class="tab-count" id="cnt-hot">—</span></div>
         <div class="tab" data-tab="good" onclick="setTab('good')">⚡ Хорошие <span class="tab-count" id="cnt-good">—</span></div>
         <div class="tab" data-tab="reserve" onclick="setTab('reserve')">◫ Резерв <span class="tab-count" id="cnt-reserve">—</span></div>
-        <div class="tab" data-tab="preselected" onclick="setTab('preselected')">☆ Предотбор <span class="tab-count" id="cnt-pre">—</span></div>
         <div class="tab" data-tab="starred" onclick="setTab('starred')">⭐ Выбранные <span class="tab-count" id="cnt-star">—</span></div>
         <div class="tab" data-tab="approved" onclick="setTab('approved')">✓ Одобренные</div>
         <div class="tab" data-tab="published" onclick="setTab('published')">⬡ Опубликовано <span class="tab-count" id="cnt-pub">—</span></div>
       </div>
 
-      <div class="select-bar" id="selectBar">
-        <span class="select-bar-count">Выбрано: <span id="selectCount">0</span></span>
-        <button class="select-bar-btn sb-gen" id="sbGenBtn" onclick="batchGenerate()" disabled>✨ Генерировать</button>
-        <button class="select-bar-btn sb-pre" id="sbPreBtn" onclick="batchPreselect()" disabled>☆ В предотбор</button>
-        <button class="select-bar-btn sb-del" id="sbDelBtn" onclick="batchDelete()" disabled>✕ Удалить</button>
-        <button class="select-bar-btn sb-clear" onclick="clearSelection()" style="margin-left:auto">Сбросить</button>
-      </div>
 
-      <div class="news-list" id="feedList"><div class="empty-state">Загрузка…</div></div>
+<div class="news-list" id="feedList"><div class="empty-state">Загрузка…</div></div>
     </div>
 
     <!-- FEED (analytics) -->
@@ -680,7 +636,6 @@ body::before {
 <script>
 "use strict";
 let news=[], curTab="all", curSort="score", curPeriod="all", selectedId=null;
-let selectMode=false, selectedIds=new Set();
 const MONTHS=["янв","фев","мар","апр","май","июн","июл","авг","сен","окт","ноя","дек"];
 
 /* HTTP */
@@ -705,9 +660,11 @@ function toast(msg,err=false){
 function esc(s){return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");}
 function fmtDate(str){
   if(!str)return"";
-  try{const d=new Date(str);if(isNaN(d))return str.slice(0,16).replace("T"," ");
-  return`${d.getDate()} ${MONTHS[d.getMonth()]}, ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;}
-  catch(_){return str.slice(0,10);}
+  try{
+    const s=/Z$|[+-]\d{2}:\d{2}$/.test(str)?str:str+"Z";
+    const d=new Date(s);if(isNaN(d))return str.slice(0,16).replace("T"," ");
+    return`${d.getDate()} ${MONTHS[d.getMonth()]}, ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
+  }catch(_){return str.slice(0,10);}
 }
 function priLabel(p){return p==="hot"?"🔥 Горящая":p==="good"?"⚡ Хорошая":"◫ Резерв";}
 function priBadge(p){return p==="hot"?"badge-hot":p==="good"?"badge-good":"badge-res";}
@@ -761,12 +718,10 @@ function updateCounts(){
     if(p==="hot")hot++;else if(p==="good")good++;else rsv++;
   });
   const star=news.filter(n=>n.starred).length;
-  const pre=news.filter(n=>n.preselected&&!n.published_at).length;
   document.getElementById("cnt-all").textContent=all;
   document.getElementById("cnt-hot").textContent=hot;
   document.getElementById("cnt-good").textContent=good;
   document.getElementById("cnt-reserve").textContent=rsv;
-  document.getElementById("cnt-pre").textContent=pre||"—";
   document.getElementById("cnt-star").textContent=star||"—";
   document.getElementById("cnt-pub").textContent=pub;
   document.getElementById("navBadgeCount").textContent=all;
@@ -775,12 +730,11 @@ function updateCounts(){
 /* Render feed */
 function renderFeed(){
   let filtered=news;
-  if(curTab==="hot")            filtered=news.filter(n=>!n.published_at&&n.priority==="hot");
-  else if(curTab==="good")      filtered=news.filter(n=>!n.published_at&&n.priority==="good");
-  else if(curTab==="reserve")   filtered=news.filter(n=>!n.published_at&&n.priority==="reserve");
-  else if(curTab==="preselected")filtered=news.filter(n=>n.preselected&&!n.published_at);
-  else if(curTab==="starred")   filtered=news.filter(n=>n.starred);
-  else if(curTab==="approved")  filtered=news.filter(n=>n.approved&&!n.published_at);
+  if(curTab==="hot")         filtered=news.filter(n=>!n.published_at&&n.priority==="hot");
+  else if(curTab==="good")   filtered=news.filter(n=>!n.published_at&&n.priority==="good");
+  else if(curTab==="reserve")filtered=news.filter(n=>!n.published_at&&n.priority==="reserve");
+  else if(curTab==="starred")filtered=news.filter(n=>n.starred);
+  else if(curTab==="approved")filtered=news.filter(n=>n.approved&&!n.published_at);
   else if(curTab==="published"){
     filtered=news.filter(n=>!!n.published_at);
     filtered.sort((a,b)=>new Date(b.published_at)-new Date(a.published_at));
@@ -790,17 +744,7 @@ function renderFeed(){
   const list=document.getElementById("feedList");
   if(!filtered.length){list.innerHTML=`<div class="empty-state">Нет новостей в этой категории</div>`;return;}
 
-  let prefix="";
-  if(curTab==="preselected"&&filtered.length){
-    const noTTS=filtered.filter(n=>!n.tts_script).length;
-    prefix=`<div style="padding:4px 4px 0">
-      <div style="background:rgba(245,166,35,.08);border:1px solid rgba(245,166,35,.2);border-radius:8px;padding:7px 12px;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
-        <span style="color:var(--gold);font-size:.76rem;flex:1">${filtered.length} в предотборе${noTTS?` · ${noTTS} без TTS`:" · все готовы к одобрению"}</span>
-        <button class="select-bar-btn sb-gen" style="font-size:.72rem" onclick="generateAllPreselected()">✨ Генерировать все</button>
-        <button class="select-bar-btn sb-clear" style="font-size:.72rem" onclick="clearAllPreselected()">✕ Очистить</button>
-      </div></div>`;
-  }
-  list.innerHTML=prefix+filtered.map(n=>cardHtml(n,curTab==="published")).join("");
+  list.innerHTML=filtered.map(n=>cardHtml(n,curTab==="published")).join("");
 }
 
 function cardHtml(n,isPubTab=false){
@@ -820,24 +764,19 @@ function cardHtml(n,isPubTab=false){
     </div>`:"";
 
   const starBtn=`<button class="btn-sm${n.starred?" btn-starred":""}" title="${n.starred?"Убрать из выбранных":"Добавить в выбранные"}" onclick="event.stopPropagation();starNews(${n.id})">${n.starred?"⭐":"☆"}</button>`;
-  const preBtn=curTab==="preselected"
-    ?`<button class="btn-sm btn-pre" title="Убрать из предотбора" onclick="event.stopPropagation();togglePreselect(${n.id})">☆ Убрать</button>`
-    :"";
   const btns=isPubTab
     ?`<button class="btn-sm tts-done" onclick="selectCard(${n.id})">📊 Статистика</button>${starBtn}`
     :(!hasTTS
-      ?`${starBtn}${preBtn}<button class="btn-sm gen" onclick="generateCard(${n.id})">✨ Генерировать</button>`
+      ?`${starBtn}<button class="btn-sm gen" onclick="generateCard(${n.id})">✨ Генерировать</button>`
       :n.approved
-        ?`${starBtn}${preBtn}<button class="btn-sm mark-pub" onclick="event.stopPropagation();markPublished(${n.id})">📤 Опубликовано</button>
+        ?`${starBtn}<button class="btn-sm mark-pub" onclick="event.stopPropagation();markPublished(${n.id})">📤 Опубликовано</button>
           <button class="btn-sm tts-done" onclick="selectCard(${n.id})">Открыть →</button>`
-        :`${starBtn}${preBtn}<button class="btn-sm tts-done" onclick="selectCard(${n.id})">Открыть скрипт →</button>`
+        :`${starBtn}<button class="btn-sm tts-done" onclick="selectCard(${n.id})">Открыть скрипт →</button>`
     )+`<button class="btn-sm del" title="Удалить" onclick="event.stopPropagation();delCard(${n.id})">✕</button>`;
 
-  const isSel=selectedIds.has(n.id);
   return`
-    <div class="news-card${selectedId===n.id?" selected":""}${n.approved&&!isPublished?" approved":""}${isPublished?" is-published":""}${selectMode&&isSel?" card-sel":""}"
+    <div class="news-card${selectedId===n.id?" selected":""}${n.approved&&!isPublished?" approved":""}${isPublished?" is-published":""}"
          id="card-${n.id}" onclick="selectCard(${n.id})">
-    ${selectMode?`<div class="card-cb-wrap" onclick="event.stopPropagation();toggleSelectItem(${n.id})"><input type="checkbox" id="cb-${n.id}" ${isSel?"checked":""}></div>`:""}
       <div class="card-top">
         ${isPublished
           ?`<span class="priority-badge badge-pub">⬡ Опубликовано</span>`
@@ -860,109 +799,8 @@ function cardHtml(n,isPubTab=false){
     </div>`;
 }
 
-/* Select mode */
-function toggleSelectMode(){
-  selectMode=!selectMode;
-  if(!selectMode){selectedIds.clear();}
-  document.getElementById("selectModeBtn").classList.toggle("active",selectMode);
-  document.getElementById("selectBar").style.display=selectMode?"flex":"none";
-  renderFeed();
-  _updateSelectBar();
-}
-function toggleSelectItem(id){
-  if(selectedIds.has(id))selectedIds.delete(id);else selectedIds.add(id);
-  const card=document.getElementById("card-"+id);
-  if(card)card.classList.toggle("card-sel",selectedIds.has(id));
-  const cb=document.getElementById("cb-"+id);
-  if(cb)cb.checked=selectedIds.has(id);
-  _updateSelectBar();
-}
-function _updateSelectBar(){
-  const n=selectedIds.size;
-  document.getElementById("selectCount").textContent=n;
-  ["sbGenBtn","sbPreBtn","sbDelBtn"].forEach(id=>{
-    const b=document.getElementById(id);if(b)b.disabled=n===0;
-  });
-}
-function clearSelection(){selectedIds.clear();renderFeed();_updateSelectBar();}
-
-async function batchGenerate(){
-  const ids=[...selectedIds];if(!ids.length)return;
-  const btn=document.getElementById("sbGenBtn");
-  btn.disabled=true;
-  let done=0;
-  for(const id of ids){
-    btn.innerHTML=`<span class="spin" style="border-top-color:var(--accent)"></span> ${done}/${ids.length}`;
-    try{
-      const res=await api("POST",`/api/news/${id}/generate`);
-      if(res){const n=news.find(x=>x.id===id);if(n){n.tts_script=res.tts_script;n.description=res.description;n.preview_titles=res.preview_titles||[];}done++;}
-    }catch(_){}
-  }
-  renderFeed();
-  toast(`Сгенерировано ${done}/${ids.length} ✓`);
-  btn.disabled=false;btn.textContent="✨ Генерировать";
-}
-
-async function batchPreselect(){
-  const ids=[...selectedIds];if(!ids.length)return;
-  const btn=document.getElementById("sbPreBtn");btn.disabled=true;
-  let done=0;
-  for(const id of ids){
-    try{
-      const res=await api("POST",`/api/news/${id}/preselect`);
-      const n=news.find(x=>x.id===id);
-      if(n){n.preselected=res.preselected?1:0;done++;}
-    }catch(_){}
-  }
-  clearSelection();
-  renderFeed();updateCounts();
-  toast(`${done} новостей добавлены в Предотбор ✓`);
-  btn.disabled=false;
-  setTab("preselected");
-}
-
-async function batchDelete(){
-  if(!confirm(`Удалить ${selectedIds.size} новостей? Нельзя отменить.`))return;
-  const ids=[...selectedIds];
-  const btn=document.getElementById("sbDelBtn");btn.disabled=true;
-  let done=0;
-  for(const id of ids){
-    try{await api("DELETE",`/api/news/${id}`);news=news.filter(x=>x.id!==id);selectedIds.delete(id);done++;}catch(_){}
-  }
-  if(selectedId&&!news.find(x=>x.id===selectedId))clearDetail();
-  renderFeed();updateCounts();_updateSelectBar();
-  toast(`Удалено ${done} ✓`);
-  btn.disabled=false;
-}
-
-async function generateAllPreselected(){
-  const ids=news.filter(n=>n.preselected&&!n.published_at&&!n.tts_script).map(n=>n.id);
-  if(!ids.length){toast("У всех уже есть TTS ✓");return;}
-  toast(`Генерирую ${ids.length} скриптов…`);
-  let done=0;
-  for(const id of ids){
-    try{
-      const res=await api("POST",`/api/news/${id}/generate`);
-      if(res){const n=news.find(x=>x.id===id);if(n){n.tts_script=res.tts_script;n.description=res.description;n.preview_titles=res.preview_titles||[];}done++;}
-    }catch(_){}
-    renderFeed();
-  }
-  toast(`Сгенерировано ${done}/${ids.length} ✓`);
-}
-
-async function clearAllPreselected(){
-  if(!confirm("Убрать все новости из предотбора?"))return;
-  const ids=news.filter(n=>n.preselected&&!n.published_at).map(n=>n.id);
-  for(const id of ids){
-    try{await api("POST",`/api/news/${id}/preselect`);const n=news.find(x=>x.id===id);if(n)n.preselected=0;}catch(_){}
-  }
-  renderFeed();updateCounts();
-  toast("Предотбор очищен");
-}
-
 /* Select / Detail */
 function selectCard(id){
-  if(selectMode){toggleSelectItem(id);return;}
   selectedId=id;
   document.querySelectorAll(".news-card").forEach(el=>el.classList.toggle("selected",el.id==="card-"+id));
   const n=news.find(x=>x.id===id);if(n)renderDetail(n);
@@ -1087,6 +925,7 @@ function renderDetail(n){
         <button class="btn-act ba-gpt" onclick="gptReview(${n.id})" title="GPT проверит TTS и улучшит по правилам">✦ GPT</button>
         ${n.approved?`
           <button class="btn-act ba-ig" onclick="openPublishModal(${n.id})">📹 Рилс</button>
+          <button class="btn-act ba-tg" onclick="publishToTG(${n.id})">📢 Telegram</button>
           <button class="btn-act ba-publish" onclick="markPublished(${n.id})">⬡ Опубликовано</button>
         `:""}
         <select class="el-sel" id="el-${n.id}">
@@ -1175,16 +1014,6 @@ async function markPublished(id){
     const n=news.find(x=>x.id===id);if(n)n.published_at=new Date().toISOString();
     renderFeed();updateCounts();if(selectedId===id&&n)renderDetail(n);
     toast("Отмечено как опубликовано 📤");
-  }catch(e){toast("Ошибка: "+e.message,true);}
-}
-
-async function togglePreselect(id){
-  try{
-    const res=await api("POST",`/api/news/${id}/preselect`);
-    const n=news.find(x=>x.id===id);
-    if(n)n.preselected=res.preselected?1:0;
-    renderFeed();updateCounts();
-    toast(res.preselected?"☆ Добавлено в предотбор":"Убрано из предотбора");
   }catch(e){toast("Ошибка: "+e.message,true);}
 }
 
@@ -1299,9 +1128,12 @@ async function loadAnalytics(){
   body.innerHTML=`<div class="empty-state"><span class="spin" style="border-top-color:var(--accent);width:18px;height:18px;border-width:3px"></span></div>`;
   document.getElementById("anUpdated").textContent="";
   try{
-    const d=await api("GET","/api/analytics");
+    const [d,tg]=await Promise.all([
+      api("GET","/api/analytics"),
+      api("GET","/api/tg/status").catch(()=>null),
+    ]);
     if(!d){body.innerHTML=`<div class="empty-state">Нет данных</div>`;return;}
-    renderAnalytics(d);
+    renderAnalytics(d,tg);
     document.getElementById("anUpdated").textContent=
       "Обновлено "+new Date().toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"});
   }catch(e){body.innerHTML=`<div class="empty-state">Ошибка: ${e.message}</div>`;}
@@ -1314,7 +1146,7 @@ function platBadge(p){
   return`<span class="plat-badge plat-${p||"instagram"}">${map[p]||p||"Instagram"}</span>`;
 }
 
-function renderAnalytics(d){
+function renderAnalytics(d,tg){
   const{posts,aggregate:agg}=d;
   const body=document.getElementById("analyticsBody");
   let html="";
@@ -1427,6 +1259,26 @@ function renderAnalytics(d){
     html+=`<div class="empty-state">Нет опубликованных постов.<br>Одобри и отметь пост как «Опубликовано» во вкладке Новости.</div>`;
   }
 
+  if(tg){
+    const ok=(v,lbl)=>`<span style="font-size:.72rem;color:${v?"var(--green)":"var(--hot)"}">${v?"✓":"✗"} ${lbl}</span>`;
+    const allSet=tg.has_bot_token&&tg.has_channel;
+    html+=`<div>
+      <div class="an-section-title">📢 Telegram-бот</div>
+      <div style="display:flex;flex-wrap:wrap;gap:.35rem .75rem;margin-bottom:.45rem">
+        ${ok(tg.has_bot_token,"TG_BOT_TOKEN")}
+        ${ok(tg.has_channel,"TG_MY_CHANNEL")}
+        ${ok(tg.has_notify_chat,"TG_NOTIFY_CHAT")}
+        ${ok(tg.has_session,"TG_SESSION_B64")}
+      </div>
+      ${tg.has_channel?`<div style="font-size:.73rem;color:var(--text2);margin-bottom:.35rem">Канал: <b style="color:var(--text)">${esc(tg.channel)}</b></div>`:""}
+      ${tg.tg_queue_exists
+        ?`<div style="font-size:.73rem;color:var(--text2);margin-bottom:.35rem">Очередь: <b style="color:var(--text)">${tg.queue_pending}</b> ожидают · <b style="color:var(--text)">${tg.queue_published}</b> опубликовано${tg.last_published?` · Посл.: ${fmtDate(tg.last_published)}`:""}</div>`
+        :`<div style="font-size:.71rem;color:var(--text3);margin-bottom:.35rem">tg_queue пуста — источники ещё не запускались</div>`}
+      ${allSet?`<button class="btn-sm" onclick="tgPublishNow(this)" style="font-size:.71rem">▶ Опубликовать из очереди</button>`
+        :`<div style="font-size:.71rem;color:var(--text3);line-height:1.7">Настройка: создай бота @BotFather → добавь в @uzbekknows как админа → Railway Variables: <code>TG_BOT_TOKEN</code> + <code>TG_MY_CHANNEL=@uzbekknows</code></div>`}
+    </div>`;
+  }
+
   body.innerHTML=html;
 }
 
@@ -1494,16 +1346,48 @@ async function savePDFStats(parsed){
     });
     document.getElementById("pdfResult").innerHTML=`<div style="color:var(--green);font-size:.76rem;padding:.3rem 0">✓ Статистика сохранена</div>`;
     toast("Статистика сохранена ✓");
-    setTimeout(loadAnalytics,800);
+    setTimeout(()=>{loadAnalytics();load();},800);
   }catch(e){toast("Ошибка: "+e.message,true);}
 }
 
 function openStatsForPost(id){
-  switchView("news");setTab("published");
+  switchView("analytics");
   setTimeout(()=>{
+    const area=document.querySelector(".pdf-upload-area");
+    if(area)area.scrollIntoView({behavior:"smooth",block:"center"});
+  },400);
+}
+
+async function publishToTG(id){
+  const btn=document.querySelector(".d-footer .ba-tg");
+  if(btn){btn.disabled=true;btn.innerHTML=`<span class="spin"></span>`;}
+  try{
+    const res=await api("POST",`/api/news/${id}/publish-tg`);
+    if(res.permalink){
+      toast(`✓ Telegram · <a href="${esc(res.permalink)}" target="_blank" style="color:#0088cc">Открыть пост ↗</a>`);
+    }else{
+      toast("Опубликовано в Telegram ✓");
+    }
+    await load();renderFeed();updateCounts();
     const n=news.find(x=>x.id===id);
-    if(n){selectedId=id;renderFeed();renderDetail(n);}
-  },200);
+    if(n&&selectedId===id)renderDetail(n);
+  }catch(e){
+    toast("Ошибка Telegram: "+e.message,true);
+    if(btn){btn.disabled=false;btn.innerHTML="📢 Telegram";}
+  }
+}
+
+async function tgPublishNow(btn){
+  if(btn){btn.disabled=true;btn.textContent="…";}
+  try{
+    const res=await api("POST","/api/tg/publish-now");
+    toast(res.published?"✓ Пост из очереди опубликован":"Очередь пуста или условия не выполнены");
+    setTimeout(loadAnalytics,600);
+  }catch(e){
+    toast("Ошибка: "+e.message,true);
+  }finally{
+    if(btn){btn.disabled=false;btn.textContent="▶ Опубликовать из очереди";}
+  }
 }
 
 /* Project switcher */

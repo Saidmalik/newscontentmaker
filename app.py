@@ -27,7 +27,7 @@ import asyncio
 import yaml
 import requests as req_lib
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from contextlib import asynccontextmanager
 
 import httpx
@@ -452,7 +452,7 @@ async def api_publish(news_id: int, request: Request):
     conn = sqlite3.connect(DB_PATH)
     conn.execute(
         "UPDATE news SET published_at=? WHERE id=?",
-        (datetime.now().isoformat(), news_id),
+        (datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), news_id),
     )
     conn.commit()
     conn.close()
@@ -1085,7 +1085,7 @@ async def _do_generate(news_id: int) -> dict:
         "UPDATE news SET tts_script=?, description=?, preview_titles=?, "
         "generated_at=?, reviewed_script=NULL, gpt_comment=NULL WHERE id=?",
         (script, description, json.dumps(previews, ensure_ascii=False),
-         datetime.now().isoformat(), news_id),
+         datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), news_id),
     )
     conn.commit()
     conn.close()
@@ -1229,7 +1229,7 @@ async def meta_auth_callback(request: Request):
     conn = sqlite3.connect(DB_PATH)
     _meta_db_init(conn)
     _meta_set(conn, "access_token", long_token)
-    _meta_set(conn, "token_saved_at", datetime.now().isoformat())
+    _meta_set(conn, "token_saved_at", datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"))
     if ig_account_id:
         _meta_set(conn, "instagram_account_id", ig_account_id)
     if ig_username:
@@ -1620,7 +1620,7 @@ async def api_publish_reel(news_id: int, request: Request):
             db_conn=ig_conn,
         )
 
-        now_iso   = datetime.now().isoformat()
+        now_iso   = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         permalink = await ig_worker._get_permalink(media_id)
         ig_conn.execute(
             """UPDATE news SET instagram_media_id=?, instagram_permalink=?,
@@ -1774,3 +1774,151 @@ async def _scheduled_ig_refresh():
 
     except Exception as e:
         log(f"[IG Auto-refresh] Error: {e}")
+
+
+# ── TELEGRAM DIRECT PUBLISH ───────────────────────────────────────────────────
+#
+# Публикует одобренную новость из news-таблицы прямо в Telegram-канал.
+# ENV: TG_BOT_TOKEN, TG_MY_CHANNEL
+
+
+def _tg_format_news(item: dict) -> str:
+    """Форматировать пост для Telegram из новости MediaHub."""
+    tts   = (item.get("tts_script") or "").strip()
+    title = (item.get("title") or "").strip()
+    desc  = (item.get("description") or "").strip()
+    url   = (item.get("url") or "").strip()
+
+    TOPIC_EMOJI = [
+        (["штраф","мошенни","взятк","арест","задержа","уголовн"], "🚨"),
+        (["погиб","жертв","пожар","авари","трагед","землетряс"],   "⚠️"),
+        (["цен","подорожа","инфляц","курс","доллар","сум"],        "💸"),
+        (["налог","бюджет","эконом","инвестиц","миллиард"],        "💰"),
+        (["закон","указ","постановлен","суд","реформ"],            "⚖️"),
+        (["президент","правительств","министр","парламент"],       "🏛️"),
+        (["транспорт","дорог","метро","авиа","аэропорт"],          "🚌"),
+        (["здоров","больниц","медицин","врач"],                    "🏥"),
+        (["образован","школ","универс","учеб"],                    "📚"),
+        (["технолог","цифров","интернет","it "],                   "💻"),
+    ]
+    t = (title + " " + tts).lower()
+    emoji = next((e for kws, e in TOPIC_EMOJI if any(k in t for k in kws)), "📰")
+
+    parts = [f"{emoji} <b>{title}</b>", ""]
+    if tts:
+        parts.append(tts)
+    elif desc:
+        parts.append(desc[:600])
+    if url:
+        parts.append("")
+        parts.append(f'🔗 <a href="{url}">Источник</a>')
+    return "\n".join(parts)
+
+
+@app.post("/api/news/{news_id}/publish-tg")
+async def api_publish_tg(news_id: int, request: Request):
+    """Опубликовать новость в Telegram-канал напрямую через Bot API."""
+    require_auth(request)
+
+    bot_token = os.environ.get("TG_BOT_TOKEN", "")
+    channel   = os.environ.get("TG_MY_CHANNEL", "")
+    if not bot_token or not channel:
+        raise HTTPException(
+            status_code=500,
+            detail="TG_BOT_TOKEN / TG_MY_CHANNEL не заданы в Railway Variables",
+        )
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    row = conn.execute("SELECT * FROM news WHERE id=?", (news_id,)).fetchone()
+    conn.close()
+    if not row:
+        raise HTTPException(status_code=404, detail="Новость не найдена")
+
+    text = _tg_format_news(dict(row))
+
+    r = req_lib.post(
+        f"https://api.telegram.org/bot{bot_token}/sendMessage",
+        json={
+            "chat_id": channel,
+            "text": text[:4096],
+            "parse_mode": "HTML",
+            "disable_web_page_preview": True,
+        },
+        timeout=15,
+    )
+    result = r.json()
+    if not result.get("ok"):
+        raise HTTPException(
+            status_code=502,
+            detail=f"Telegram API: {result.get('description', str(result))}",
+        )
+
+    msg_id    = result.get("result", {}).get("message_id")
+    ch_clean  = channel.lstrip("@")
+    permalink = f"https://t.me/{ch_clean}/{msg_id}" if msg_id else ""
+
+    now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute(
+        "UPDATE news SET published_at=COALESCE(published_at,?) WHERE id=?",
+        (now_iso, news_id),
+    )
+    conn.commit()
+    conn.close()
+
+    log(f"TG published news #{news_id} → {permalink}")
+    return {"published": True, "msg_id": msg_id, "permalink": permalink, "channel": channel}
+
+
+@app.get("/api/tg/status")
+async def api_tg_status(request: Request):
+    """Статус Telegram-бота: переменные окружения + очередь."""
+    require_auth(request)
+
+    queue_pending = 0
+    queue_published = 0
+    last_pub = None
+    tg_queue_exists = False
+
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.execute("SELECT 1 FROM tg_queue LIMIT 1")
+        tg_queue_exists = True
+        r1 = conn.execute("SELECT COUNT(*) FROM tg_queue WHERE published=0").fetchone()
+        r2 = conn.execute("SELECT COUNT(*) FROM tg_queue WHERE published=1").fetchone()
+        r3 = conn.execute(
+            "SELECT published_at FROM tg_queue WHERE published=1 ORDER BY published_at DESC LIMIT 1"
+        ).fetchone()
+        queue_pending   = r1[0] if r1 else 0
+        queue_published = r2[0] if r2 else 0
+        last_pub        = r3[0] if r3 else None
+        conn.close()
+    except Exception:
+        pass
+
+    return {
+        "has_bot_token":   bool(os.environ.get("TG_BOT_TOKEN")),
+        "has_channel":     bool(os.environ.get("TG_MY_CHANNEL")),
+        "channel":         os.environ.get("TG_MY_CHANNEL", ""),
+        "has_notify_chat": bool(os.environ.get("TG_NOTIFY_CHAT")),
+        "has_api_id":      bool(os.environ.get("TG_API_ID")),
+        "has_api_hash":    bool(os.environ.get("TG_API_HASH")),
+        "has_session":     bool(os.environ.get("TG_SESSION_B64")),
+        "tg_queue_exists": tg_queue_exists,
+        "queue_pending":   queue_pending,
+        "queue_published": queue_published,
+        "last_published":  last_pub,
+    }
+
+
+@app.post("/api/tg/publish-now")
+async def api_tg_publish_now(request: Request):
+    """Принудительно запустить публикацию из tg_queue (тест)."""
+    require_auth(request)
+    try:
+        from src.tg_publisher import maybe_publish
+        result = await asyncio.to_thread(maybe_publish)
+        return {"published": result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

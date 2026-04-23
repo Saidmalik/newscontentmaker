@@ -95,6 +95,25 @@ def run_migrations(conn: sqlite3.Connection):
             conn.execute(sql)
         except sqlite3.OperationalError:
             pass
+
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS post_snapshots (
+            id             INTEGER PRIMARY KEY AUTOINCREMENT,
+            post_id        INTEGER NOT NULL,
+            snapshot_at    TEXT NOT NULL,
+            views          INTEGER DEFAULT 0,
+            reach          INTEGER DEFAULT 0,
+            likes          INTEGER DEFAULT 0,
+            comments       INTEGER DEFAULT 0,
+            saves          INTEGER DEFAULT 0,
+            shares         INTEGER DEFAULT 0,
+            avg_watch_time REAL,
+            recorded_at    TEXT DEFAULT (datetime('now')),
+            UNIQUE(post_id, snapshot_at)
+        )
+    """)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_ps_post ON post_snapshots(post_id)")
+
     conn.execute("PRAGMA journal_mode=WAL")
     conn.commit()
 
@@ -594,37 +613,51 @@ async def api_analytics(request: Request):
         """SELECT id, title, score, published_at, stats_platform,
                   stats_views, stats_reach, stats_likes, stats_comments,
                   stats_shares, stats_saves, stats_watch_time,
-                  tts_script, preview_titles
+                  tts_script, preview_titles, instagram_media_id
            FROM news
            WHERE published_at IS NOT NULL
            ORDER BY published_at DESC"""
     ).fetchall()
+
+    # Load all snapshots in one query
+    snaps_rows = []
+    try:
+        snaps_rows = conn.execute(
+            "SELECT post_id, snapshot_at, views, reach, avg_watch_time FROM post_snapshots"
+        ).fetchall()
+    except Exception:
+        pass
     conn.close()
+
+    snaps: dict[int, dict] = {}
+    for s in snaps_rows:
+        pid, stype, sv, sr, sw = s
+        snaps.setdefault(pid, {})[stype] = {"views": sv, "reach": sr, "watch": sw}
 
     posts = []
     for r in rows:
         d = dict(r)
-        v = d.get("stats_views") or 0
-        l = d.get("stats_likes") or 0
-        c = d.get("stats_comments") or 0
-        s = d.get("stats_shares") or 0
+        v  = d.get("stats_views") or 0
+        li = d.get("stats_likes") or 0
+        c  = d.get("stats_comments") or 0
+        sh = d.get("stats_shares") or 0
         sv = d.get("stats_saves") or 0
-        er = round((l + c + s + sv) / v * 100, 2) if v > 0 else 0
+        er = round((li + c + sh + sv) / v * 100, 2) if v > 0 else 0
         d["engagement_rate"] = er
-        d["has_stats"] = v > 0
+        d["has_stats"]       = v > 0
+        d["snapshots"]       = snaps.get(d["id"], {})
         posts.append(d)
 
-    # Aggregate
     with_stats = [p for p in posts if p["has_stats"]]
     agg = {}
     if with_stats:
-        agg["total_posts"]    = len(with_stats)
-        agg["total_views"]    = sum(p["stats_views"] or 0 for p in with_stats)
-        agg["avg_views"]      = round(agg["total_views"] / len(with_stats))
-        agg["avg_likes"]      = round(sum(p["stats_likes"] or 0 for p in with_stats) / len(with_stats))
-        agg["avg_er"]         = round(sum(p["engagement_rate"] for p in with_stats) / len(with_stats), 2)
-        agg["best_post"]      = max(with_stats, key=lambda p: p["stats_views"] or 0)
-        agg["best_er_post"]   = max(with_stats, key=lambda p: p["engagement_rate"])
+        agg["total_posts"]  = len(with_stats)
+        agg["total_views"]  = sum(p["stats_views"] or 0 for p in with_stats)
+        agg["avg_views"]    = round(agg["total_views"] / len(with_stats))
+        agg["avg_likes"]    = round(sum(p["stats_likes"] or 0 for p in with_stats) / len(with_stats))
+        agg["avg_er"]       = round(sum(p["engagement_rate"] for p in with_stats) / len(with_stats), 2)
+        agg["best_post"]    = max(with_stats, key=lambda p: p["stats_views"] or 0)
+        agg["best_er_post"] = max(with_stats, key=lambda p: p["engagement_rate"])
 
     return {"posts": posts, "aggregate": agg}
 
@@ -1707,11 +1740,13 @@ async def _scheduled_cleanup():
 async def _scheduled_ig_snapshots():
     """Hourly job: save 24/48/72h stats snapshots for posts published from MediaHub."""
     from src import instagram_worker as ig_worker
+    from src import snapshot_worker
     try:
-        saved = await ig_worker.run_snapshot_jobs(DB_PATH)
-        if saved > 0:
-            log(f"[IG Snapshots] {saved} snapshots saved")
-            _tg_notify(f"📊 IG снапшоты: {saved} сохранено (24/48/72ч)")
+        saved_ig = await ig_worker.run_snapshot_jobs(DB_PATH)
+        saved_sn = await snapshot_worker.run_snapshots(DB_PATH)
+        total = saved_ig + saved_sn
+        if total > 0:
+            log(f"[IG Snapshots] {total} snapshots saved (ig_posts:{saved_ig} news:{saved_sn})")
     except Exception as e:
         log(f"[IG Snapshots] Error: {e}")
 
@@ -1782,36 +1817,48 @@ async def _scheduled_ig_refresh():
 # ENV: TG_BOT_TOKEN, TG_MY_CHANNEL
 
 
+_TG_TOPIC_EMOJI = [
+    (["штраф","мошенни","взятк","арест","задержа","уголовн"],             "🚨"),
+    (["погиб","жертв","пожар","авари","трагед","землетряс"],              "⚠️"),
+    (["цен","подорожа","инфляц","курс","доллар","сум","деньг"],           "💸"),
+    (["налог","бюджет","эконом","инвестиц","миллиард"],                   "💰"),
+    (["закон","указ","постановлен","суд","реформ"],                       "⚖️"),
+    (["президент","правительств","министр","парламент"],                  "🏛️"),
+    (["транспорт","дорог","метро","авиа","аэропорт"],                     "🚌"),
+    (["здоров","больниц","медицин","врач","лекарств"],                    "🏥"),
+    (["образован","школ","универс","учеб","студент"],                     "📚"),
+    (["технолог","цифров","интернет","it ","ai ","приложен"],             "💻"),
+    (["туризм","отдых","визы","отель","путешеств"],                       "✈️"),
+    (["строительств","жильё","квартир","снос","застройщ"],                "🏗️"),
+    (["энергетик","коммунал","жкх","газ","свет","электр","отключен"],     "⚡️"),
+]
+
+
+def _tg_two_emoji(text: str) -> str:
+    t = (text or "").lower()
+    matched = [e for kws, e in _TG_TOPIC_EMOJI if any(k in t for k in kws)]
+    if len(matched) >= 2:
+        return matched[0] + matched[1]
+    if matched:
+        return "📢" + matched[0]
+    return "📰💬"
+
+
 def _tg_format_news(item: dict) -> str:
     """Форматировать пост для Telegram из новости MediaHub."""
     tts   = (item.get("tts_script") or "").strip()
     title = (item.get("title") or "").strip()
     desc  = (item.get("description") or "").strip()
-    url   = (item.get("url") or "").strip()
 
-    TOPIC_EMOJI = [
-        (["штраф","мошенни","взятк","арест","задержа","уголовн"], "🚨"),
-        (["погиб","жертв","пожар","авари","трагед","землетряс"],   "⚠️"),
-        (["цен","подорожа","инфляц","курс","доллар","сум"],        "💸"),
-        (["налог","бюджет","эконом","инвестиц","миллиард"],        "💰"),
-        (["закон","указ","постановлен","суд","реформ"],            "⚖️"),
-        (["президент","правительств","министр","парламент"],       "🏛️"),
-        (["транспорт","дорог","метро","авиа","аэропорт"],          "🚌"),
-        (["здоров","больниц","медицин","врач"],                    "🏥"),
-        (["образован","школ","универс","учеб"],                    "📚"),
-        (["технолог","цифров","интернет","it "],                   "💻"),
-    ]
-    t = (title + " " + tts).lower()
-    emoji = next((e for kws, e in TOPIC_EMOJI if any(k in t for k in kws)), "📰")
+    prefix  = _tg_two_emoji(title + " " + tts + " " + desc)
+    body    = tts or desc[:700]
+    channel = os.environ.get("TG_MY_CHANNEL", "@uzbekknows").lstrip("@")
+    tagline = os.environ.get("TG_CHANNEL_TAGLINE", "подпишись на свежие новости!")
 
-    parts = [f"{emoji} <b>{title}</b>", ""]
-    if tts:
-        parts.append(tts)
-    elif desc:
-        parts.append(desc[:600])
-    if url:
-        parts.append("")
-        parts.append(f'🔗 <a href="{url}">Источник</a>')
+    parts = [f"{prefix} <b>{title}</b>", ""]
+    if body:
+        parts.append(body)
+    parts += ["", "Распространите сообщение", "", f"👉 @{channel} — {tagline}"]
     return "\n".join(parts)
 
 

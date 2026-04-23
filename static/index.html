@@ -1198,7 +1198,8 @@ function renderAnalytics(d,tg){
       <div class="an-table-wrap"><table class="an-table">
         <thead><tr>
           <th>Пост</th><th>Платформа</th>
-          <th class="num">👁 Views</th><th class="num">📡 Reach</th>
+          <th class="num">👁 24ч</th><th class="num">👁 48ч</th><th class="num">👁 72ч</th>
+          <th class="num">📡 Reach</th>
           <th class="num">❤️ Likes</th><th class="num">↗️ Share</th>
           <th class="num">🔖 Save</th><th class="num">⏱ Watch</th>
           <th class="num">ER%</th><th class="num">Score</th>
@@ -1207,14 +1208,18 @@ function renderAnalytics(d,tg){
           ${sorted.map(p=>{
             const maxV=sorted[0].stats_views||1;
             const barW=Math.round(((p.stats_views||0)/maxV)*100);
+            const sn=p.snapshots||{};
+            const snap=t=>`<span style="color:${sn[t]?'var(--text)':'var(--text3)'};">${sn[t]?fmtBig(sn[t].views):"—"}</span>`;
             return`<tr>
-              <td style="max-width:180px">
+              <td style="max-width:160px">
                 <div style="font-size:.75rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
-                     title="${esc(p.title)}">${esc((p.title||"").slice(0,45))}${(p.title||"").length>45?"…":""}</div>
+                     title="${esc(p.title)}">${esc((p.title||"").slice(0,42))}${(p.title||"").length>42?"…":""}</div>
                 <div style="margin-top:3px"><div class="an-bar-wrap"><div class="an-bar" style="width:${barW}%"></div></div></div>
               </td>
               <td>${platBadge(p.stats_platform)}</td>
-              <td class="num">${fmtBig(p.stats_views)}</td>
+              <td class="num">${snap("24h")}</td>
+              <td class="num">${snap("48h")}</td>
+              <td class="num">${snap("72h")}</td>
               <td class="num">${fmtBig(p.stats_reach)}</td>
               <td class="num">${fmtBig(p.stats_likes)}</td>
               <td class="num">${fmtBig(p.stats_shares)}</td>

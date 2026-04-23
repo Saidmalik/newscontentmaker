@@ -395,6 +395,17 @@ body::before {
 }
 .btn-insights:hover { opacity:.85; }
 .btn-insights:disabled { opacity:.4; cursor:not-allowed; }
+.hook-strong { color:var(--green); font-size:.65rem; font-weight:700; letter-spacing:.03em; }
+.hook-medium { color:var(--gold);  font-size:.65rem; font-weight:700; letter-spacing:.03em; }
+.hook-weak   { color:var(--hot);   font-size:.65rem; font-weight:700; letter-spacing:.03em; }
+.ai-card {
+  background:var(--bg3); border:1px solid rgba(153,102,255,.2);
+  border-radius:var(--radius-lg); padding:.75rem .9rem;
+}
+.ai-card-title { font-size:.73rem; font-weight:700; margin-bottom:.5rem; display:flex; align-items:center; gap:.5rem; }
+.ai-grid { display:grid; grid-template-columns:1fr 1fr; gap:.5rem .75rem; font-size:.72rem; }
+.ai-label { color:var(--text3); font-size:.62rem; text-transform:uppercase; letter-spacing:.05em; margin-bottom:.15rem; }
+.ai-val { color:var(--text); line-height:1.5; }
 .pdf-upload-area {
   border:2px dashed var(--border2); border-radius:var(--radius-lg); padding:1.2rem;
   text-align:center; cursor:pointer; transition:border-color .15s;
@@ -1202,7 +1213,7 @@ function renderAnalytics(d,tg){
           <th class="num">📡 Reach</th>
           <th class="num">❤️ Likes</th><th class="num">↗️ Share</th>
           <th class="num">🔖 Save</th><th class="num">⏱ Watch</th>
-          <th class="num">ER%</th><th class="num">Score</th>
+          <th class="num">ER%</th><th class="num">AI</th>
         </tr></thead>
         <tbody>
           ${sorted.map(p=>{
@@ -1210,10 +1221,17 @@ function renderAnalytics(d,tg){
             const barW=Math.round(((p.stats_views||0)/maxV)*100);
             const sn=p.snapshots||{};
             const snap=t=>`<span style="color:${sn[t]?'var(--text)':'var(--text3)'};">${sn[t]?fmtBig(sn[t].views):"—"}</span>`;
-            return`<tr>
-              <td style="max-width:160px">
+            const an=p.analysis;
+            const has72=sn["72h"];
+            const hookBadge=an
+              ?`<span class="hook-${an.hook_score}">${an.hook_score==="strong"?"🟢":an.hook_score==="medium"?"🟡":"🔴"} ${an.hook_score}</span>`
+              :has72
+                ?`<button class="btn-sm" style="font-size:.62rem;padding:.12rem .4rem" onclick="analyzePost(${p.id},this)">🤖</button>`
+                :`<span style="color:var(--text3);font-size:.65rem">—</span>`;
+            return`<tr style="cursor:${an?'pointer':'default'}" onclick="${an?`showAnalysis(${p.id})`:''}">
+              <td style="max-width:155px">
                 <div style="font-size:.75rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
-                     title="${esc(p.title)}">${esc((p.title||"").slice(0,42))}${(p.title||"").length>42?"…":""}</div>
+                     title="${esc(p.title)}">${esc((p.title||"").slice(0,40))}${(p.title||"").length>40?"…":""}</div>
                 <div style="margin-top:3px"><div class="an-bar-wrap"><div class="an-bar" style="width:${barW}%"></div></div></div>
               </td>
               <td>${platBadge(p.stats_platform)}</td>
@@ -1226,11 +1244,41 @@ function renderAnalytics(d,tg){
               <td class="num">${fmtBig(p.stats_saves)}</td>
               <td class="num" style="color:var(--text2)">${p.stats_watch_time||"—"}</td>
               <td class="num ${erClass(p.engagement_rate)}">${p.engagement_rate}%</td>
-              <td class="num" style="color:var(--accent)">${p.score}</td>
+              <td class="num">${hookBadge}</td>
             </tr>`;
           }).join("")}
         </tbody>
       </table></div>
+    </div>`;
+
+  // AI analysis cards for analyzed posts
+  const analyzed=withStats.filter(p=>p.analysis);
+  if(analyzed.length){
+    html+=`<div>
+      <div class="an-section-title">🤖 AI-анализ постов <span style="font-size:.62rem;color:var(--text3)">(нажми на строку в таблице)</span></div>
+      <div id="aiAnalysisBox" style="display:flex;flex-direction:column;gap:.55rem">
+        ${analyzed.map(p=>{
+          const an=p.analysis;
+          const hs=an.hook_score||"";
+          return`<div class="ai-card" id="ai-card-${p.id}">
+            <div class="ai-card-title">
+              <span class="hook-${hs}">${hs==="strong"?"🟢":hs==="medium"?"🟡":"🔴"} ${hs.toUpperCase()}</span>
+              <span style="font-size:.78rem;font-weight:700">${esc((p.title||"").slice(0,60))}</span>
+              <span style="margin-left:auto;font-size:.62rem;color:var(--text3)">${fmtDate(an.analyzed_at)}</span>
+            </div>
+            <div class="ai-grid">
+              <div><div class="ai-label">Хук</div><div class="ai-val">${esc(an.hook_feedback||"—")}</div></div>
+              <div><div class="ai-label">Watch time</div><div class="ai-val">${esc(an.watch_time_verdict||"—")}</div></div>
+              <div><div class="ai-label">CTA</div><div class="ai-val">${esc(an.cta_verdict||"—")}</div></div>
+              <div><div class="ai-label">Следующий шаг</div><div class="ai-val">${esc(an.predicted_next||"—")}</div></div>
+            </div>
+            <div style="margin-top:.5rem;padding-top:.5rem;border-top:1px solid var(--border)">
+              <div class="ai-label" style="margin-bottom:.2rem">💡 Рекомендация</div>
+              <div style="font-size:.76rem;color:var(--green);font-weight:500">${esc(an.main_recommendation||"—")}</div>
+            </div>
+          </div>`;
+        }).join("")}
+      </div>
     </div>`;
   }
 
@@ -1380,6 +1428,23 @@ async function publishToTG(id){
     toast("Ошибка Telegram: "+e.message,true);
     if(btn){btn.disabled=false;btn.innerHTML="📢 Telegram";}
   }
+}
+
+async function analyzePost(id, btn){
+  if(btn){btn.disabled=true;btn.innerHTML=`<span class="spin" style="border-top-color:var(--purple)"></span>`;}
+  try{
+    const res=await api("POST",`/api/news/${id}/analyze`);
+    toast("AI анализ готов ✓");
+    setTimeout(loadAnalytics,400);
+  }catch(e){
+    toast("Ошибка анализа: "+e.message,true);
+    if(btn){btn.disabled=false;btn.textContent="🤖";}
+  }
+}
+
+function showAnalysis(id){
+  const card=document.getElementById("ai-card-"+id);
+  if(card)card.scrollIntoView({behavior:"smooth",block:"center"});
 }
 
 async function tgPublishNow(btn){

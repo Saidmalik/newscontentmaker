@@ -114,6 +114,16 @@ async def run_snapshots(db_path: Path) -> int:
                     f"24ч: {views:,} просмотров (средн. по каналу: {int(avg_v):,})"
                 )
 
+            # Trigger Claude analysis after 72h snapshot
+            if snap_type == "72h":
+                try:
+                    from src import analysis_worker
+                    analyzed = await analysis_worker.analyze_post(post_id, db_path)
+                    if analyzed:
+                        log.info(f"Claude analysis triggered for post #{post_id}")
+                except Exception as e:
+                    log.error(f"Analysis trigger error for post #{post_id}: {e}")
+
     conn.close()
     log.info(f"Snapshots done: {saved} saved / {len(rows)} posts checked")
     return saved

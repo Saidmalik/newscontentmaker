@@ -114,6 +114,21 @@ def run_migrations(conn: sqlite3.Connection):
     """)
     conn.execute("CREATE INDEX IF NOT EXISTS idx_ps_post ON post_snapshots(post_id)")
 
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS post_analysis (
+            id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+            post_id              INTEGER UNIQUE NOT NULL,
+            hook_score           TEXT,
+            hook_feedback        TEXT,
+            watch_time_verdict   TEXT,
+            cta_verdict          TEXT,
+            main_recommendation  TEXT,
+            predicted_next       TEXT,
+            raw_response         TEXT,
+            analyzed_at          TEXT DEFAULT (datetime('now'))
+        )
+    """)
+
     conn.execute("PRAGMA journal_mode=WAL")
     conn.commit()
 
@@ -619,7 +634,7 @@ async def api_analytics(request: Request):
            ORDER BY published_at DESC"""
     ).fetchall()
 
-    # Load all snapshots in one query
+    # Load snapshots
     snaps_rows = []
     try:
         snaps_rows = conn.execute(
@@ -627,12 +642,37 @@ async def api_analytics(request: Request):
         ).fetchall()
     except Exception:
         pass
+
+    # Load analyses
+    analysis_rows = []
+    try:
+        analysis_rows = conn.execute(
+            """SELECT post_id, hook_score, hook_feedback, watch_time_verdict,
+                      cta_verdict, main_recommendation, predicted_next, analyzed_at
+               FROM post_analysis"""
+        ).fetchall()
+    except Exception:
+        pass
+
     conn.close()
 
     snaps: dict[int, dict] = {}
     for s in snaps_rows:
         pid, stype, sv, sr, sw = s
         snaps.setdefault(pid, {})[stype] = {"views": sv, "reach": sr, "watch": sw}
+
+    analyses: dict[int, dict] = {}
+    for a in analysis_rows:
+        pid = a[0]
+        analyses[pid] = {
+            "hook_score":          a[1],
+            "hook_feedback":       a[2],
+            "watch_time_verdict":  a[3],
+            "cta_verdict":         a[4],
+            "main_recommendation": a[5],
+            "predicted_next":      a[6],
+            "analyzed_at":         a[7],
+        }
 
     posts = []
     for r in rows:
@@ -646,6 +686,7 @@ async def api_analytics(request: Request):
         d["engagement_rate"] = er
         d["has_stats"]       = v > 0
         d["snapshots"]       = snaps.get(d["id"], {})
+        d["analysis"]        = analyses.get(d["id"])
         posts.append(d)
 
     with_stats = [p for p in posts if p["has_stats"]]
@@ -718,6 +759,32 @@ async def api_analytics_insights(request: Request):
         messages=[{"role": "user", "content": prompt}],
     )
     return {"insights": msg.content[0].text.strip()}
+
+
+@app.post("/api/news/{news_id}/analyze")
+async def api_analyze_post(news_id: int, request: Request):
+    """Trigger Claude analysis for a single post. Uses post_analysis table."""
+    require_auth(request)
+    from src import analysis_worker
+    try:
+        ok = await analysis_worker.analyze_post(news_id, DB_PATH, force=True)
+        if not ok:
+            raise HTTPException(status_code=400, detail="Анализ не выполнен (нет данных или ключа API)")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    row = conn.execute(
+        """SELECT hook_score, hook_feedback, watch_time_verdict,
+                  cta_verdict, main_recommendation, predicted_next, analyzed_at
+           FROM post_analysis WHERE post_id=?""",
+        (news_id,),
+    ).fetchone()
+    conn.close()
+    return dict(row) if row else {"ok": True}
 
 
 @app.post("/api/news/{news_id}/approve-reviewed")

@@ -495,33 +495,89 @@ async def api_publish(news_id: int, request: Request):
 
 @app.patch("/api/news/{news_id}/stats")
 async def api_update_stats(news_id: int, request: Request):
-    """Save post statistics."""
+    """Save post statistics from PDF upload. Also writes to post_snapshots."""
     require_auth(request)
     body = await request.json()
+
+    views    = int(body.get("views",    0) or 0)
+    likes    = int(body.get("likes",    0) or 0)
+    comments = int(body.get("comments", 0) or 0)
+    shares   = int(body.get("shares",   0) or 0)
+    saves    = int(body.get("saves",    0) or 0)
+    reach    = int(body.get("reach",    0) or 0)
+    wt_str   = str(body.get("watch_time", "") or "")
+    platform = str(body.get("platform", "instagram") or "instagram")
+
     conn = sqlite3.connect(DB_PATH)
     conn.execute(
         """UPDATE news SET
            stats_views=?, stats_likes=?, stats_comments=?, stats_shares=?, stats_saves=?,
            stats_reach=?, stats_watch_time=?, stats_platform=?
            WHERE id=?""",
-        (
-            int(body.get("views", 0) or 0),
-            int(body.get("likes", 0) or 0),
-            int(body.get("comments", 0) or 0),
-            int(body.get("shares", 0) or 0),
-            int(body.get("saves", 0) or 0),
-            int(body.get("reach", 0) or 0),
-            str(body.get("watch_time", "") or ""),
-            str(body.get("platform", "instagram") or "instagram"),
-            news_id,
-        ),
+        (views, likes, comments, shares, saves, reach, wt_str, platform, news_id),
     )
+
+    # Determine snapshot period from PDF pub/download dates and save to post_snapshots
+    pub_raw  = str(body.get("pub_date_raw",      "") or "")
+    dl_raw   = str(body.get("download_date_raw", "") or "")
+    snap_at  = _compute_snapshot_label(pub_raw, dl_raw)
+    if snap_at:
+        avg_watch = None
+        m = re.search(r"([\d,\.]+)", wt_str)
+        if m:
+            try:
+                avg_watch = float(m.group(1).replace(",", "."))
+            except Exception:
+                pass
+        conn.execute(
+            """INSERT OR REPLACE INTO post_snapshots
+                 (post_id, snapshot_at, views, reach, likes, comments,
+                  saves, shares, avg_watch_time, recorded_at)
+               VALUES (?,?,?,?,?,?,?,?,?,datetime('now'))""",
+            (news_id, snap_at, views, reach, likes, comments, saves, shares, avg_watch),
+        )
+
     conn.commit()
     conn.close()
-    return {"id": news_id, "saved": True}
+    return {"id": news_id, "saved": True, "snapshot_at": snap_at or None}
 
 
-# ── PDF STATS PARSER ──────────────────────────────────────────────────────
+# ── PDF STATS PARSER ─────────────────────────────────────────────────────
+
+_RU_MONTHS = {
+    "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6,
+    "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12,
+}
+
+def _parse_ru_datetime(s: str):
+    """Parse '23 апр 2026 г. в 18:30' → datetime or None."""
+    from datetime import datetime as _dt
+    m = re.search(r"(\d{1,2})\s+(\w+)\s+(\d{4}).*?(\d{1,2}):(\d{2})", s)
+    if not m:
+        return None
+    day, mon, year, hr, mn = m.groups()
+    month = _RU_MONTHS.get(mon[:3].lower())
+    if not month:
+        return None
+    try:
+        return _dt(int(year), month, int(day), int(hr), int(mn))
+    except Exception:
+        return None
+
+
+def _compute_snapshot_label(pub_raw: str, dl_raw: str) -> str:
+    """Return '24h', '48h', or '72h' based on hours between pub and download."""
+    pub = _parse_ru_datetime(pub_raw)
+    dl  = _parse_ru_datetime(dl_raw)
+    if not pub or not dl:
+        return ""
+    hours = (dl - pub).total_seconds() / 3600
+    if hours <= 36:
+        return "24h"
+    elif hours <= 60:
+        return "48h"
+    else:
+        return "72h"
 
 def _parse_reels_pdf(file_bytes: bytes) -> dict:
     """Parse Instagram Reels stats PDF exported from Meta Edits app.
@@ -542,7 +598,8 @@ def _parse_reels_pdf(file_bytes: bytes) -> dict:
         "platform": "instagram",
         "views": 0, "reach": 0, "watch_time": "",
         "likes": 0, "comments": 0, "reposts": 0, "shares": 0, "saves": 0,
-        "caption_snippet": "", "pub_date_raw": "", "_raw_preview": "",
+        "caption_snippet": "", "pub_date_raw": "", "download_date_raw": "",
+        "_raw_preview": "",
     }
 
     def parse_metric(s: str) -> int:
@@ -597,15 +654,17 @@ def _parse_reels_pdf(file_bytes: bytes) -> dict:
             if len(nums) >= 4: result["shares"]   = int(nums[3])
             if len(nums) >= 5: result["saves"]    = int(nums[4])
 
-        # ── Publish date ────────────────────────────────────────────────────
-        # PDF layout: date line "23 апр 2026 г. 26 апр 2026 г."
-        #             time line "в 18:30 в 02:43"
-        # First date + first time = publish datetime
+        # ── Publish + download dates ─────────────────────────────────────────
+        # PDF layout: "23 апр 2026 г. 26 апр 2026 г."  ← date line
+        #             "в 18:30 в 02:43"                 ← time line
+        # First date/time = published; second = when stats were downloaded
         dates_on_line = re.findall(r"\d{1,2}\s+\w+\s+\d{4}\s*г\.?", line)
         if dates_on_line and not result["pub_date_raw"]:
             times_on_next = re.findall(r"\d{1,2}:\d{2}", next_line)
             if times_on_next:
                 result["pub_date_raw"] = f"{dates_on_line[0].strip()} в {times_on_next[0]}"
+                if len(dates_on_line) >= 2 and len(times_on_next) >= 2:
+                    result["download_date_raw"] = f"{dates_on_line[1].strip()} в {times_on_next[1]}"
             else:
                 result["pub_date_raw"] = dates_on_line[0].strip()
 
@@ -652,10 +711,11 @@ async def api_analytics(request: Request):
         """SELECT id, title, score, published_at, stats_platform,
                   stats_views, stats_reach, stats_likes, stats_comments,
                   stats_shares, stats_saves, stats_watch_time,
-                  tts_script, preview_titles, instagram_media_id
+                  instagram_media_id
            FROM news
            WHERE published_at IS NOT NULL
-           ORDER BY published_at DESC"""
+           ORDER BY published_at DESC
+           LIMIT 100"""
     ).fetchall()
 
     # Load snapshots

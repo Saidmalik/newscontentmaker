@@ -1401,20 +1401,23 @@ async function savePDFStats(parsed){
   if(!id){toast("Выбери пост из списка",true);return;}
   const resultEl=document.getElementById("pdfResult");
   try{
-    await api("PATCH",`/api/news/${id}/stats`,{
+    const saveResp=await api("PATCH",`/api/news/${id}/stats`,{
       views:parsed.views,reach:parsed.reach,watch_time:parsed.watch_time,
       likes:parsed.likes,comments:parsed.comments,
       shares:parsed.shares||parsed.reposts,saves:parsed.saves,
       platform:"instagram",
+      pub_date_raw:parsed.pub_date_raw||"",
+      download_date_raw:parsed.download_date_raw||"",
     });
-    toast("Статистика сохранена ✓");
+    const snapLabel=saveResp?.snapshot_at||"";
+    toast(`Статистика сохранена${snapLabel?" ("+snapLabel+")":""} ✓`);
     load();
 
     // Show stats summary + trigger Claude analysis
     const total=parsed.views||parsed.reach||0;
     resultEl.innerHTML=`
       <div style="background:var(--bg3);border:1px solid rgba(34,204,136,.25);border-radius:8px;padding:.65rem .8rem;margin-top:.4rem">
-        <div style="color:var(--green);font-size:.72rem;font-weight:700;margin-bottom:.4rem">✓ Статистика сохранена</div>
+        <div style="color:var(--green);font-size:.72rem;font-weight:700;margin-bottom:.4rem">✓ Статистика сохранена${snapLabel?` <span style="color:var(--purple);font-size:.68rem">${snapLabel}</span>`:""}</div>
         <div class="pdf-stat-row" style="margin-bottom:.4rem">
           ${parsed.views?`<span class="pdf-stat-pill">👁 <b>${fmtBig(parsed.views)}</b></span>`:""}
           ${parsed.reach?`<span class="pdf-stat-pill">📡 <b>${fmtBig(parsed.reach)}</b></span>`:""}

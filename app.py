@@ -524,7 +524,14 @@ async def api_update_stats(news_id: int, request: Request):
 # ── PDF STATS PARSER ──────────────────────────────────────────────────────
 
 def _parse_reels_pdf(file_bytes: bytes) -> dict:
-    """Parse Instagram Reels stats PDF exported from Meta Edits app."""
+    """Parse Instagram Reels stats PDF exported from Meta Edits app.
+
+    The Meta Edits PDF layout has labels and values on *separate lines*:
+      Просмотры Охваченные аккаунты Среднее время просмотра   ← label line
+      21 тыс.   14 тыс.             13,50 с.                  ← value line
+      "Нравится" Комментарии Репосты Поделились Сохранения     ← label line
+      238        54          16      333        43             ← value line
+    """
     import io
     try:
         import pdfplumber
@@ -535,103 +542,77 @@ def _parse_reels_pdf(file_bytes: bytes) -> dict:
         "platform": "instagram",
         "views": 0, "reach": 0, "watch_time": "",
         "likes": 0, "comments": 0, "reposts": 0, "shares": 0, "saves": 0,
-        "caption_snippet": "", "pub_date_raw": "",
+        "caption_snippet": "", "pub_date_raw": "", "_raw_preview": "",
     }
 
-    def parse_num(s: str) -> int:
-        s = s.strip().replace("\xa0", " ")
-        if "тыс" in s:
-            m = re.search(r"[\d,\.]+", s)
-            if m:
-                return int(float(m.group().replace(",", ".")) * 1000)
-        m = re.search(r"[\d]+", s.replace(" ", ""))
-        return int(m.group()) if m else 0
+    def parse_metric(s: str) -> int:
+        """'21 тыс.' → 21000, '1,2 тыс.' → 1200, '238' → 238"""
+        s = (s or "").strip().replace("\xa0", "").replace("\u202f", "")
+        mult = 1
+        if re.search(r"млн", s, re.IGNORECASE):
+            mult = 1_000_000
+        elif re.search(r"тыс", s, re.IGNORECASE):
+            mult = 1_000
+        m = re.search(r"([\d]+(?:[,\.][\d]+)?)", s)
+        if not m:
+            return 0
+        return int(float(m.group(1).replace(",", ".")) * mult)
 
     with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
         full_text = "\n".join(p.extract_text() or "" for p in pdf.pages)
 
-    def first_match(patterns, text):
-        for pat in patterns:
-            m = re.search(pat, text, re.IGNORECASE)
-            if m:
-                return m.group(1)
-        return None
+    result["_raw_preview"] = full_text[:600]
+    lines = [ln.strip() for ln in full_text.split("\n")]
 
-    # Views
-    v = first_match([
-        r"Просмотры\s+([\d\s,\.]+(?:тыс\.?)?)",
-        r"Plays\s+([\d\s,\.]+(?:k|тыс\.?)?)",
-        r"Views\s+([\d\s,\.]+(?:k|тыс\.?)?)",
-        r"Просмотры видео\s+([\d\s,\.]+(?:тыс\.?)?)",
-    ], full_text)
-    if v: result["views"] = parse_num(v)
+    for i, line in enumerate(lines):
+        next_line = lines[i + 1] if i + 1 < len(lines) else ""
 
-    # Reach
-    v = first_match([
-        r"Охваченные аккаунты\s+([\d\s,\.]+(?:тыс\.?)?)",
-        r"Охват\s+([\d\s,\.]+(?:тыс\.?)?)",
-        r"Accounts reached\s+([\d\s,\.]+(?:k|тыс\.?)?)",
-        r"Reach\s+([\d\s,\.]+(?:k|тыс\.?)?)",
-    ], full_text)
-    if v: result["reach"] = parse_num(v)
+        # ── Main metrics row ────────────────────────────────────────────────
+        # Label: "Просмотры Охваченные аккаунты Среднее время просмотра"
+        # Value: "21 тыс. 14 тыс. 13,50 с."
+        if "Просмотры" in line and ("Охваченные" in line or "Reach" in line or "Views" in line):
+            # Watch time — ends with "с." or "s"
+            m_wt = re.search(r"([\d,\.]+)\s*с\.?", next_line)
+            if m_wt:
+                result["watch_time"] = m_wt.group(1).replace(",", ".") + " с."
 
-    # Avg watch time
-    v = first_match([
-        r"Среднее время просмотра\s+([\d,\.]+ ?с\.?)",
-        r"Avg\. watch time\s+([\d,\.]+ ?с?)",
-        r"Average watch time\s+([\d,\.]+\s*s)",
-    ], full_text)
-    if v: result["watch_time"] = v.strip()
+            # Views & reach — strip watch-time portion then extract тыс/млн or plain ints
+            vals_no_wt = re.sub(r"[\d,\.]+\s*с\.?\s*", "", next_line).strip()
+            metrics = re.findall(r"[\d,\.]+(?:\s*(?:тыс\.?|млн\.?))?", vals_no_wt)
+            metrics = [m.strip() for m in metrics if m.strip()]
+            if len(metrics) >= 1:
+                result["views"] = parse_metric(metrics[0])
+            if len(metrics) >= 2:
+                result["reach"] = parse_metric(metrics[1])
 
-    # Likes
-    v = first_match([
-        r'"?Нравится"?\s+([\d\s,\.]+(?:тыс\.?)?)',
-        r"Likes\s+([\d\s,\.]+(?:k|тыс\.?)?)",
-        r"Лайки\s+([\d\s,\.]+(?:тыс\.?)?)",
-    ], full_text)
-    if v: result["likes"] = parse_num(v)
+        # ── Engagement row ──────────────────────────────────────────────────
+        # Label: '"Нравится" Комментарии Репосты Поделились Сохранения'
+        # Value: "238 54 16 333 43"  (positional, same order as labels)
+        if "Нравится" in line and "Комментарии" in line:
+            nums = re.findall(r"\d+", next_line)
+            # Positional: likes, comments, reposts, shares(Поделились), saves(Сохранения)
+            if len(nums) >= 1: result["likes"]    = int(nums[0])
+            if len(nums) >= 2: result["comments"] = int(nums[1])
+            if len(nums) >= 3: result["reposts"]  = int(nums[2])
+            if len(nums) >= 4: result["shares"]   = int(nums[3])
+            if len(nums) >= 5: result["saves"]    = int(nums[4])
 
-    # Comments
-    v = first_match([
-        r"Комментарии\s+([\d\s,\.]+(?:тыс\.?)?)",
-        r"Comments\s+([\d\s,\.]+(?:k|тыс\.?)?)",
-    ], full_text)
-    if v: result["comments"] = parse_num(v)
+        # ── Publish date ────────────────────────────────────────────────────
+        # PDF layout: date line "23 апр 2026 г. 26 апр 2026 г."
+        #             time line "в 18:30 в 02:43"
+        # First date + first time = publish datetime
+        dates_on_line = re.findall(r"\d{1,2}\s+\w+\s+\d{4}\s*г\.?", line)
+        if dates_on_line and not result["pub_date_raw"]:
+            times_on_next = re.findall(r"\d{1,2}:\d{2}", next_line)
+            if times_on_next:
+                result["pub_date_raw"] = f"{dates_on_line[0].strip()} в {times_on_next[0]}"
+            else:
+                result["pub_date_raw"] = dates_on_line[0].strip()
 
-    # Reposts / Shares
-    v = first_match([
-        r"Репосты\s+([\d\s,\.]+(?:тыс\.?)?)",
-        r"Поделились\s+([\d\s,\.]+(?:тыс\.?)?)",
-        r"Shares\s+([\d\s,\.]+(?:k|тыс\.?)?)",
-        r"Reposts\s+([\d\s,\.]+(?:k|тыс\.?)?)",
-    ], full_text)
-    if v:
-        n = parse_num(v)
-        result["reposts"] = n
-        result["shares"]  = n
-
-    # Saves
-    v = first_match([
-        r"Сохранения\s+([\d\s,\.]+(?:тыс\.?)?)",
-        r"Saves\s+([\d\s,\.]+(?:k|тыс\.?)?)",
-        r"Bookmarks\s+([\d\s,\.]+(?:k|тыс\.?)?)",
-    ], full_text)
-    if v: result["saves"] = parse_num(v)
-
-    # Publish date
-    v = first_match([
-        r"(\d{1,2}\s+\w+\s+\d{4}\s+г\.\s+в\s+\d{1,2}:\d{2})",
-        r"(\d{1,2}\s+\w+\s+\d{4},\s+\d{1,2}:\d{2})",
-        r"((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\w*\s+\d{1,2},\s+\d{4})",
-    ], full_text)
-    if v: result["pub_date_raw"] = v.strip()
-
-    # Caption snippet
-    m = re.search(r"Подпись\s+(.+?)(?:Просмотры|Охваченные|Охват|\Z)", full_text, re.DOTALL)
-    if m: result["caption_snippet"] = m.group(1).strip()[:300]
-
-    # Store raw text for debugging (first 500 chars)
-    result["_raw_preview"] = full_text[:500]
+    # Caption snippet (text between "Подпись" and the stats block)
+    m = re.search(r"Подпись\s+(.+?)(?:\n\d|\d:\d\d|\nПросмотры|\Z)", full_text, re.DOTALL)
+    if m:
+        result["caption_snippet"] = m.group(1).strip()[:300]
 
     return result
 

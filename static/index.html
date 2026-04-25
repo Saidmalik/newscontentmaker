@@ -674,7 +674,8 @@ function fmtDate(str){
   try{
     const s=/Z$|[+-]\d{2}:\d{2}$/.test(str)?str:str+"Z";
     const d=new Date(s);if(isNaN(d))return str.slice(0,16).replace("T"," ");
-    return`${d.getDate()} ${MONTHS[d.getMonth()]}, ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
+    const uz=new Date(d.getTime()+5*3600000); // always UTC+5 (Tashkent)
+    return`${uz.getUTCDate()} ${MONTHS[uz.getUTCMonth()]}, ${String(uz.getUTCHours()).padStart(2,"0")}:${String(uz.getUTCMinutes()).padStart(2,"0")}`;
   }catch(_){return str.slice(0,10);}
 }
 function priLabel(p){return p==="hot"?"🔥 Горящая":p==="good"?"⚡ Хорошая":"◫ Резерв";}

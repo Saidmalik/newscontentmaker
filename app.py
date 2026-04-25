@@ -485,7 +485,7 @@ async def api_publish(news_id: int, request: Request):
     require_auth(request)
     conn = sqlite3.connect(DB_PATH)
     conn.execute(
-        "UPDATE news SET published_at=? WHERE id=?",
+        "UPDATE news SET published_at=?, starred=0 WHERE id=?",
         (datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), news_id),
     )
     conn.commit()
@@ -1724,7 +1724,7 @@ async def api_publish_reel(news_id: int, request: Request):
         permalink = await ig_worker._get_permalink(media_id)
         ig_conn.execute(
             """UPDATE news SET instagram_media_id=?, instagram_permalink=?,
-               published_at=COALESCE(published_at,?) WHERE id=?""",
+               published_at=COALESCE(published_at,?), starred=0 WHERE id=?""",
             (media_id, permalink, now_iso, news_id),
         )
         ig_conn.commit()
@@ -1779,16 +1779,15 @@ async def api_ig_posts(request: Request):
 
 
 async def _scheduled_cleanup():
-    """Daily job: delete unreviewed news older than NEWS_RETENTION_DAYS (default 7).
-    Keeps starred, approved, and published posts regardless of age."""
-    days = int(os.environ.get("NEWS_RETENTION_DAYS", "7"))
+    """Daily job: delete unpublished/unapproved news older than NEWS_RETENTION_DAYS (default 5).
+    Starred news are also deleted. Only approved and published posts are kept."""
+    days = int(os.environ.get("NEWS_RETENTION_DAYS", "5"))
     try:
         conn = sqlite3.connect(DB_PATH)
         result = conn.execute(
             """DELETE FROM news
                WHERE approved = 0
                  AND published_at IS NULL
-                 AND starred = 0
                  AND date(collected) <= date('now', ? || ' days')""",
             (f"-{days}",),
         )
@@ -1975,7 +1974,7 @@ async def api_publish_tg(news_id: int, request: Request):
     now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     conn = sqlite3.connect(DB_PATH)
     conn.execute(
-        "UPDATE news SET published_at=COALESCE(published_at,?) WHERE id=?",
+        "UPDATE news SET published_at=COALESCE(published_at,?), starred=0 WHERE id=?",
         (now_iso, news_id),
     )
     conn.commit()

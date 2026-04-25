@@ -550,45 +550,88 @@ def _parse_reels_pdf(file_bytes: bytes) -> dict:
     with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
         full_text = "\n".join(p.extract_text() or "" for p in pdf.pages)
 
+    def first_match(patterns, text):
+        for pat in patterns:
+            m = re.search(pat, text, re.IGNORECASE)
+            if m:
+                return m.group(1)
+        return None
+
     # Views
-    m = re.search(r"Просмотры\s+([\d\s,\.]+(?:тыс\.?)?)", full_text)
-    if m: result["views"] = parse_num(m.group(1))
+    v = first_match([
+        r"Просмотры\s+([\d\s,\.]+(?:тыс\.?)?)",
+        r"Plays\s+([\d\s,\.]+(?:k|тыс\.?)?)",
+        r"Views\s+([\d\s,\.]+(?:k|тыс\.?)?)",
+        r"Просмотры видео\s+([\d\s,\.]+(?:тыс\.?)?)",
+    ], full_text)
+    if v: result["views"] = parse_num(v)
 
     # Reach
-    m = re.search(r"Охваченные аккаунты\s+([\d\s,\.]+(?:тыс\.?)?)", full_text)
-    if m: result["reach"] = parse_num(m.group(1))
+    v = first_match([
+        r"Охваченные аккаунты\s+([\d\s,\.]+(?:тыс\.?)?)",
+        r"Охват\s+([\d\s,\.]+(?:тыс\.?)?)",
+        r"Accounts reached\s+([\d\s,\.]+(?:k|тыс\.?)?)",
+        r"Reach\s+([\d\s,\.]+(?:k|тыс\.?)?)",
+    ], full_text)
+    if v: result["reach"] = parse_num(v)
 
     # Avg watch time
-    m = re.search(r"Среднее время просмотра\s+([\d,\.]+ ?с\.?)", full_text)
-    if m: result["watch_time"] = m.group(1).strip()
+    v = first_match([
+        r"Среднее время просмотра\s+([\d,\.]+ ?с\.?)",
+        r"Avg\. watch time\s+([\d,\.]+ ?с?)",
+        r"Average watch time\s+([\d,\.]+\s*s)",
+    ], full_text)
+    if v: result["watch_time"] = v.strip()
 
-    # Likes (label is "Нравится" or «"Нравится"»)
-    m = re.search(r'"?Нравится"?\s+([\d\s,\.]+(?:тыс\.?)?)', full_text)
-    if m: result["likes"] = parse_num(m.group(1))
+    # Likes
+    v = first_match([
+        r'"?Нравится"?\s+([\d\s,\.]+(?:тыс\.?)?)',
+        r"Likes\s+([\d\s,\.]+(?:k|тыс\.?)?)",
+        r"Лайки\s+([\d\s,\.]+(?:тыс\.?)?)",
+    ], full_text)
+    if v: result["likes"] = parse_num(v)
 
     # Comments
-    m = re.search(r"Комментарии\s+([\d\s,\.]+(?:тыс\.?)?)", full_text)
-    if m: result["comments"] = parse_num(m.group(1))
+    v = first_match([
+        r"Комментарии\s+([\d\s,\.]+(?:тыс\.?)?)",
+        r"Comments\s+([\d\s,\.]+(?:k|тыс\.?)?)",
+    ], full_text)
+    if v: result["comments"] = parse_num(v)
 
-    # Reposts
-    m = re.search(r"Репосты\s+([\d\s,\.]+(?:тыс\.?)?)", full_text)
-    if m: result["reposts"] = parse_num(m.group(1))
-
-    # Shares (Поделились)
-    m = re.search(r"Поделились\s+([\d\s,\.]+(?:тыс\.?)?)", full_text)
-    if m: result["shares"] = parse_num(m.group(1))
+    # Reposts / Shares
+    v = first_match([
+        r"Репосты\s+([\d\s,\.]+(?:тыс\.?)?)",
+        r"Поделились\s+([\d\s,\.]+(?:тыс\.?)?)",
+        r"Shares\s+([\d\s,\.]+(?:k|тыс\.?)?)",
+        r"Reposts\s+([\d\s,\.]+(?:k|тыс\.?)?)",
+    ], full_text)
+    if v:
+        n = parse_num(v)
+        result["reposts"] = n
+        result["shares"]  = n
 
     # Saves
-    m = re.search(r"Сохранения\s+([\d\s,\.]+(?:тыс\.?)?)", full_text)
-    if m: result["saves"] = parse_num(m.group(1))
+    v = first_match([
+        r"Сохранения\s+([\d\s,\.]+(?:тыс\.?)?)",
+        r"Saves\s+([\d\s,\.]+(?:k|тыс\.?)?)",
+        r"Bookmarks\s+([\d\s,\.]+(?:k|тыс\.?)?)",
+    ], full_text)
+    if v: result["saves"] = parse_num(v)
 
-    # Publish date: "16 апр 2026 г. в 20:32"
-    m = re.search(r"(\d{1,2}\s+\w+\s+\d{4}\s+г\.\s+в\s+\d{1,2}:\d{2})", full_text)
-    if m: result["pub_date_raw"] = m.group(1).strip()
+    # Publish date
+    v = first_match([
+        r"(\d{1,2}\s+\w+\s+\d{4}\s+г\.\s+в\s+\d{1,2}:\d{2})",
+        r"(\d{1,2}\s+\w+\s+\d{4},\s+\d{1,2}:\d{2})",
+        r"((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\w*\s+\d{1,2},\s+\d{4})",
+    ], full_text)
+    if v: result["pub_date_raw"] = v.strip()
 
-    # Caption snippet (text under "Подпись")
-    m = re.search(r"Подпись\s+(.+?)(?:Просмотры|Охваченные|\Z)", full_text, re.DOTALL)
+    # Caption snippet
+    m = re.search(r"Подпись\s+(.+?)(?:Просмотры|Охваченные|Охват|\Z)", full_text, re.DOTALL)
     if m: result["caption_snippet"] = m.group(1).strip()[:300]
+
+    # Store raw text for debugging (first 500 chars)
+    result["_raw_preview"] = full_text[:500]
 
     return result
 
@@ -684,7 +727,8 @@ async def api_analytics(request: Request):
         sv = d.get("stats_saves") or 0
         er = round((li + c + sh + sv) / v * 100, 2) if v > 0 else 0
         d["engagement_rate"] = er
-        d["has_stats"]       = v > 0
+        d["has_stats"]       = any([v > 0, li > 0, c > 0, sh > 0, sv > 0,
+                                    (d.get("stats_reach") or 0) > 0])
         d["snapshots"]       = snaps.get(d["id"], {})
         d["analysis"]        = analyses.get(d["id"])
         posts.append(d)

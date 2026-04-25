@@ -84,23 +84,51 @@ async def analyze_post(post_id: int, db_path: Path, force: bool = False) -> bool
             conn.close()
             return False
 
-    # Get 72h snapshot (prefer it; fall back to best available)
-    snap = conn.execute(
+    # Try snapshot first (prefer 72h); fall back to news.stats_* from PDF upload
+    snap_row = conn.execute(
         """SELECT views, reach, saves, comments, avg_watch_time
            FROM post_snapshots WHERE post_id=?
            ORDER BY CASE snapshot_at WHEN '72h' THEN 0 WHEN '48h' THEN 1 ELSE 2 END LIMIT 1""",
         (post_id,),
     ).fetchone()
-    if not snap:
-        conn.close()
-        return False
 
     post = conn.execute(
-        "SELECT title, tts_script, description FROM news WHERE id=?", (post_id,)
+        """SELECT title, tts_script, description,
+                  stats_views, stats_reach, stats_saves, stats_comments,
+                  stats_likes, stats_shares, stats_watch_time
+           FROM news WHERE id=?""",
+        (post_id,),
     ).fetchone()
     if not post:
         conn.close()
         return False
+
+    # Build unified snap dict from snapshot or news stats
+    if snap_row:
+        snap = dict(snap_row)
+    else:
+        sv = post["stats_views"] or 0
+        sr = post["stats_reach"] or 0
+        if not any([sv, sr, post["stats_saves"], post["stats_comments"]]):
+            conn.close()
+            return False  # no stats at all
+        # Parse watch time string (e.g. "12.3с") to float
+        wt_str = post["stats_watch_time"] or ""
+        wt = 0.0
+        import re as _re
+        m = _re.search(r"[\d,\.]+", wt_str)
+        if m:
+            try:
+                wt = float(m.group().replace(",", "."))
+            except Exception:
+                pass
+        snap = {
+            "views": sv,
+            "reach": sr,
+            "saves": post["stats_saves"] or 0,
+            "comments": post["stats_comments"] or 0,
+            "avg_watch_time": wt or None,
+        }
 
     avgs = _channel_avgs(conn)
     conn.close()
@@ -111,7 +139,7 @@ async def analyze_post(post_id: int, db_path: Path, force: bool = False) -> bool
     cta   = _extract_cta(tts) if tts else ""
     dur   = _est_duration(tts)
 
-    watch_s   = snap["avg_watch_time"] or 0
+    watch_s   = snap.get("avg_watch_time") or 0
     watch_pct = round(watch_s / dur * 100) if dur > 0 else 0
 
     prompt = f"""Ты аналитик контента. Проанализируй ролик новостного канала про Узбекистан.

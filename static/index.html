@@ -1360,16 +1360,23 @@ async function uploadStatsPDF(input){
     const d=await r.json();
     const p=d.parsed;
     const candidates=d.candidates||[];
+    const anyParsed=p.views||p.reach||p.likes||p.saves||p.comments;
     let html=`<div class="pdf-parsed">
-      <div style="font-size:.72rem;font-weight:700;color:var(--green);margin-bottom:.1rem">✓ PDF прочитан — ${p.pub_date_raw||"дата не найдена"}</div>
+      <div style="font-size:.72rem;font-weight:700;color:${anyParsed?"var(--green)":"var(--gold)"};margin-bottom:.3rem">
+        ${anyParsed?"✓ PDF прочитан":"⚠️ PDF загружен, но цифры не распознаны"} ${p.pub_date_raw?"· "+p.pub_date_raw:""}
+      </div>
+      ${!anyParsed&&p._raw_preview?`<details style="margin-bottom:.4rem">
+        <summary style="font-size:.65rem;color:var(--text3);cursor:pointer">Показать текст из PDF (для диагностики)</summary>
+        <pre style="font-size:.6rem;color:var(--text2);white-space:pre-wrap;max-height:100px;overflow:auto;margin-top:.3rem;background:var(--bg);padding:.4rem;border-radius:4px">${esc(p._raw_preview)}</pre>
+      </details>`:""}
       <div class="pdf-stat-row">
-        <span class="pdf-stat-pill">👁 Views <b>${fmtBig(p.views)}</b></span>
-        <span class="pdf-stat-pill">📡 Reach <b>${fmtBig(p.reach)}</b></span>
-        <span class="pdf-stat-pill">⏱ Watch <b>${p.watch_time||"—"}</b></span>
-        <span class="pdf-stat-pill">❤️ Likes <b>${fmtBig(p.likes)}</b></span>
-        <span class="pdf-stat-pill">💬 Comm <b>${fmtBig(p.comments)}</b></span>
-        <span class="pdf-stat-pill">↗️ Share <b>${fmtBig(p.shares)}</b></span>
-        <span class="pdf-stat-pill">🔖 Save <b>${fmtBig(p.saves)}</b></span>
+        ${p.views?`<span class="pdf-stat-pill">👁 Views <b>${fmtBig(p.views)}</b></span>`:""}
+        ${p.reach?`<span class="pdf-stat-pill">📡 Reach <b>${fmtBig(p.reach)}</b></span>`:""}
+        ${p.watch_time?`<span class="pdf-stat-pill">⏱ <b>${p.watch_time}</b></span>`:""}
+        ${p.likes?`<span class="pdf-stat-pill">❤️ <b>${fmtBig(p.likes)}</b></span>`:""}
+        ${p.comments?`<span class="pdf-stat-pill">💬 <b>${fmtBig(p.comments)}</b></span>`:""}
+        ${p.shares||p.reposts?`<span class="pdf-stat-pill">↗️ <b>${fmtBig(p.shares||p.reposts)}</b></span>`:""}
+        ${p.saves?`<span class="pdf-stat-pill">🔖 <b>${fmtBig(p.saves)}</b></span>`:""}
       </div>
       <div style="margin-top:.2rem">
         <div style="font-size:.65rem;color:var(--text2);margin-bottom:.25rem">Выбери пост к которому привязать статистику:</div>
@@ -1392,6 +1399,7 @@ async function savePDFStats(parsed){
   const sel=document.getElementById("pdfPostSelect");
   const id=parseInt(sel?.value||"0");
   if(!id){toast("Выбери пост из списка",true);return;}
+  const resultEl=document.getElementById("pdfResult");
   try{
     await api("PATCH",`/api/news/${id}/stats`,{
       views:parsed.views,reach:parsed.reach,watch_time:parsed.watch_time,
@@ -1399,9 +1407,48 @@ async function savePDFStats(parsed){
       shares:parsed.shares||parsed.reposts,saves:parsed.saves,
       platform:"instagram",
     });
-    document.getElementById("pdfResult").innerHTML=`<div style="color:var(--green);font-size:.76rem;padding:.3rem 0">✓ Статистика сохранена</div>`;
     toast("Статистика сохранена ✓");
-    setTimeout(()=>{loadAnalytics();load();},800);
+    load();
+
+    // Show stats summary + trigger Claude analysis
+    const total=parsed.views||parsed.reach||0;
+    resultEl.innerHTML=`
+      <div style="background:var(--bg3);border:1px solid rgba(34,204,136,.25);border-radius:8px;padding:.65rem .8rem;margin-top:.4rem">
+        <div style="color:var(--green);font-size:.72rem;font-weight:700;margin-bottom:.4rem">✓ Статистика сохранена</div>
+        <div class="pdf-stat-row" style="margin-bottom:.4rem">
+          ${parsed.views?`<span class="pdf-stat-pill">👁 <b>${fmtBig(parsed.views)}</b></span>`:""}
+          ${parsed.reach?`<span class="pdf-stat-pill">📡 <b>${fmtBig(parsed.reach)}</b></span>`:""}
+          ${parsed.watch_time?`<span class="pdf-stat-pill">⏱ <b>${parsed.watch_time}</b></span>`:""}
+          ${parsed.likes?`<span class="pdf-stat-pill">❤️ <b>${fmtBig(parsed.likes)}</b></span>`:""}
+          ${parsed.comments?`<span class="pdf-stat-pill">💬 <b>${fmtBig(parsed.comments)}</b></span>`:""}
+          ${parsed.saves?`<span class="pdf-stat-pill">🔖 <b>${fmtBig(parsed.saves)}</b></span>`:""}
+        </div>
+        <div id="pdfAnalysisBox" style="font-size:.75rem;color:var(--text2)">
+          <span class="spin" style="border-top-color:var(--purple)"></span> Анализирую с Claude…
+        </div>
+      </div>`;
+
+    // Request Claude analysis
+    try{
+      const an=await api("POST",`/api/news/${id}/analyze`);
+      const hs=an.hook_score||"";
+      const col=hs==="strong"?"var(--green)":hs==="medium"?"var(--gold)":"var(--hot)";
+      document.getElementById("pdfAnalysisBox").innerHTML=`
+        <div style="margin-bottom:.35rem">
+          <span style="color:${col};font-weight:700;font-size:.7rem">${hs==="strong"?"🟢":hs==="medium"?"🟡":"🔴"} Хук: ${hs}</span>
+          <span style="color:var(--text2);font-size:.7rem;margin-left:.5rem">${esc(an.hook_feedback||"")}</span>
+        </div>
+        <div style="margin-bottom:.3rem"><span style="color:var(--text3);font-size:.65rem">⏱ Watch time: </span><span style="font-size:.72rem">${esc(an.watch_time_verdict||"—")}</span></div>
+        <div style="padding:.4rem .5rem;background:rgba(153,102,255,.1);border-radius:6px;border-left:2px solid var(--purple)">
+          <div style="font-size:.65rem;color:var(--text3);margin-bottom:.15rem">💡 Рекомендация</div>
+          <div style="font-size:.75rem;color:var(--text);font-weight:500">${esc(an.main_recommendation||"—")}</div>
+        </div>
+        ${an.predicted_next?`<div style="font-size:.7rem;color:var(--text2);margin-top:.3rem">🎯 Следующий ролик: ${esc(an.predicted_next)}</div>`:""}`;
+    }catch(e){
+      document.getElementById("pdfAnalysisBox").innerHTML=`<span style="color:var(--text3);font-size:.7rem">Анализ недоступен (нет ANTHROPIC_API_KEY)</span>`;
+    }
+
+    setTimeout(loadAnalytics,600);
   }catch(e){toast("Ошибка: "+e.message,true);}
 }
 

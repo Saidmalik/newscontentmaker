@@ -799,7 +799,7 @@ function cardHtml(n,isPubTab=false){
       <div class="card-meta">
         <span>${esc(n.source||"")}</span>
         <span class="meta-dot"></span>
-        <span>${fmtDate(n.published||n.collected)}</span>
+        <span>${fmtDate(n.collected)}</span>
         <span class="meta-dot"></span>
         <span>Score <span class="meta-score">${n.score}</span></span>
         ${hasTTS?`<span class="meta-dot"></span><span class="meta-tts">✓ TTS</span>`:""}
@@ -923,7 +923,7 @@ function renderDetail(n){
       <div class="d-title"><a href="${esc(n.url)}" target="_blank" rel="noopener">${esc(n.title)}</a></div>
       <div class="d-meta">
         Score: <span class="d-score-val">${n.score}</span>
-        · ${fmtDate(n.published||n.collected)}
+        · ${fmtDate(n.collected)}
         ${pubDate}
       </div>
     </div>

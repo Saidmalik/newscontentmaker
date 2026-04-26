@@ -228,6 +228,8 @@ async def lifespan(app: FastAPI):
 
     for hour in [1, 5, 9, 13, 16]:
         scheduler.add_job(scheduled_collect, "cron", hour=hour, minute=0)
+    # Every 6h: auto-link new IG reels to news posts by timestamp
+    scheduler.add_job(_scheduled_auto_sync, "cron", hour="*/6", minute=45)
     # Daily Instagram live-stats refresh at 02:00 UTC (07:00 UZT)
     scheduler.add_job(_scheduled_ig_refresh, "cron", hour=2, minute=0)
     # Hourly 24/48/72h snapshot check (at :15 to avoid overlap with other jobs)
@@ -1900,6 +1902,148 @@ async def _scheduled_ig_snapshots():
             log(f"[IG Snapshots] {total} snapshots saved (ig_posts:{saved_ig} news:{saved_sn})")
     except Exception as e:
         log(f"[IG Snapshots] Error: {e}")
+
+
+async def auto_link_reels(db_path: Path) -> dict:
+    """
+    Fetch recent Reels from the IG account, match each to an unlinked news post
+    by publication timestamp (±4h window), save instagram_media_id + current stats.
+    Returns {"linked": N, "skipped": M, "errors": [...]}
+    """
+    from datetime import timezone as _tz
+    token = os.environ.get("META_ACCESS_TOKEN", "")
+    if not token:
+        return {"linked": 0, "skipped": 0, "errors": ["META_ACCESS_TOKEN не задан"]}
+
+    ig_id = os.environ.get("INSTAGRAM_ACCOUNT_ID", "17841477793587741")
+
+    # 1. Fetch recent media from account
+    async with httpx.AsyncClient(timeout=30) as c:
+        r = await c.get(
+            f"{GRAPH_URL}/{ig_id}/media",
+            params={"access_token": token,
+                    "fields": "id,media_type,timestamp,caption",
+                    "limit": 50},
+        )
+    media_data = r.json()
+    if "error" in media_data:
+        return {"linked": 0, "skipped": 0, "errors": [str(media_data["error"])]}
+
+    reels = [m for m in media_data.get("data", [])
+             if m.get("media_type") in ("REELS", "VIDEO")]
+
+    # 2. Already-linked media IDs + unlinked news posts
+    conn = sqlite3.connect(str(db_path))
+    conn.row_factory = sqlite3.Row
+    linked_ids = {
+        row[0] for row in conn.execute(
+            "SELECT instagram_media_id FROM news "
+            "WHERE instagram_media_id IS NOT NULL AND instagram_media_id != ''"
+        ).fetchall()
+    }
+    unlinked = conn.execute(
+        """SELECT id, title, published_at FROM news
+           WHERE (instagram_media_id IS NULL OR instagram_media_id = '')
+             AND published_at IS NOT NULL
+           ORDER BY published_at DESC LIMIT 200"""
+    ).fetchall()
+    conn.close()
+
+    linked_count = 0
+    skipped = 0
+    errors: list[str] = []
+
+    for reel in reels:
+        media_id = reel["id"]
+        if media_id in linked_ids:
+            skipped += 1
+            continue
+
+        # Parse IG timestamp (UTC)
+        try:
+            reel_dt = datetime.fromisoformat(
+                reel.get("timestamp", "").replace("Z", "+00:00")
+            ).astimezone(_tz.utc).replace(tzinfo=None)
+        except Exception:
+            skipped += 1
+            continue
+
+        # Find closest unlinked news post within ±4 hours
+        best_id, best_title, best_delta = None, "", timedelta(hours=4)
+        for row in unlinked:
+            try:
+                pub_dt = datetime.fromisoformat(
+                    str(row["published_at"]).replace("Z", "").split("+")[0]
+                )
+            except Exception:
+                continue
+            d = abs(reel_dt - pub_dt)
+            if d < best_delta:
+                best_delta = d
+                best_id    = row["id"]
+                best_title = row["title"]
+
+        if not best_id:
+            skipped += 1
+            continue
+
+        # Fetch insights + link
+        try:
+            ins_data = await _ig_get(f"{media_id}/insights", {
+                "metric": "plays,reach,saved,shares,ig_reels_avg_watch_time",
+            })
+            med_data = await _ig_get(media_id, {"fields": "like_count,comments_count"})
+            if "error" in ins_data or "error" in med_data:
+                errors.append(f"{media_id}: {ins_data.get('error') or med_data.get('error')}")
+                continue
+
+            ins     = {i["name"]: i.get("value", 0) for i in ins_data.get("data", [])}
+            avg_ms  = ins.get("ig_reels_avg_watch_time", 0)
+            wt      = f"{avg_ms / 1000:.1f}с" if avg_ms else ""
+
+            conn = sqlite3.connect(str(db_path))
+            conn.execute(
+                """UPDATE news SET
+                       instagram_media_id=?,
+                       stats_views=?,  stats_likes=?,    stats_comments=?,
+                       stats_shares=?, stats_saves=?,    stats_reach=?,
+                       stats_watch_time=?, stats_platform='instagram'
+                   WHERE id=?""",
+                (media_id,
+                 ins.get("plays", 0), med_data.get("like_count", 0),
+                 med_data.get("comments_count", 0),
+                 ins.get("shares", 0), ins.get("saved", 0), ins.get("reach", 0),
+                 wt, best_id),
+            )
+            conn.commit()
+            conn.close()
+
+            linked_ids.add(media_id)
+            linked_count += 1
+            log(f"[AutoSync] Reel {media_id} → #{best_id} «{best_title[:40]}» Δ={best_delta}")
+
+        except Exception as e:
+            errors.append(f"{media_id}: {e}")
+
+    return {"linked": linked_count, "skipped": skipped, "errors": errors}
+
+
+async def _scheduled_auto_sync():
+    """Every-6h job: auto-link unmatched IG reels to news posts."""
+    try:
+        res = await auto_link_reels(DB_PATH)
+        if res["linked"] > 0:
+            log(f"[AutoSync] Linked {res['linked']} reels, skipped {res['skipped']}")
+    except Exception as e:
+        log(f"[AutoSync] Error: {e}")
+
+
+@app.post("/api/meta/auto-sync")
+async def api_auto_sync(request: Request):
+    """Manually trigger auto-link of Instagram Reels to news posts."""
+    require_auth(request)
+    result = await auto_link_reels(DB_PATH)
+    return result
 
 
 async def _scheduled_ig_refresh():

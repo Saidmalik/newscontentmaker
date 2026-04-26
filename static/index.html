@@ -1288,7 +1288,13 @@ function renderAnalytics(d,tg){
     html+=`<div>
       <div class="an-section-title">
         🤖 Claude-инсайты
-        <button class="btn-insights" id="insightsBtn" onclick="loadInsights()">Анализировать</button>
+        <div style="display:flex;gap:.4rem;align-items:center">
+          <button class="btn-insights" id="igSyncBtn" onclick="igAutoSync(this)"
+                  style="background:var(--bg3);border:1px solid var(--border);color:var(--text2)">
+            📡 Синх. IG
+          </button>
+          <button class="btn-insights" id="insightsBtn" onclick="loadInsights()">Анализировать</button>
+        </div>
       </div>
       <div id="insightsBox" style="font-size:.76rem;color:var(--text2)">
         Нажми «Анализировать» — Claude проанализирует ${withStats.length} постов и даст рекомендации
@@ -1335,6 +1341,20 @@ function renderAnalytics(d,tg){
   }
 
   body.innerHTML=html;
+}
+
+async function igAutoSync(btn){
+  const orig=btn.textContent;
+  btn.disabled=true; btn.textContent="⏳ Синхронизирую…";
+  try{
+    const r=await api("POST","/api/meta/auto-sync");
+    const linked=r.linked||0;
+    const errs=(r.errors||[]).length;
+    toast(linked>0?`✓ Привязано ${linked} роликов`:`Новых совпадений нет (пропущено ${r.skipped||0})`);
+    if(errs>0) toast(`⚠️ Ошибок: ${errs}`,true);
+    if(linked>0) setTimeout(loadAnalytics,600);
+  }catch(e){toast("Ошибка синхронизации: "+e.message,true);}
+  finally{btn.disabled=false; btn.textContent=orig;}
 }
 
 async function loadInsights(){

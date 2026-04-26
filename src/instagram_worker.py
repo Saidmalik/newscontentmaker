@@ -70,7 +70,12 @@ def _token() -> str:
     return os.environ.get("META_ACCESS_TOKEN", "")
 
 def _ig_id() -> str:
-    return os.environ.get("INSTAGRAM_ACCOUNT_ID", "17841477793587741")
+    """Return first non-empty INSTAGRAM_ACCOUNT_ID variant."""
+    for key in ("INSTAGRAM_ACCOUNT_ID", "INSTAGRAM_ACCOUNT_ID_"):
+        v = (os.environ.get(key) or "").strip()
+        if v:
+            return v
+    return "17841477793587741"
 
 
 # ── Resumable upload helpers ──────────────────────────────────────────────────

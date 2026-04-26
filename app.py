@@ -1493,6 +1493,16 @@ async def meta_status(request: Request):
 #   POST /api/meta/refresh-stats   — re-fetch stats for all linked reels
 
 
+def _ig_ids() -> list[str]:
+    """Return all configured IG account IDs to try (primary first, then fallback)."""
+    ids: list[str] = []
+    for key in ("INSTAGRAM_ACCOUNT_ID", "INSTAGRAM_ACCOUNT_ID_"):
+        v = (os.environ.get(key) or "").strip()
+        if v and v not in ids:
+            ids.append(v)
+    return ids or ["17841477793587741"]
+
+
 async def _ig_get(path: str, params: dict = None) -> dict:
     """Make an authenticated Instagram Graph API request (system user token)."""
     token = os.environ.get("META_ACCESS_TOKEN", "")
@@ -1516,12 +1526,16 @@ async def _ig_get(path: str, params: dict = None) -> dict:
 async def api_meta_account_stats(request: Request):
     """Return Instagram account info: followers, posts count, username."""
     require_auth(request)
-    ig_id = os.environ.get("INSTAGRAM_ACCOUNT_ID", "17841477793587741")
-    data = await _ig_get(ig_id, {
-        "fields": "username,followers_count,media_count,profile_picture_url",
-    })
+    data, last_err = {}, {}
+    for ig_id in _ig_ids():
+        data = await _ig_get(ig_id, {
+            "fields": "username,followers_count,media_count,profile_picture_url",
+        })
+        if "error" not in data:
+            break
+        last_err = data
     if "error" in data:
-        raise HTTPException(status_code=502, detail=str(data["error"]))
+        raise HTTPException(status_code=502, detail=str(last_err.get("error")))
     return data
 
 
@@ -1529,13 +1543,16 @@ async def api_meta_account_stats(request: Request):
 async def api_ig_reels(request: Request, limit: int = 30):
     """Fetch recent Instagram Reels with live insights from Meta Graph API."""
     require_auth(request)
-    ig_id = os.environ.get("INSTAGRAM_ACCOUNT_ID", "17841477793587741")
 
-    # 1. Get media list
-    media_data = await _ig_get(f"{ig_id}/media", {
-        "fields": "id,media_type,timestamp,permalink,like_count,comments_count,caption",
-        "limit": limit,
-    })
+    # 1. Get media list — try each configured account ID
+    media_data: dict = {}
+    for ig_id in _ig_ids():
+        media_data = await _ig_get(f"{ig_id}/media", {
+            "fields": "id,media_type,timestamp,permalink,like_count,comments_count,caption",
+            "limit": limit,
+        })
+        if "error" not in media_data:
+            break
     if "error" in media_data:
         raise HTTPException(status_code=502, detail=str(media_data["error"]))
 
@@ -1915,17 +1932,20 @@ async def auto_link_reels(db_path: Path) -> dict:
     if not token:
         return {"linked": 0, "skipped": 0, "errors": ["META_ACCESS_TOKEN не задан"]}
 
-    ig_id = os.environ.get("INSTAGRAM_ACCOUNT_ID", "17841477793587741")
-
-    # 1. Fetch recent media from account
+    # 1. Fetch recent media — try each configured account ID
+    media_data: dict = {"error": "no account ID configured"}
     async with httpx.AsyncClient(timeout=30) as c:
-        r = await c.get(
-            f"{GRAPH_URL}/{ig_id}/media",
-            params={"access_token": token,
-                    "fields": "id,media_type,timestamp,caption",
-                    "limit": 50},
-        )
-    media_data = r.json()
+        for ig_id in _ig_ids():
+            r = await c.get(
+                f"{GRAPH_URL}/{ig_id}/media",
+                params={"access_token": token,
+                        "fields": "id,media_type,timestamp,caption",
+                        "limit": 50},
+            )
+            media_data = r.json()
+            if "error" not in media_data:
+                break
+
     if "error" in media_data:
         return {"linked": 0, "skipped": 0, "errors": [str(media_data["error"])]}
 

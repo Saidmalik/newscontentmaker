@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MediaHub — Контент-завод</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%239966ff'/><text x='50%25' y='54%25' font-family='Arial Black,sans-serif' font-size='18' font-weight='900' fill='white' text-anchor='middle' dominant-baseline='middle'>M</text></svg>">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -841,13 +842,12 @@ function renderDetail(n){
           <span class="char-count">Символов: <span id="char-count-${n.id}">${charCount}</span></span>
         </div>
         <div class="section-actions">
-          <span class="dirty-dot" id="dirty-tts-${n.id}"></span>
-          <button class="copy-btn" onclick="saveTTS(${n.id})">Сохранить</button>
+          <span id="autosave-tts-${n.id}" style="font-size:.65rem;color:var(--text3);opacity:0;transition:opacity .3s"></span>
           <button class="copy-btn" onclick="copyTA('tts-${n.id}')">Copy</button>
         </div>
       </div>
       <textarea class="d-ta" id="tts-${n.id}" rows="9"
-        oninput="markDirty('tts',${n.id});document.getElementById('char-count-${n.id}').textContent=this.value.length"
+        oninput="scheduleAutoSave('tts',${n.id});document.getElementById('char-count-${n.id}').textContent=this.value.length"
       >${esc(n.tts_script)}</textarea>
     </div>`
     :`<div style="font-size:.75rem;color:var(--text3);text-align:center;padding:.5rem 0">
@@ -858,13 +858,12 @@ function renderDetail(n){
       <div class="section-header">
         <div class="section-label">◫ Описание</div>
         <div class="section-actions">
-          <span class="dirty-dot" id="dirty-desc-${n.id}"></span>
-          <button class="copy-btn" onclick="saveDesc(${n.id})">Сохранить</button>
+          <span id="autosave-desc-${n.id}" style="font-size:.65rem;color:var(--text3);opacity:0;transition:opacity .3s"></span>
           <button class="copy-btn" onclick="copyTA('desc-${n.id}')">Copy</button>
         </div>
       </div>
       <textarea class="desc-ta" id="desc-${n.id}" rows="7"
-        oninput="markDirty('desc',${n.id})"
+        oninput="scheduleAutoSave('desc',${n.id})"
       >${esc(n.description)}</textarea>
     </div>`:"";
 
@@ -1050,28 +1049,37 @@ async function delCard(id){
   }catch(e){toast("Ошибка: "+e.message,true);}
 }
 
-/* Save text */
-function markDirty(type,id){const d=document.getElementById(`dirty-${type}-${id}`);if(d)d.style.display="inline-block";}
-async function saveTTS(id){
-  const ta=document.getElementById("tts-"+id);if(!ta)return;
-  const text=ta.value.trim();if(!text)return;
-  try{
-    await api("PATCH",`/api/news/${id}/tts`,{tts_script:text});
-    const n=news.find(x=>x.id===id);if(n)n.tts_script=text;
-    const d=document.getElementById("dirty-tts-"+id);if(d)d.style.display="none";
-    toast("TTS сохранён ✓");
-  }catch(e){toast("Ошибка: "+e.message,true);}
+/* Auto-save with debounce (1.5s after last keystroke) */
+const _autoSaveTimers={};
+function scheduleAutoSave(type,id){
+  const key=`${type}-${id}`;
+  const indicator=document.getElementById(`autosave-${type}-${id}`);
+  if(indicator){indicator.textContent="●";indicator.style.opacity="1";indicator.style.color="var(--text3)";}
+  clearTimeout(_autoSaveTimers[key]);
+  _autoSaveTimers[key]=setTimeout(()=>_doAutoSave(type,id),1500);
 }
-async function saveDesc(id){
-  const ta=document.getElementById("desc-"+id);if(!ta)return;
-  const text=ta.value.trim();if(!text)return;
+async function _doAutoSave(type,id){
+  const indicator=document.getElementById(`autosave-${type}-${id}`);
+  const ta=document.getElementById(`${type==="tts"?"tts":"desc"}-${id}`);
+  if(!ta||!ta.value.trim())return;
   try{
-    await api("PATCH",`/api/news/${id}/description`,{description:text});
-    const n=news.find(x=>x.id===id);if(n)n.description=text;
-    const d=document.getElementById("dirty-desc-"+id);if(d)d.style.display="none";
-    toast("Описание сохранено ✓");
-  }catch(e){toast("Ошибка: "+e.message,true);}
+    if(type==="tts"){
+      await api("PATCH",`/api/news/${id}/tts`,{tts_script:ta.value.trim()});
+      const n=news.find(x=>x.id===id);if(n)n.tts_script=ta.value.trim();
+    }else{
+      await api("PATCH",`/api/news/${id}/description`,{description:ta.value.trim()});
+      const n=news.find(x=>x.id===id);if(n)n.description=ta.value.trim();
+    }
+    if(indicator){indicator.textContent="✓ сохранено";indicator.style.color="var(--green)";}
+    setTimeout(()=>{if(indicator)indicator.style.opacity="0";},2000);
+  }catch(e){
+    if(indicator){indicator.textContent="⚠ ошибка";indicator.style.color="var(--hot)";}
+  }
 }
+/* Keep saveTTS/saveDesc for speak auto-save compatibility */
+async function saveTTS(id){await _doAutoSave("tts",id);}
+async function saveDesc(id){await _doAutoSave("desc",id);}
+function markDirty(type,id){scheduleAutoSave(type,id);}
 
 /* Copy */
 async function copyTA(elId){

@@ -215,7 +215,16 @@ def fetch_source(source: dict, conn: sqlite3.Connection,
 
         title = clean_text(getattr(entry, "title", ""))
         summary = clean_text(getattr(entry, "summary", ""))[:400]
-        published = getattr(entry, "published", "") or str(datetime.now())
+
+        # Normalize publication time to UTC ISO (feedparser gives UTC struct_time)
+        pub_parsed = getattr(entry, "published_parsed", None)
+        if pub_parsed:
+            try:
+                published = datetime(*pub_parsed[:6], tzinfo=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+            except Exception:
+                published = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        else:
+            published = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
         score = keyword_score(title, summary)
         if score < min_score:

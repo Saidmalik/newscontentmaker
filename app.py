@@ -378,7 +378,7 @@ async def api_news(
     params: list = [min_score]
 
     if tab == "starred":
-        where.append("starred = 1")
+        where.append("starred = 1 AND published_at IS NULL")
     elif tab == "preselected":
         where.append("preselected = 1 AND published_at IS NULL")
     elif tab == "approved":

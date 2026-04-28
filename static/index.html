@@ -606,7 +606,7 @@ body::before {
         <div class="tab" data-tab="hot" onclick="setTab('hot')">🔥 Горящие <span class="tab-count" id="cnt-hot">—</span></div>
         <div class="tab" data-tab="good" onclick="setTab('good')">⚡ Хорошие <span class="tab-count" id="cnt-good">—</span></div>
         <div class="tab" data-tab="reserve" onclick="setTab('reserve')">◫ Резерв <span class="tab-count" id="cnt-reserve">—</span></div>
-        <div class="tab" data-tab="starred" onclick="setTab('starred')">⭐ Выбранные <span class="tab-count" id="cnt-star">—</span></div>
+        <div class="tab" data-tab="starred" onclick="setTab('starred')">⭐ Избранные <span class="tab-count" id="cnt-star">—</span></div>
         <div class="tab" data-tab="approved" onclick="setTab('approved')">✓ Одобренные</div>
         <div class="tab" data-tab="published" onclick="setTab('published')">⬡ Опубликовано <span class="tab-count" id="cnt-pub">—</span></div>
       </div>
@@ -776,7 +776,7 @@ function cardHtml(n,isPubTab=false){
       <span>↗️ <span class="cs-val">${fmtNum(n.stats_shares)}</span></span>
     </div>`:"";
 
-  const starBtn=`<button class="btn-sm${n.starred?" btn-starred":""}" title="${n.starred?"Убрать из выбранных":"Добавить в выбранные"}" onclick="event.stopPropagation();starNews(${n.id})">${n.starred?"⭐":"☆"}</button>`;
+  const starBtn=`<button class="btn-sm${n.starred?" btn-starred":""}" title="${n.starred?"Убрать из избранных":"Добавить в избранные"}" onclick="event.stopPropagation();starNews(${n.id})">${n.starred?"⭐":"☆"}</button>`;
   const btns=isPubTab
     ?`<button class="btn-sm tts-done" onclick="selectCard(${n.id})">📊 Статистика</button>${starBtn}`
     :(!hasTTS
@@ -800,7 +800,7 @@ function cardHtml(n,isPubTab=false){
       <div class="card-meta">
         <span>${esc(n.source||"")}</span>
         <span class="meta-dot"></span>
-        <span>${fmtDate(n.collected)}</span>
+        <span>${fmtDate(n.published||n.collected)}</span>
         <span class="meta-dot"></span>
         <span>Score <span class="meta-score">${n.score}</span></span>
         ${hasTTS?`<span class="meta-dot"></span><span class="meta-tts">✓ TTS</span>`:""}
@@ -922,7 +922,7 @@ function renderDetail(n){
       <div class="d-title"><a href="${esc(n.url)}" target="_blank" rel="noopener">${esc(n.title)}</a></div>
       <div class="d-meta">
         Score: <span class="d-score-val">${n.score}</span>
-        · ${fmtDate(n.collected)}
+        · ${fmtDate(n.published||n.collected)}
         ${pubDate}
       </div>
     </div>
@@ -1035,7 +1035,7 @@ async function starNews(id){
     if(n)n.starred=res.starred?1:0;
     renderFeed();updateCounts();
     if(selectedId===id&&n)renderDetail(n);
-    toast(res.starred?"⭐ Добавлено в выбранные":"Убрано из выбранных");
+    toast(res.starred?"⭐ Добавлено в избранные":"Убрано из избранных");
   }catch(e){toast("Ошибка: "+e.message,true);}
 }
 

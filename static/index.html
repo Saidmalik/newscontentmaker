@@ -673,9 +673,18 @@ function esc(s){return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").
 function fmtDate(str){
   if(!str)return"";
   try{
-    const s=/Z$|[+-]\d{2}:\d{2}$/.test(str)?str:str+"Z";
-    const d=new Date(s);if(isNaN(d))return str.slice(0,16).replace("T"," ");
-    const uz=new Date(d.getTime()+5*3600000); // always UTC+5 (Tashkent)
+    // Normalize "+0500" → "+05:00" (RFC 2822 stores offset without colon)
+    let s=str.replace(/([+-])(\d{2})(\d{2})(\s*)$/, '$1$2:$3');
+    // If no timezone info at all → treat as UTC
+    if(!/Z$|[+-]\d{2}:\d{2}$/.test(s))s+="Z";
+    const d=new Date(s);
+    if(isNaN(d)){
+      // Last resort: try raw string for browser RFC 2822 parser
+      const d2=new Date(str);
+      if(!isNaN(d2)){const uz2=new Date(d2.getTime()+5*3600000);return`${uz2.getUTCDate()} ${MONTHS[uz2.getUTCMonth()]}, ${String(uz2.getUTCHours()).padStart(2,"0")}:${String(uz2.getUTCMinutes()).padStart(2,"0")}`;}
+      return str.slice(0,16).replace("T"," ");
+    }
+    const uz=new Date(d.getTime()+5*3600000); // UTC → Tashkent UTC+5
     return`${uz.getUTCDate()} ${MONTHS[uz.getUTCMonth()]}, ${String(uz.getUTCHours()).padStart(2,"0")}:${String(uz.getUTCMinutes()).padStart(2,"0")}`;
   }catch(_){return str.slice(0,10);}
 }

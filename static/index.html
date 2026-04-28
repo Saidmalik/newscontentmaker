@@ -1568,6 +1568,7 @@ function openPublishModal(id){
   document.getElementById("igFileOk").style.display="none";
   document.getElementById("igProgress").style.display="none";
   document.getElementById("igResultLink").style.display="none";
+  document.getElementById("igErrorBox").style.display="none";
   document.getElementById("igProgressFill").style.width="0%";
   document.getElementById("igPublishBtn").disabled=true;
   document.getElementById("igPublishBtn").textContent="🚀 Опубликовать";
@@ -1646,7 +1647,38 @@ async function igPublish(){
   }catch(e){
     prog.style.display="none";
     btn.disabled=false; btn.textContent="🚀 Опубликовать";
-    toast("Ошибка: "+e.message,true);
+    const isBlocked=e.message.includes("access blocked")||e.message.includes("content_publish");
+    if(isBlocked){
+      // Show inline error with manual fallback
+      const errBox=document.getElementById("igErrorBox");
+      if(errBox){
+        const cap=document.getElementById("igCaption").value.trim();
+        errBox.style.display="";
+        errBox.innerHTML=`
+          <div style="background:rgba(255,60,60,.1);border:1px solid rgba(255,60,60,.3);border-radius:8px;padding:.65rem .8rem;margin-top:.5rem">
+            <div style="color:#ff6060;font-weight:700;font-size:.75rem;margin-bottom:.4rem">⛔ Нет прав на публикацию</div>
+            <div style="font-size:.72rem;color:var(--text2);margin-bottom:.5rem">
+              Токен не имеет разрешения <code style="color:var(--purple)">instagram_content_publish</code>.<br>
+              Перейди в <b>Meta Business Manager → Системные пользователи → instagram-bot → Сгенерировать маркер</b>
+              и включи это разрешение.
+            </div>
+            <div style="display:flex;gap:.4rem;flex-wrap:wrap">
+              <button onclick="navigator.clipboard.writeText(document.getElementById('igCaption').value);toast('Подпись скопирована ✓')"
+                style="padding:.3rem .6rem;background:var(--purple);color:#fff;border:none;border-radius:6px;font-size:.72rem;cursor:pointer">
+                📋 Скопировать подпись
+              </button>
+              <a href="https://www.instagram.com" target="_blank"
+                style="padding:.3rem .6rem;background:var(--bg4);color:var(--text);border:1px solid var(--border2);border-radius:6px;font-size:.72rem;text-decoration:none">
+                📱 Открыть Instagram
+              </a>
+            </div>
+          </div>`;
+      } else {
+        toast("⛔ Нет прав instagram_content_publish — перегенерируй токен",true);
+      }
+    } else {
+      toast("Ошибка: "+e.message,true);
+    }
   }
 }
 
@@ -1700,6 +1732,9 @@ load();loadCredits();
 
       <!-- Result link -->
       <div id="igResultLink" class="ig-result-link" style="display:none"></div>
+
+      <!-- Error box (shown on API access blocked) -->
+      <div id="igErrorBox" style="display:none"></div>
 
     </div>
     <div class="ig-card-foot">

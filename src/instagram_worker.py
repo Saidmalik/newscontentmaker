@@ -71,7 +71,7 @@ def _token() -> str:
 
 def _ig_id() -> str:
     """Return first non-empty INSTAGRAM_ACCOUNT_ID variant."""
-    for key in ("INSTAGRAM_ACCOUNT_ID", "INSTAGRAM_ACCOUNT_ID_"):
+    for key in ("INSTAGRAM_ACCOUNT_ID_2", "INSTAGRAM_ACCOUNT_ID"):
         v = (os.environ.get(key) or "").strip()
         if v:
             return v
@@ -94,7 +94,15 @@ async def _init_container(caption: str, post_type: str) -> tuple[str, str]:
         r = await c.post(f"{GRAPH_URL}/{_ig_id()}/media", data=params)
     data = r.json()
     if "error" in data:
-        raise RuntimeError(f"Container init error: {data['error']['message']}")
+        msg = data["error"].get("message", "unknown")
+        code = data["error"].get("code", 0)
+        if "access blocked" in msg.lower() or code == 200:
+            raise RuntimeError(
+                "API access blocked — токен не имеет прав instagram_content_publish. "
+                "Перегенерируй System User токен в Meta Business Manager с разрешением "
+                "instagram_content_publish."
+            )
+        raise RuntimeError(f"Container init error: {msg}")
     container_id = data["id"]
     upload_uri   = data.get("uri", f"{RUPLOAD_URL}/{container_id}")
     return container_id, upload_uri

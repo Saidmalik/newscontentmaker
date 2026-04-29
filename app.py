@@ -166,10 +166,20 @@ def _tg_notify(text: str):
         log(f"TG notify error: {e}")
 
 
+# ── SCHEDULER STATE ───────────────────────────────────────────────────────
+
+_collect_state: dict = {
+    "last_run":    None,   # ISO string UTC
+    "last_count":  None,   # int — how many new items last run found
+    "last_error":  None,   # str — last error message if any
+    "running":     False,  # is a collect currently in progress
+}
+
 # ── SCHEDULER ─────────────────────────────────────────────────────────────
 
 async def scheduled_collect():
     log("=== Scheduled collect ===")
+    _collect_state["running"] = True
     try:
         # Snapshot existing IDs before run
         conn = sqlite3.connect(DB_PATH)
@@ -197,6 +207,10 @@ async def scheduled_collect():
         new_count = len(new_items)
         now_uzt   = datetime.utcnow() + timedelta(hours=5)
 
+        _collect_state["last_run"]   = datetime.utcnow().isoformat()
+        _collect_state["last_count"] = new_count
+        _collect_state["last_error"] = None
+
         if new_count > 0:
             top = new_items[:3]
             msg = f"✅ {now_uzt.strftime('%H:%M')} | Собрано: +{new_count} новостей\n\n"
@@ -210,7 +224,12 @@ async def scheduled_collect():
 
     except Exception as e:
         log(f"Scheduler error: {e}")
+        _collect_state["last_error"] = str(e)[:200]
+        if not _collect_state["last_run"]:
+            _collect_state["last_run"] = datetime.utcnow().isoformat()
         _tg_notify(f"❌ Ошибка сбора: {str(e)[:120]}")
+    finally:
+        _collect_state["running"] = False
 
 
 scheduler = AsyncIOScheduler(timezone="UTC")
@@ -436,8 +455,39 @@ async def api_news(
 @app.post("/api/collect")
 async def api_collect(request: Request, background_tasks: BackgroundTasks):
     require_auth(request)
+    if _collect_state["running"]:
+        return {"status": "already_running"}
     background_tasks.add_task(scheduled_collect)
     return {"status": "started"}
+
+
+@app.get("/api/collect/status")
+async def api_collect_status(request: Request):
+    require_auth(request)
+    # Compute next scheduled run times (UTC)
+    now_utc = datetime.utcnow()
+    collect_hours_utc = [1, 5, 9, 13, 16]
+    next_run = None
+    for h in collect_hours_utc:
+        candidate = now_utc.replace(hour=h, minute=0, second=0, microsecond=0)
+        if candidate > now_utc:
+            next_run = candidate
+            break
+    if next_run is None:
+        # Next day first slot
+        from datetime import timedelta as _td
+        next_run = (now_utc + _td(days=1)).replace(
+            hour=collect_hours_utc[0], minute=0, second=0, microsecond=0
+        )
+    return {
+        "running":     _collect_state["running"],
+        "last_run":    _collect_state["last_run"],
+        "last_count":  _collect_state["last_count"],
+        "last_error":  _collect_state["last_error"],
+        "next_run":    next_run.isoformat(),
+        "schedule_utc": collect_hours_utc,
+        "schedule_uzt": [h + 5 for h in collect_hours_utc],
+    }
 
 
 @app.patch("/api/news/{news_id}/tts")

@@ -90,6 +90,14 @@ def run_migrations(conn: sqlite3.Connection):
         "ALTER TABLE news ADD COLUMN instagram_permalink TEXT",
         "ALTER TABLE news ADD COLUMN starred INTEGER DEFAULT 0",
         "ALTER TABLE news ADD COLUMN preselected INTEGER DEFAULT 0",
+        # Telegram auto-channel fields
+        "ALTER TABLE news ADD COLUMN tg_auto_published INTEGER DEFAULT 0",
+        "ALTER TABLE news ADD COLUMN tg_manual_published INTEGER DEFAULT 0",
+        "ALTER TABLE news ADD COLUMN tg_published_at TEXT",
+        "ALTER TABLE news ADD COLUMN tg_message_id INTEGER",
+        "ALTER TABLE news ADD COLUMN tg_short_post TEXT",
+        "ALTER TABLE news ADD COLUMN tg_long_post TEXT",
+        "ALTER TABLE news ADD COLUMN tg_topic_hash TEXT",
     ]:
         try:
             conn.execute(sql)
@@ -255,6 +263,8 @@ async def lifespan(app: FastAPI):
     scheduler.add_job(_scheduled_ig_snapshots, "cron", minute=15)
     # Daily cleanup of old unreviewed news at 00:30 UTC (05:30 UZT)
     scheduler.add_job(_scheduled_cleanup, "cron", hour=0, minute=30)
+    # TG auto-post: 09:00, 12:00, 17:00, 20:00 UZT = 04:00, 07:00, 12:00, 15:00 UTC
+    scheduler.add_job(_scheduled_tg_auto, "cron", hour="4,7,12,15", minute=0)
     scheduler.start()
     log(f"Scheduler started. DB: {DB_PATH}")
 
@@ -487,6 +497,70 @@ async def api_collect_status(request: Request):
         "next_run":    next_run.isoformat(),
         "schedule_utc": collect_hours_utc,
         "schedule_uzt": [h + 5 for h in collect_hours_utc],
+    }
+
+
+@app.post("/api/news/{news_id}/tg-preview")
+async def api_tg_preview(news_id: int, request: Request):
+    """Generate detailed TG post for preview (no publish)."""
+    require_auth(request)
+    try:
+        from src.tg_auto_worker import preview_long_post
+        result = await asyncio.to_thread(preview_long_post, news_id, DB_PATH)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/news/{news_id}/tg-publish")
+async def api_tg_publish(news_id: int, request: Request):
+    """Generate detailed TG post and publish to channel. Accepts optional custom_text."""
+    require_auth(request)
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    custom_text = (body.get("custom_text") or "").strip() or None
+    try:
+        from src.tg_auto_worker import run_manual_post
+        result = await asyncio.to_thread(run_manual_post, news_id, DB_PATH, custom_text)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/tg/auto-now")
+async def api_tg_auto_now(request: Request, background_tasks: BackgroundTasks):
+    """Manually trigger auto TG post check."""
+    require_auth(request)
+    background_tasks.add_task(_scheduled_tg_auto)
+    return {"status": "triggered"}
+
+
+@app.get("/api/tg/status")
+async def api_tg_status(request: Request):
+    """TG channel status: today's post count, last published, config."""
+    require_auth(request)
+    conn = sqlite3.connect(DB_PATH)
+    today = datetime.utcnow().strftime("%Y-%m-%d")
+    today_count = conn.execute(
+        "SELECT COUNT(*) FROM news WHERE tg_auto_published=1 AND tg_published_at LIKE ?",
+        (f"{today}%",)
+    ).fetchone()[0]
+    last_row = conn.execute(
+        "SELECT title, tg_published_at, tg_message_id FROM news "
+        "WHERE tg_auto_published=1 OR tg_manual_published=1 "
+        "ORDER BY tg_published_at DESC LIMIT 1"
+    ).fetchone()
+    conn.close()
+    return {
+        "enabled":      os.environ.get("TG_AUTO_ENABLED", "0") == "1",
+        "channel":      os.environ.get("TG_MY_CHANNEL", ""),
+        "today_count":  today_count,
+        "max_day":      int(os.environ.get("TG_AUTO_MAX_DAY", "4")),
+        "last_title":   last_row[0] if last_row else None,
+        "last_pub":     last_row[1] if last_row else None,
+        "schedule_uzt": "09:00, 12:00, 17:00, 20:00",
     }
 
 
@@ -1955,6 +2029,16 @@ async def _scheduled_cleanup():
             log(f"[Cleanup] Нечего удалять (старше {days} дней)")
     except Exception as e:
         log(f"[Cleanup] Error: {e}")
+
+
+async def _scheduled_tg_auto():
+    """Scheduled TG auto-post at 09/12/17/20 UZT."""
+    try:
+        from src.tg_auto_worker import run_auto_post
+        result = await asyncio.to_thread(run_auto_post, DB_PATH)
+        log(f"[TG Auto] {result}")
+    except Exception as e:
+        log(f"[TG Auto] Error: {e}")
 
 
 async def _scheduled_ig_snapshots():

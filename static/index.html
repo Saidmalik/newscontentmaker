@@ -1565,24 +1565,60 @@ function openStatsForPost(id){
   },400);
 }
 
+/* ── TG MODAL ─────────────────────────────────────────────── */
+let _tgNewsId=null;
 async function publishToTG(id){
-  const btn=document.querySelector(".d-footer .ba-tg");
-  if(btn){btn.disabled=true;btn.innerHTML=`<span class="spin"></span>`;}
+  _tgNewsId=id;
+  const overlay=document.getElementById("tgOverlay");
+  const preview=document.getElementById("tgPreviewText");
+  const sendBtn=document.getElementById("tgSendBtn");
+  overlay.style.display="flex";
+  preview.textContent="⏳ Генерирую пост…";
+  sendBtn.disabled=true;
   try{
-    const res=await api("POST",`/api/news/${id}/publish-tg`);
-    if(res.permalink){
-      toast(`✓ Telegram · <a href="${esc(res.permalink)}" target="_blank" style="color:#0088cc">Открыть пост ↗</a>`);
+    const res=await api("POST",`/api/news/${id}/tg-preview`);
+    if(res.status==="ok"&&res.post_text){
+      preview.textContent=res.post_text;
+      sendBtn.disabled=false;
     }else{
-      toast("Опубликовано в Telegram ✓");
+      preview.textContent="Ошибка генерации: "+(res.status||"unknown");
     }
-    await load();renderFeed();updateCounts();
-    const n=news.find(x=>x.id===id);
-    if(n&&selectedId===id)renderDetail(n);
   }catch(e){
-    toast("Ошибка Telegram: "+e.message,true);
-    if(btn){btn.disabled=false;btn.innerHTML="📢 Telegram";}
+    preview.textContent="Ошибка: "+e.message;
   }
 }
+function closeTgModal(){
+  document.getElementById("tgOverlay").style.display="none";
+  _tgNewsId=null;
+}
+async function tgSendNow(){
+  if(!_tgNewsId)return;
+  const btn=document.getElementById("tgSendBtn");
+  const editedText=document.getElementById("tgPreviewText").value.trim();
+  btn.disabled=true; btn.innerHTML=`<span class="spin"></span> Публикую…`;
+  try{
+    // Send edited text if user changed it
+    const res=await api("POST",`/api/news/${_tgNewsId}/tg-publish`,{custom_text:editedText||undefined});
+    if(res.status==="published"){
+      const ch=(res.msg_id&&tgChannel)?` · <a href="https://t.me/${tgChannel}/${res.msg_id}" target="_blank" style="color:#0088cc">Открыть ↗</a>`:"";
+      toast("✓ Опубликовано в Telegram"+ch);
+      const savedId=_tgNewsId;
+      closeTgModal();
+      await load(); renderFeed(); updateCounts();
+      const n=news.find(x=>x.id===savedId);
+      if(n&&selectedId===savedId)renderDetail(n);
+    }else{
+      toast("Ошибка: "+(res.status||"unknown"),true);
+      btn.disabled=false; btn.textContent="📤 Опубликовать";
+    }
+  }catch(e){
+    toast("Ошибка: "+e.message,true);
+    btn.disabled=false; btn.textContent="📤 Опубликовать";
+  }
+}
+let tgChannel="";
+// Загрузить конфиг канала при старте
+(async()=>{try{const s=await api("GET","/api/tg/status");if(s&&s.channel)tgChannel=s.channel.replace("@","");}catch(e){}})()
 
 async function analyzePost(id, btn){
   if(btn){btn.disabled=true;btn.innerHTML=`<span class="spin" style="border-top-color:var(--purple)"></span>`;}
@@ -1810,6 +1846,32 @@ setInterval(()=>{ load(); }, 5 * 60 * 1000);
     <div class="ig-card-foot">
       <button class="ig-cancel-btn" onclick="closeIgModal()">Отмена</button>
       <button id="igPublishBtn" class="ig-publish-btn" onclick="igPublish()" disabled>🚀 Опубликовать</button>
+    </div>
+  </div>
+</div>
+
+<!-- Telegram Publish Modal -->
+<div id="tgOverlay" class="ig-overlay" style="display:none" onclick="if(event.target===this)closeTgModal()">
+  <div class="ig-card" style="max-width:560px">
+    <div class="ig-card-head">
+      <span>📢 Публикация в Telegram</span>
+      <button class="ig-close-btn" onclick="closeTgModal()">✕</button>
+    </div>
+    <div class="ig-card-body" style="padding:16px">
+      <div style="font-size:11px;color:var(--text3);margin-bottom:8px">Предпросмотр поста (Claude Sonnet):</div>
+      <textarea id="tgPreviewText" style="
+        width:100%;height:320px;background:var(--bg2);border:1px solid var(--border);
+        border-radius:8px;padding:12px;font-size:12px;line-height:1.6;
+        color:var(--text);resize:vertical;font-family:inherit;
+      " placeholder="Генерирую…"></textarea>
+      <div style="font-size:10px;color:var(--text3);margin-top:6px">
+        Текст можно редактировать перед отправкой
+      </div>
+    </div>
+    <div class="ig-card-foot">
+      <button class="ig-cancel-btn" onclick="closeTgModal()">Отмена</button>
+      <button id="tgSendBtn" class="ig-publish-btn" onclick="tgSendNow()" disabled
+              style="background:#0088cc">📤 Опубликовать</button>
     </div>
   </div>
 </div>

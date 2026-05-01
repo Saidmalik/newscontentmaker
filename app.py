@@ -532,10 +532,33 @@ async def api_tg_publish(news_id: int, request: Request):
 
 @app.post("/api/tg/auto-now")
 async def api_tg_auto_now(request: Request, background_tasks: BackgroundTasks):
-    """Manually trigger auto TG post check."""
+    """Manually trigger auto TG post check (respects limits)."""
     require_auth(request)
     background_tasks.add_task(_scheduled_tg_auto)
     return {"status": "triggered"}
+
+
+@app.post("/api/tg/force-post")
+async def api_tg_force_post(request: Request):
+    """Force one TG post right now — ignores enabled/limit/gap. For testing."""
+    require_auth(request)
+    try:
+        from src.tg_auto_worker import run_auto_post
+        result = await asyncio.to_thread(run_auto_post, DB_PATH, True)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/tg/diagnose")
+async def api_tg_diagnose(request: Request):
+    """Full TG config diagnostics — token, channel, today count, best news."""
+    require_auth(request)
+    try:
+        from src.tg_auto_worker import diagnose
+        return await asyncio.to_thread(diagnose, DB_PATH)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/api/tg/status")

@@ -126,6 +126,53 @@ def _send_text(chat: str, text: str) -> dict:
     })
 
 
+def _send_photo(chat: str, photo_url: str, caption: str) -> dict:
+    """Send photo from URL with HTML caption (max 1024 chars)."""
+    return _bot("sendPhoto", json={
+        "chat_id": chat,
+        "photo": photo_url,
+        "caption": caption[:1024],
+        "parse_mode": "HTML",
+    })
+
+
+def fetch_og_image(url: str) -> str | None:
+    """
+    Fetch og:image or twitter:image from an article URL.
+    Returns image URL string or None if not found / request fails.
+    """
+    if not url:
+        return None
+    try:
+        headers = {
+            "User-Agent": (
+                "Mozilla/5.0 (compatible; MediaHub/1.0; +https://github.com)"
+            )
+        }
+        r = requests.get(url, timeout=8, headers=headers, allow_redirects=True)
+        if not r.ok:
+            return None
+        html = r.text[:50_000]  # Only need the <head>
+
+        # Try og:image first
+        for pattern in [
+            r'<meta[^>]+property=["\']og:image["\'][^>]+content=["\'](https?://[^"\'>\s]+)',
+            r'<meta[^>]+content=["\'](https?://[^"\'>\s]+)[^>]+property=["\']og:image["\']',
+            r'<meta[^>]+name=["\']twitter:image["\'][^>]+content=["\'](https?://[^"\'>\s]+)',
+            r'<meta[^>]+content=["\'](https?://[^"\'>\s]+)[^>]+name=["\']twitter:image["\']',
+        ]:
+            m = re.search(pattern, html, re.IGNORECASE)
+            if m:
+                img = m.group(1).strip()
+                # Skip tiny tracker images
+                if any(x in img for x in ["1x1", "pixel", "blank", "transparent"]):
+                    continue
+                return img
+    except Exception as e:
+        log.debug(f"og:image fetch failed for {url}: {e}")
+    return None
+
+
 def _notify(text: str):
     nc = _notify_chat()
     if nc and _tok():
@@ -298,29 +345,37 @@ def _parse_short_post(raw: str, title: str, summary: str,
         body = (summary or title)[:300]
 
     ch = _channel().lstrip("@")
+    src = _source_line(source, url)
     parts = [f"<b>{header}</b>", "", body]
     if fact:
         parts += ["", fact]
-    parts += ["", f"📎 Источник: {source}"]
+    if src:
+        parts += ["", src]
     if ch:
         parts += ["", f"👉 @{ch}"]
 
     return "\n".join(parts)
 
 
+def _source_line(source: str, url: str) -> str:
+    """Format linked source line."""
+    if url and source:
+        return f'📎 <a href="{url}">{source}</a>'
+    elif url:
+        return f'🔗 {url}'
+    elif source:
+        return f'📎 {source}'
+    return ""
+
+
 def _format_short_fallback(title: str, summary: str, source: str, url: str) -> str:
     """Fallback без Claude."""
     emoji = _pick_emoji(title + " " + (summary or ""))
     ch = _channel().lstrip("@")
-    parts = [
-        f"<b>{emoji} {title}</b>",
-        "",
-        (summary or "")[:400],
-        "",
-        f"📎 Источник: {source}",
-    ]
-    if url:
-        parts += [f"🔗 {url}"]
+    src = _source_line(source, url)
+    parts = [f"<b>{emoji} {title}</b>", "", (summary or "")[:400]]
+    if src:
+        parts += ["", src]
     if ch:
         parts += ["", f"👉 @{ch}"]
     return "\n".join(p for p in parts if p is not None)
@@ -405,9 +460,9 @@ def _format_long_post(data: dict, source: str, url: str) -> str:
     if data.get("hashtags"):
         parts += [data["hashtags"], ""]
 
-    parts += [f"📎 Источник: {source}"]
-    if url:
-        parts += [f"🔗 {url}"]
+    src = _source_line(source, url)
+    if src:
+        parts += [src]
     if ch:
         parts += ["", f"👉 @{ch}"]
 
@@ -416,15 +471,23 @@ def _format_long_post(data: dict, source: str, url: str) -> str:
 
 # ── ПУБЛИКАЦИЯ ────────────────────────────────────────────────────────────────
 
-def _publish_to_channel(text: str) -> tuple[bool, int | None, str]:
-    """Returns (ok, msg_id, error_detail)."""
+def _publish_to_channel(text: str, photo_url: str | None = None) -> tuple[bool, int | None, str]:
+    """Returns (ok, msg_id, error_detail). Uses sendPhoto if photo_url given."""
     ch = _channel()
     if not _tok() or not ch:
         msg = f"token_set={bool(_tok())} channel={repr(ch)}"
         log.warning(msg)
         return False, None, msg
     try:
-        result = _send_text(ch, text)
+        if photo_url:
+            result = _send_photo(ch, photo_url, text)
+            # Fallback to text if photo fails (bad URL, too small, etc.)
+            if not result.get("ok"):
+                log.warning(f"sendPhoto failed ({result.get('description','')}), falling back to text")
+                result = _send_text(ch, text)
+        else:
+            result = _send_text(ch, text)
+
         if result.get("ok"):
             msg_id = result.get("result", {}).get("message_id")
             return True, msg_id, ""
@@ -521,8 +584,9 @@ def run_auto_post(db_path: Path | None = None, force: bool = False) -> dict:
         url=item.get("url", ""),
     )
 
-    # Публиковать
-    ok, msg_id, err_detail = _publish_to_channel(post_text)
+    # Публиковать (с фото если есть og:image у источника)
+    photo_url = fetch_og_image(item.get("url", ""))
+    ok, msg_id, err_detail = _publish_to_channel(post_text, photo_url)
     if not ok:
         conn.close()
         return {"status": "publish_failed", "error": err_detail, "post_text": post_text[:200]}
@@ -570,7 +634,9 @@ def run_manual_post(news_id: int, db_path: Path | None = None,
     item = dict(row)
     post_text = custom_text if custom_text else generate_long_post(item)
 
-    ok, msg_id, err_detail = _publish_to_channel(post_text)
+    # Attach og:image from the article if available
+    photo_url = fetch_og_image(item.get("url", ""))
+    ok, msg_id, err_detail = _publish_to_channel(post_text, photo_url)
     if ok:
         _mark_manual_published(conn, news_id, msg_id, post_text)
 

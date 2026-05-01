@@ -538,9 +538,10 @@ async def api_tg_auto_now(request: Request, background_tasks: BackgroundTasks):
     return {"status": "triggered"}
 
 
-@app.post("/api/tg/force-post")
+@app.api_route("/api/tg/force-post", methods=["GET", "POST"])
 async def api_tg_force_post(request: Request):
-    """Force one TG post right now — ignores enabled/limit/gap. For testing."""
+    """Force one TG post right now — ignores enabled/limit/gap. For testing.
+    Works with both GET (browser) and POST."""
     require_auth(request)
     try:
         from src.tg_auto_worker import run_auto_post

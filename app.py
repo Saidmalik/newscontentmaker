@@ -90,6 +90,7 @@ def run_migrations(conn: sqlite3.Connection):
         "ALTER TABLE news ADD COLUMN instagram_permalink TEXT",
         "ALTER TABLE news ADD COLUMN starred INTEGER DEFAULT 0",
         "ALTER TABLE news ADD COLUMN preselected INTEGER DEFAULT 0",
+        "ALTER TABLE news ADD COLUMN hidden INTEGER DEFAULT 0",
         # Telegram auto-channel fields
         "ALTER TABLE news ADD COLUMN tg_auto_published INTEGER DEFAULT 0",
         "ALTER TABLE news ADD COLUMN tg_manual_published INTEGER DEFAULT 0",
@@ -403,7 +404,7 @@ async def api_news(
 ):
     require_auth(request)
 
-    where = ["score >= ?"]
+    where = ["score >= ?", "hidden = 0"]
     params: list = [min_score]
 
     if tab == "starred":
@@ -1111,9 +1112,10 @@ async def api_gpt_review(news_id: int, request: Request):
 
 @app.delete("/api/news/{news_id}")
 async def api_delete(news_id: int, request: Request):
+    """Soft-delete: mark hidden=1 so URL stays in DB and RSS won't re-collect it."""
     require_auth(request)
     conn = sqlite3.connect(DB_PATH)
-    conn.execute("DELETE FROM news WHERE id=?", (news_id,))
+    conn.execute("UPDATE news SET hidden=1 WHERE id=?", (news_id,))
     conn.commit()
     conn.close()
     return {"id": news_id, "deleted": True}
@@ -2007,9 +2009,11 @@ async def api_ig_posts(request: Request):
 
 
 async def _scheduled_cleanup():
-    """Daily job: delete unpublished/unapproved news older than NEWS_RETENTION_DAYS (default 5).
-    Starred news are also deleted. Only approved and published posts are kept."""
-    days = int(os.environ.get("NEWS_RETENTION_DAYS", "5"))
+    """Daily job: hard-delete old hidden/expired news from DB.
+    - hidden=1 AND older than 3 days → permanently remove (URL freed only after 3d)
+    - unpublished/unapproved AND older than NEWS_RETENTION_DAYS (default 3) → remove
+    Starred and published posts are never deleted."""
+    days = int(os.environ.get("NEWS_RETENTION_DAYS", "3"))
     try:
         conn = sqlite3.connect(DB_PATH)
         result = conn.execute(

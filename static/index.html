@@ -852,10 +852,14 @@ function renderDetail(n){
   const isPublished=!!n.published_at;
   const charCount=n.tts_script?(n.tts_script.length):0;
 
-  const ttsBlock=hasTTS?`
+  // TTS block — always visible, editable manually or via Claude
+  const ttsLabel = hasTTS
+    ? `▶ TTS <span style="font-size:.6rem;color:var(--text3)">Claude</span>`
+    : `▶ TTS <span style="font-size:.6rem;color:var(--accent)">← напиши сам</span>`;
+  const ttsBlock=`
     <div>
       <div class="section-header">
-        <div class="section-label">▶ TTS (Claude)
+        <div class="section-label">${ttsLabel}
           <span class="char-count">Символов: <span id="char-count-${n.id}">${charCount}</span></span>
         </div>
         <div class="section-actions">
@@ -864,25 +868,29 @@ function renderDetail(n){
         </div>
       </div>
       <textarea class="d-ta" id="tts-${n.id}" rows="9"
+        placeholder="Напиши TTS скрипт вручную или нажми ✨ Генерировать..."
         oninput="scheduleAutoSave('tts',${n.id});document.getElementById('char-count-${n.id}').textContent=this.value.length"
-      >${esc(n.tts_script)}</textarea>
-    </div>`
-    :`<div style="font-size:.75rem;color:var(--text3);text-align:center;padding:.5rem 0">
-      Нажми «Генерировать» для создания TTS, описания и превью</div>`;
+      >${esc(n.tts_script||'')}</textarea>
+    </div>`;
 
-  const descBlock=hasDesc?`
+  // Description block — always visible
+  const descLabel = hasDesc
+    ? `◫ Описание <span style="font-size:.6rem;color:var(--text3)">Claude</span>`
+    : `◫ Описание <span style="font-size:.6rem;color:var(--accent)">← напиши сам</span>`;
+  const descBlock=`
     <div>
       <div class="section-header">
-        <div class="section-label">◫ Описание</div>
+        <div class="section-label">${descLabel}</div>
         <div class="section-actions">
           <span id="autosave-desc-${n.id}" style="font-size:.65rem;color:var(--text3);opacity:0;transition:opacity .3s"></span>
           <button class="copy-btn" onclick="copyTA('desc-${n.id}')">Copy</button>
         </div>
       </div>
-      <textarea class="desc-ta" id="desc-${n.id}" rows="7"
+      <textarea class="desc-ta" id="desc-${n.id}" rows="5"
+        placeholder="Напиши описание для Instagram/TG вручную или нажми ✨ Генерировать..."
         oninput="scheduleAutoSave('desc',${n.id})"
-      >${esc(n.description)}</textarea>
-    </div>`:"";
+      >${esc(n.description||'')}</textarea>
+    </div>`;
 
   const prevBlock=previews.length?`
     <div>
@@ -947,22 +955,23 @@ function renderDetail(n){
     <div class="d-footer">
       ${isPublished?`
         <button class="btn-act ba-regen" onclick="regenNews(${n.id})">↺ Заново</button>
-      `:hasTTS?`
+      `:`
         <button class="btn-act ba-approve" id="apr-${n.id}" onclick="approveNews(${n.id})" ${n.approved?"disabled":""}>
           ${n.approved?"✓ Одобрено":"✓ Одобрить"}</button>
-        <button class="btn-act ba-gpt" onclick="gptReview(${n.id})" title="GPT проверит TTS и улучшит по правилам">✦ GPT</button>
+        <button class="btn-act ba-gen" onclick="generateCard(${n.id})" title="Сгенерировать TTS + описание через Claude">✨</button>
+        ${hasTTS?`<button class="btn-act ba-gpt" onclick="gptReview(${n.id})" title="GPT проверит TTS">✦</button>`:""}
         ${n.approved?`
           <button class="btn-act ba-ig" onclick="openPublishModal(${n.id})">📹 Рилс</button>
           <button class="btn-act ba-tg" onclick="publishToTG(${n.id})">📢 Telegram</button>
-          <button class="btn-act ba-publish" onclick="markPublished(${n.id})">⬡ Опубликовано</button>
+          <button class="btn-act ba-publish" onclick="markPublished(${n.id})">⬡ Опубл.</button>
         `:""}
-        <select class="el-sel" id="el-${n.id}">
-          <option value="0">🤖 Авто</option><option value="1">Акк 1</option><option value="2">Акк 2</option>
-        </select>
-        <button class="btn-act ba-speak" onclick="speakNews(${n.id})">🎙 Озвучить</button>
-        <button class="btn-act ba-regen" onclick="regenNews(${n.id})">↺</button>
-      `:`
-        <button class="btn-act ba-gen" onclick="generateCard(${n.id})">✨ Генерировать</button>
+        ${hasTTS?`
+          <select class="el-sel" id="el-${n.id}">
+            <option value="0">🤖 Авто</option><option value="1">Акк 1</option><option value="2">Акк 2</option>
+          </select>
+          <button class="btn-act ba-speak" onclick="speakNews(${n.id})">🎙</button>
+          <button class="btn-act ba-regen" onclick="regenNews(${n.id})">↺</button>
+        `:""}
       `}
     </div>`;
 }

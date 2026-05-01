@@ -416,21 +416,24 @@ def _format_long_post(data: dict, source: str, url: str) -> str:
 
 # ── ПУБЛИКАЦИЯ ────────────────────────────────────────────────────────────────
 
-def _publish_to_channel(text: str) -> tuple[bool, int | None]:
+def _publish_to_channel(text: str) -> tuple[bool, int | None, str]:
+    """Returns (ok, msg_id, error_detail)."""
     ch = _channel()
     if not _tok() or not ch:
-        log.warning(f"TG_BOT_TOKEN={bool(_tok())} TG_MY_CHANNEL={repr(ch)} — не заданы")
-        return False, None
+        msg = f"token_set={bool(_tok())} channel={repr(ch)}"
+        log.warning(msg)
+        return False, None, msg
     try:
         result = _send_text(ch, text)
         if result.get("ok"):
             msg_id = result.get("result", {}).get("message_id")
-            return True, msg_id
-        log.error(f"Telegram API: {result.get('description', result)}")
-        return False, None
+            return True, msg_id, ""
+        err = result.get("description", str(result))
+        log.error(f"Telegram API error: {err}")
+        return False, None, f"Telegram API: {err}"
     except Exception as e:
         log.error(f"Publish error: {e}")
-        return False, None
+        return False, None, str(e)
 
 
 # ── ГЛАВНАЯ ФУНКЦИЯ (Режим 1 — авто) ─────────────────────────────────────────
@@ -519,10 +522,10 @@ def run_auto_post(db_path: Path | None = None, force: bool = False) -> dict:
     )
 
     # Публиковать
-    ok, msg_id = _publish_to_channel(post_text)
+    ok, msg_id, err_detail = _publish_to_channel(post_text)
     if not ok:
         conn.close()
-        return {"status": "publish_failed"}
+        return {"status": "publish_failed", "error": err_detail, "post_text": post_text[:200]}
 
     # Сохранить в БД
     _mark_auto_published(conn, item["id"], msg_id, post_text, item["topic_hash"])
@@ -567,7 +570,7 @@ def run_manual_post(news_id: int, db_path: Path | None = None,
     item = dict(row)
     post_text = custom_text if custom_text else generate_long_post(item)
 
-    ok, msg_id = _publish_to_channel(post_text)
+    ok, msg_id, err_detail = _publish_to_channel(post_text)
     if ok:
         _mark_manual_published(conn, news_id, msg_id, post_text)
 
@@ -582,7 +585,7 @@ def run_manual_post(news_id: int, db_path: Path | None = None,
         log.info(f"TG ручная публикация: {news_id}")
         return {"status": "published", "post_text": post_text, "msg_id": msg_id}
 
-    return {"status": "publish_failed", "post_text": post_text}
+    return {"status": "publish_failed", "error": err_detail, "post_text": post_text}
 
 
 # ── PREVIEW (без публикации) ──────────────────────────────────────────────────

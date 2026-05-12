@@ -1408,6 +1408,55 @@ async def api_speak(news_id: int, request: Request, account: int = 0):
     )
 
 
+@app.get("/api/news/{news_id}/speak-uz")
+async def api_speak_uz(news_id: int, request: Request, account: int = 0):
+    """Generate MP3 from the Uzbek TTS script via ElevenLabs (same voice for now)."""
+    require_auth(request)
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    row = conn.execute("SELECT tts_script_uz FROM news WHERE id=?", (news_id,)).fetchone()
+    conn.close()
+
+    if not row or not row["tts_script_uz"]:
+        raise HTTPException(status_code=404, detail="Нет УЗ TTS скрипта. Сначала переведите текст.")
+
+    script = row["tts_script_uz"]
+
+    if account == 0:
+        api_key, voice_id, used_acc = await _pick_el_account()
+    else:
+        api_key  = os.environ.get(f"ELEVENLABS_API_KEY_{account}", "")
+        voice_id = os.environ.get(f"ELEVENLABS_VOICE_ID_{account}", "")
+        used_acc = account
+        if not api_key or not voice_id:
+            raise HTTPException(
+                status_code=500,
+                detail=f"ELEVENLABS_API_KEY_{account} или ELEVENLABS_VOICE_ID_{account} не заданы."
+            )
+
+    with open(PREFS_PATH, encoding="utf-8") as f:
+        prefs = yaml.safe_load(f)
+    el = prefs.get("elevenlabs", {})
+    voice_settings = el.get("voice_settings", {
+        "stability": 0.45, "similarity_boost": 0.80,
+        "style": 0.35, "speed": 1.05, "use_speaker_boost": True,
+    })
+    model_id = el.get("model_id", "eleven_multilingual_v2")
+
+    audio = await asyncio.to_thread(
+        _elevenlabs_sync, script, api_key, voice_id, voice_settings, model_id
+    )
+    return Response(
+        content=audio,
+        media_type="audio/mpeg",
+        headers={
+            "Content-Disposition": f'attachment; filename="tts_{news_id}_uz_acc{used_acc}.mp3"',
+            "X-EL-Account": str(used_acc),
+        },
+    )
+
+
 def _elevenlabs_sync(
     text: str, api_key: str, voice_id: str, voice_settings: dict, model_id: str
 ) -> bytes:

@@ -1560,17 +1560,34 @@ async function copyPrev(el){
 
 /* Speak — uses active language (RU or UZ textarea) */
 async function speakNewsLang(id){
-  // If UZ mode and UZ script exists, use it; otherwise use RU
+  const btn=document.getElementById("speak-btn-"+id);
+  const sel=document.getElementById("el-"+id);
+  const account=sel?parseInt(sel.value):0;
+
+  // If UZ mode and UZ script exists, speak the UZ version
   if(detailLang === "uz"){
     const uzTa = document.getElementById("tts-uz-"+id);
     const uzText = (uzTa ? uzTa.value : "").trim();
     if(uzText){
-      // Save current UZ text first, then speak it via a temporary endpoint
-      // For now we patch the UZ field and use speak (which uses tts_script)
-      // Best approach: pass text directly to ElevenLabs
+      // Save any edits first
       await api("PATCH",`/api/news/${id}/tts-uz`,{tts_script_uz:uzText});
-      // Use dedicated UZ speak if available, else speak RU
+      if(btn){btn.disabled=true;btn.innerHTML="⏳";}
+      try{
+        const r=await fetch(`/api/news/${id}/speak-uz?account=${account}`);
+        if(r.status===401){location.href="/login";return;}
+        if(!r.ok)throw new Error(await r.text());
+        const usedAcc=r.headers.get("X-EL-Account")||account;
+        const blob=await r.blob();const a=document.createElement("a");
+        a.href=URL.createObjectURL(blob);a.download=`tts_${id}_uz_acc${usedAcc}.mp3`;
+        a.click();URL.revokeObjectURL(a.href);
+        toast(`MP3 УЗ скачан (Акк ${usedAcc}) ✓`);loadCredits();
+      }catch(e){toast("ElevenLabs УЗ: "+e.message,true);}
+      finally{if(btn){btn.disabled=false;btn.innerHTML="🎙";}}
+      return;
     }
+    // No UZ text yet → fall through to RU speak
+    toast("Сначала переведи текст на УЗ (нажми «🌐 Перевести»)",true);
+    return;
   }
   return speakNews(id);
 }

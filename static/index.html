@@ -181,6 +181,7 @@ body::before {
 
 /* News card */
 @keyframes fadeIn { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:none} }
+@keyframes spin { to{transform:rotate(360deg)} }
 .news-card {
   border:1px solid var(--border); border-radius:var(--radius-lg);
   padding:11px 13px; cursor:pointer; transition:all .15s;
@@ -521,6 +522,74 @@ body::before {
 /* ── Star button ── */
 .btn-starred { color:var(--gold)!important; border-color:rgba(245,166,35,.3)!important; }
 .news-card { position:relative; }
+
+/* ── Merge select mode ── */
+.select-mode-btn {
+  padding:4px 10px; border-radius:6px; font-size:11px; font-family:inherit;
+  border:1px solid var(--border2); background:transparent;
+  color:var(--text2); cursor:pointer; transition:all .12s;
+}
+.select-mode-btn.active {
+  background:rgba(153,102,255,.12); border-color:rgba(153,102,255,.35); color:var(--purple);
+}
+.card-cb {
+  width:16px; height:16px; border:1.5px solid var(--border2); border-radius:4px;
+  flex-shrink:0; align-items:center; justify-content:center; font-size:9px;
+  transition:all .15s; display:none; margin-top:1px; color:#fff; background:transparent;
+}
+.merge-mode .card-cb { display:flex; }
+.news-card.merge-checked { border-color:rgba(153,102,255,.5)!important; background:rgba(153,102,255,.07)!important; }
+.news-card.merge-checked .card-cb { background:var(--purple)!important; border-color:var(--purple)!important; }
+.merge-bar {
+  display:none; position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
+  background:var(--bg3); border:1px solid rgba(153,102,255,.4);
+  border-radius:40px; padding:10px 22px; align-items:center; gap:14px; z-index:300;
+  box-shadow:0 8px 40px rgba(0,0,0,.6); animation:fadeIn .2s ease;
+}
+.merge-bar.show { display:flex; }
+.merge-count { font-size:13px; color:var(--text2); }
+.merge-count b { color:var(--purple); font-weight:700; }
+.merge-do-btn {
+  padding:7px 18px; background:var(--purple); border:none;
+  border-radius:20px; color:#fff; font-size:12px; font-weight:600;
+  cursor:pointer; font-family:inherit; transition:opacity .15s;
+}
+.merge-do-btn:hover:not(:disabled) { opacity:.85; }
+.merge-do-btn:disabled { opacity:.35; cursor:not-allowed; }
+.merge-cancel-btn {
+  padding:7px 14px; background:transparent; border:1px solid var(--border2);
+  border-radius:20px; color:var(--text2); font-size:12px;
+  cursor:pointer; font-family:inherit; transition:all .15s;
+}
+.merge-cancel-btn:hover { color:var(--text); }
+
+/* Merge modal */
+.merge-overlay {
+  position:fixed; inset:0; background:rgba(0,0,0,.6);
+  display:flex; align-items:center; justify-content:center; z-index:400;
+}
+.merge-modal {
+  background:var(--bg2); border:1px solid rgba(153,102,255,.3);
+  border-radius:var(--radius-lg); width:520px; max-width:95vw;
+  max-height:85vh; display:flex; flex-direction:column; overflow:hidden;
+}
+.merge-modal-head {
+  padding:14px 18px; border-bottom:1px solid var(--border);
+  display:flex; align-items:center; justify-content:space-between;
+}
+.merge-modal-title { font-size:14px; font-weight:600; color:var(--purple); }
+.merge-modal-body { padding:16px; overflow-y:auto; flex:1; display:flex; flex-direction:column; gap:12px; }
+.merge-modal-foot {
+  padding:12px 18px; border-top:1px solid var(--border);
+  display:flex; justify-content:flex-end; gap:8px;
+}
+.merge-save-btn {
+  padding:8px 20px; background:var(--purple); border:none;
+  border-radius:8px; color:#fff; font-size:13px; font-weight:600;
+  cursor:pointer; font-family:inherit; transition:opacity .15s;
+}
+.merge-save-btn:hover:not(:disabled) { opacity:.85; }
+.merge-save-btn:disabled { opacity:.35; cursor:not-allowed; }
 </style>
 </head>
 <body>
@@ -606,6 +675,7 @@ body::before {
         <div class="sort-btns">
           <button class="sort-btn active" id="sort-score" onclick="setSort('score')">★ Рейтинг</button>
           <button class="sort-btn" id="sort-date" onclick="setSort('date')">⊙ Дата</button>
+          <button class="select-mode-btn" id="selectModeBtn" onclick="toggleMergeMode()" title="Выбрать несколько для объединения">⊕ Выбрать</button>
         </div>
       </div>
 
@@ -653,9 +723,34 @@ body::before {
 
 <div class="toast" id="toast"></div>
 
+<!-- Merge floating bar -->
+<div class="merge-bar" id="mergeBar">
+  <span class="merge-count"><b id="mergeCountNum">0</b> выбрано</span>
+  <button class="merge-do-btn" id="mergeDoBtn" disabled onclick="doMerge()">⊕ Объединить TTS</button>
+  <button class="merge-cancel-btn" onclick="toggleMergeMode()">Отмена</button>
+</div>
+
+<!-- Merge modal -->
+<div class="merge-overlay" id="mergeOverlay" style="display:none" onclick="if(event.target===this)closeMergeModal()">
+  <div class="merge-modal">
+    <div class="merge-modal-head">
+      <span class="merge-modal-title">⊕ Объединённый TTS</span>
+      <button class="tg-close" onclick="closeMergeModal()">✕</button>
+    </div>
+    <div class="merge-modal-body" id="mergeModalBody">
+      <div style="color:var(--text2)">Генерирую…</div>
+    </div>
+    <div class="merge-modal-foot">
+      <button class="merge-cancel-btn" onclick="closeMergeModal()">Отмена</button>
+      <button class="merge-save-btn" id="mergeSaveBtn" disabled onclick="saveMergedTTS()">✓ Сохранить и открыть</button>
+    </div>
+  </div>
+</div>
+
 <script>
 "use strict";
 let news=[], curTab="all", curSort="score", curPeriod="all", selectedId=null;
+let mergeMode=false, mergeSelected=new Set(), mergeResult=null;
 const MONTHS=["янв","фев","мар","апр","май","июн","июл","авг","сен","окт","ноя","дек"];
 
 /* HTTP */
@@ -772,6 +867,7 @@ function renderFeed(){
   else filtered=news.filter(n=>!n.published_at);
 
   const list=document.getElementById("feedList");
+  list.classList.toggle("merge-mode", mergeMode);
   if(!filtered.length){list.innerHTML=`<div class="empty-state">Нет новостей в этой категории</div>`;return;}
 
   list.innerHTML=filtered.map(n=>cardHtml(n,curTab==="published")).join("");
@@ -804,10 +900,12 @@ function cardHtml(n,isPubTab=false){
         :`${starBtn}<button class="btn-sm tts-done" onclick="selectCard(${n.id})">Открыть скрипт →</button>`
     )+`<button class="btn-sm del" title="Удалить" onclick="event.stopPropagation();delCard(${n.id})">✕</button>`;
 
+  const isMergeChecked = mergeSelected.has(n.id);
   return`
-    <div class="news-card${selectedId===n.id?" selected":""}${n.approved&&!isPublished?" approved":""}${isPublished?" is-published":""}"
-         id="card-${n.id}" onclick="selectCard(${n.id})">
+    <div class="news-card${selectedId===n.id&&!mergeMode?" selected":""}${isMergeChecked?" merge-checked":""}${n.approved&&!isPublished?" approved":""}${isPublished?" is-published":""}"
+         id="card-${n.id}" onclick="mergeMode?toggleMergeCard(${n.id},event):selectCard(${n.id})">
       <div class="card-top">
+        <div class="card-cb">${isMergeChecked?"✓":""}</div>
         ${isPublished
           ?`<span class="priority-badge badge-pub">⬡ Опубликовано</span>`
           :`<span class="priority-badge ${priBadge(p)}">${priLabel(p)}</span>`}
@@ -840,6 +938,93 @@ function clearDetail(){
   document.getElementById("detailEmpty").style.display="flex";
   document.getElementById("detailContent").style.display="none";
 }
+
+/* ── MERGE MODE ──────────────────────────────────────────────────────────── */
+function toggleMergeMode(){
+  mergeMode=!mergeMode;
+  mergeSelected.clear();
+  document.getElementById("selectModeBtn").classList.toggle("active",mergeMode);
+  document.getElementById("mergeBar").classList.toggle("show",mergeMode);
+  _updateMergeBar();
+  renderFeed();
+}
+function toggleMergeCard(id,e){
+  if(e)e.stopPropagation();
+  if(mergeSelected.has(id))mergeSelected.delete(id);
+  else if(mergeSelected.size<5)mergeSelected.add(id);
+  else{toast("Максимум 5 новостей за раз",true);return;}
+  // Update card appearance without full re-render
+  const card=document.getElementById("card-"+id);
+  if(card){
+    card.classList.toggle("merge-checked",mergeSelected.has(id));
+    const cb=card.querySelector(".card-cb");
+    if(cb)cb.textContent=mergeSelected.has(id)?"✓":"";
+  }
+  _updateMergeBar();
+}
+function _updateMergeBar(){
+  const n=mergeSelected.size;
+  document.getElementById("mergeCountNum").textContent=n;
+  document.getElementById("mergeDoBtn").disabled=n<2;
+}
+async function doMerge(){
+  const ids=[...mergeSelected];
+  if(ids.length<2)return;
+  // Show modal with loading state
+  document.getElementById("mergeOverlay").style.display="flex";
+  document.getElementById("mergeSaveBtn").disabled=true;
+  document.getElementById("mergeModalBody").innerHTML=`
+    <div style="color:var(--text2);font-size:13px;padding:8px 0;display:flex;align-items:center;gap:8px">
+      <span style="animation:spin 1s linear infinite;display:inline-block">⟳</span>
+      Генерирую объединённый TTS для ${ids.length} новостей…
+    </div>`;
+  try{
+    mergeResult=await api("POST","/api/news/merge",{ids});
+    const tts=mergeResult.tts_script||"";
+    const titles=mergeResult.preview_titles||[];
+    const srcItems=ids.map(id=>{const n=news.find(x=>x.id===id);return n?`<li style="color:var(--text2)">${esc(n.title)}</li>`:""}).join("");
+    document.getElementById("mergeModalBody").innerHTML=`
+      <div style="font-size:11px;color:var(--text3);margin-bottom:4px">
+        Объединено ${ids.length} новостей → первичная <b style="color:var(--purple)">#${mergeResult.primary_id}</b>
+      </div>
+      <ul style="font-size:11px;padding-left:16px;margin-bottom:10px;line-height:1.8">${srcItems}</ul>
+      <div class="section-label" style="margin-bottom:6px">TTS скрипт (редактируй если нужно)</div>
+      <textarea class="d-ta" id="mergeTTSArea" rows="10"
+        oninput="document.getElementById('mergeCharCount').textContent=this.value.length"
+        style="width:100%">${esc(tts)}</textarea>
+      <div style="font-size:11px;color:var(--text3);margin-top:4px">
+        Символов: <span id="mergeCharCount">${tts.length}</span>
+        ${titles.length?`<span style="margin-left:12px">Превью: ${titles.map(t=>`<b>${esc(t)}</b>`).join(" / ")}</span>`:""}
+      </div>`;
+    document.getElementById("mergeSaveBtn").disabled=false;
+  }catch(e){
+    document.getElementById("mergeModalBody").innerHTML=`<div style="color:var(--accent);padding:8px">${e.message}</div>`;
+  }
+}
+async function saveMergedTTS(){
+  if(!mergeResult)return;
+  const tts=(document.getElementById("mergeTTSArea").value||"").trim();
+  if(!tts){toast("TTS пустой",true);return;}
+  document.getElementById("mergeSaveBtn").disabled=true;
+  try{
+    await api("PATCH",`/api/news/${mergeResult.primary_id}/tts`,{tts_script:tts});
+    if(mergeResult.description)
+      await api("PATCH",`/api/news/${mergeResult.primary_id}/description`,{description:mergeResult.description});
+    closeMergeModal();
+    toggleMergeMode();   // exit select mode
+    await load();        // reload news list
+    selectCard(mergeResult.primary_id);
+    toast(`✓ Объединено — скрипт сохранён в #${mergeResult.primary_id}`);
+  }catch(e){
+    toast(e.message,true);
+    document.getElementById("mergeSaveBtn").disabled=false;
+  }
+}
+function closeMergeModal(){
+  document.getElementById("mergeOverlay").style.display="none";
+  mergeResult=null;
+}
+/* ────────────────────────────────────────────────────────────────────────── */
 
 function renderDetail(n){
   document.getElementById("detailEmpty").style.display="none";

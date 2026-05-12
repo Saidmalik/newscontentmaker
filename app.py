@@ -99,6 +99,8 @@ def run_migrations(conn: sqlite3.Connection):
         "ALTER TABLE news ADD COLUMN tg_short_post TEXT",
         "ALTER TABLE news ADD COLUMN tg_long_post TEXT",
         "ALTER TABLE news ADD COLUMN tg_topic_hash TEXT",
+        "ALTER TABLE news ADD COLUMN merged_ids TEXT",      # JSON list of merged news IDs
+        "ALTER TABLE news ADD COLUMN merged_into INTEGER",  # primary news_id this was merged into
     ]:
         try:
             conn.execute(sql)
@@ -1511,6 +1513,120 @@ async def _do_generate(news_id: int) -> dict:
         "tts_script": script,
         "description": description,
         "preview_titles": previews,
+    }
+
+
+
+@app.post("/api/news/merge")
+async def api_merge_news(request: Request):
+    """
+    Merge 2-5 news items into a single unified TTS + description.
+    The first ID in the list becomes the primary item — others get marked merged_into.
+    Body: {"ids": [1, 2, 3]}
+    Returns: {primary_id, tts_script, description, preview_titles}
+    """
+    require_auth(request)
+    body  = await request.json()
+    ids   = body.get("ids", [])
+
+    if not ids or len(ids) < 2:
+        raise HTTPException(status_code=400, detail="Нужно минимум 2 новости")
+    if len(ids) > 5:
+        raise HTTPException(status_code=400, detail="Максимум 5 новостей за раз")
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    rows = conn.execute(
+        f"SELECT id,title,summary,source,url,tts_script,description "
+        f"FROM news WHERE id IN ({','.join('?'*len(ids))}) AND hidden=0",
+        ids
+    ).fetchall()
+    conn.row_factory = None
+
+    if len(rows) < 2:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Новости не найдены")
+
+    # Sort rows to match the requested order (primary = first requested ID)
+    id_order = {v: i for i, v in enumerate(ids)}
+    rows = sorted(rows, key=lambda r: id_order.get(r[0], 99))
+    primary_id = rows[0][0]
+
+    # Build Claude prompt
+    news_blocks = []
+    for i, r in enumerate(rows, 1):
+        item = dict(r)
+        body_text = (item.get("tts_script") or item.get("summary") or "")[:500]
+        news_blocks.append(
+            f"[{i}] Источник: {item.get('source','')}\n"
+            f"    Заголовок: {item['title']}\n"
+            f"    Суть: {body_text}"
+        )
+    news_text = "\n\n".join(news_blocks)
+
+    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+    if not api_key:
+        conn.close()
+        raise HTTPException(status_code=500, detail="ANTHROPIC_API_KEY не задан.")
+
+    system = _load_system_prompt()
+    import anthropic
+    client = anthropic.AsyncAnthropic(api_key=api_key)
+
+    prompt = (
+        f"Тебе даны {len(rows)} новости — это одно событие из разных источников "
+        f"или последовательные события одной темы.\n\n"
+        f"НОВОСТИ:\n{news_text}\n\n"
+        "Создай ОДИН объединённый контент. Правила:\n"
+        "- TTS: 30-40 секунд (~65-85 слов). Начни с самого важного факта. "
+        "Все ключевые детали из всех источников — как одна связная история. "
+        "Без «Во-первых / Во-вторых», без перечисления источников.\n"
+        "- Описание: 150-250 слов. Объедини контекст и детали всех новостей.\n\n"
+        "Ответь СТРОГО в этом формате:\n\n"
+        "===TTS===\n"
+        "[единый TTS скрипт]\n\n"
+        "===ОПИСАНИЕ===\n"
+        "[объединённое описание]\n\n"
+        "===ПРЕВЬЮ===\n"
+        "1. [3-5 слов КАПСОМ]\n"
+        "2. [3-5 слов КАПСОМ]\n"
+        "3. [3-5 слов КАПСОМ]"
+    )
+
+    msg = await client.messages.create(
+        model="claude-sonnet-4-5",
+        max_tokens=1400,
+        system=system,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    raw = msg.content[0].text.strip()
+    tts_script, description, previews = _parse_generate_response(raw)
+
+    now_str = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    merged_ids_json = json.dumps([r[0] for r in rows[1:]], ensure_ascii=False)
+
+    # Update primary item with merged result
+    conn.execute(
+        "UPDATE news SET tts_script=?, description=?, preview_titles=?, "
+        "generated_at=?, merged_ids=?, reviewed_script=NULL, gpt_comment=NULL WHERE id=?",
+        (tts_script, description, json.dumps(previews, ensure_ascii=False),
+         now_str, merged_ids_json, primary_id),
+    )
+    # Hide merged-away items (mark them as merged_into primary)
+    for r in rows[1:]:
+        conn.execute(
+            "UPDATE news SET hidden=1, merged_into=? WHERE id=?",
+            (primary_id, r[0])
+        )
+    conn.commit()
+    conn.close()
+
+    return {
+        "primary_id":     primary_id,
+        "tts_script":     tts_script,
+        "description":    description,
+        "preview_titles": previews,
+        "merged_count":   len(rows),
     }
 
 

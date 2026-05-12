@@ -1455,6 +1455,8 @@ function renderDetail(n){
         `:""}
       `}
     </div>`;
+  // Restore active language (persists across card switches)
+  if(detailLang === "uz") setDetailLang("uz", n.id);
 }
 
 /* RSS status */

@@ -910,6 +910,7 @@ function cardHtml(n,isPubTab=false){
           ?`<span class="priority-badge badge-pub">⬡ Опубликовано</span>`
           :`<span class="priority-badge ${priBadge(p)}">${priLabel(p)}</span>`}
         ${n.approved&&!isPublished?`<span style="font-size:10px;color:var(--green);margin-left:auto">✓ Одобрено</span>`:""}
+        ${n.merged_ids?`<span style="font-size:10px;color:var(--purple);margin-left:auto" title="Объединённая новость">⊕${_mergedCount(n)+1}</span>`:""}
       </div>
       <div class="card-title">${esc(n.title)}</div>
       <div class="card-meta">
@@ -967,64 +968,101 @@ function _updateMergeBar(){
   document.getElementById("mergeCountNum").textContent=n;
   document.getElementById("mergeDoBtn").disabled=n<2;
 }
+function _mergedCount(n){
+  try{return (JSON.parse(n.merged_ids||"[]")).length;}catch{return 0;}
+}
+function _mergedMeta(n){
+  try{return JSON.parse(n.merged_ids||"[]");}catch{return [];}
+}
 async function doMerge(){
   const ids=[...mergeSelected];
   if(ids.length<2)return;
-  // Show modal with loading state
-  document.getElementById("mergeOverlay").style.display="flex";
-  document.getElementById("mergeSaveBtn").disabled=true;
-  document.getElementById("mergeModalBody").innerHTML=`
-    <div style="color:var(--text2);font-size:13px;padding:8px 0;display:flex;align-items:center;gap:8px">
-      <span style="animation:spin 1s linear infinite;display:inline-block">⟳</span>
-      Генерирую объединённый TTS для ${ids.length} новостей…
-    </div>`;
+  document.getElementById("mergeDoBtn").disabled=true;
+  document.getElementById("mergeDoBtn").textContent="⟳ Группирую…";
   try{
-    mergeResult=await api("POST","/api/news/merge",{ids});
-    const tts=mergeResult.tts_script||"";
-    const titles=mergeResult.preview_titles||[];
-    const srcItems=ids.map(id=>{const n=news.find(x=>x.id===id);return n?`<li style="color:var(--text2)">${esc(n.title)}</li>`:""}).join("");
-    document.getElementById("mergeModalBody").innerHTML=`
-      <div style="font-size:11px;color:var(--text3);margin-bottom:4px">
-        Объединено ${ids.length} новостей → первичная <b style="color:var(--purple)">#${mergeResult.primary_id}</b>
-      </div>
-      <ul style="font-size:11px;padding-left:16px;margin-bottom:10px;line-height:1.8">${srcItems}</ul>
-      <div class="section-label" style="margin-bottom:6px">TTS скрипт (редактируй если нужно)</div>
-      <textarea class="d-ta" id="mergeTTSArea" rows="10"
-        oninput="document.getElementById('mergeCharCount').textContent=this.value.length"
-        style="width:100%">${esc(tts)}</textarea>
-      <div style="font-size:11px;color:var(--text3);margin-top:4px">
-        Символов: <span id="mergeCharCount">${tts.length}</span>
-        ${titles.length?`<span style="margin-left:12px">Превью: ${titles.map(t=>`<b>${esc(t)}</b>`).join(" / ")}</span>`:""}
-      </div>`;
-    document.getElementById("mergeSaveBtn").disabled=false;
-  }catch(e){
-    document.getElementById("mergeModalBody").innerHTML=`<div style="color:var(--accent);padding:8px">${e.message}</div>`;
-  }
-}
-async function saveMergedTTS(){
-  if(!mergeResult)return;
-  const tts=(document.getElementById("mergeTTSArea").value||"").trim();
-  if(!tts){toast("TTS пустой",true);return;}
-  document.getElementById("mergeSaveBtn").disabled=true;
-  try{
-    await api("PATCH",`/api/news/${mergeResult.primary_id}/tts`,{tts_script:tts});
-    if(mergeResult.description)
-      await api("PATCH",`/api/news/${mergeResult.primary_id}/description`,{description:mergeResult.description});
-    closeMergeModal();
-    toggleMergeMode();   // exit select mode
-    await load();        // reload news list
-    selectCard(mergeResult.primary_id);
-    toast(`✓ Объединено — скрипт сохранён в #${mergeResult.primary_id}`);
+    const r=await api("POST","/api/news/merge",{ids});
+    const pid=r.primary_id;
+    toggleMergeMode();   // exit select mode, clear selection
+    await load();        // reload feed
+    selectCard(pid);     // open primary
+    toast(`✓ Объединено ${r.merged_count} источников → нажми ✨ чтобы сгенерировать TTS`);
   }catch(e){
     toast(e.message,true);
-    document.getElementById("mergeSaveBtn").disabled=false;
+    document.getElementById("mergeDoBtn").disabled=false;
+    document.getElementById("mergeDoBtn").textContent="⊕ Объединить";
   }
 }
 function closeMergeModal(){
   document.getElementById("mergeOverlay").style.display="none";
   mergeResult=null;
 }
+async function saveMergedTTS(){
+  // kept for compat — not currently used
+  closeMergeModal();
+}
+/* ── UZ Translation ───────────────────────────────────────────────────────── */
+async function translateUz(id){
+  const btn=document.querySelector(`[onclick*="translateUz(${id})"]`);
+  if(btn){btn.disabled=true;btn.textContent="⟳ Перевожу…";}
+  try{
+    const r=await api("POST",`/api/news/${id}/translate-uz`);
+    const ta=document.getElementById("tts-uz-"+id);
+    if(ta){
+      ta.value=r.tts_script_uz||"";
+      const cc=document.getElementById("char-count-uz-"+id);
+      if(cc)cc.textContent=(r.tts_script_uz||"").length;
+    }
+    toast("✓ УЗ перевод готов");
+  }catch(e){toast(e.message,true);}
+  finally{if(btn){btn.disabled=false;btn.textContent="✨ → УЗ";}}
+}
+
+const _uzSaveTimers={};
+function scheduleAutoSaveUz(id){
+  clearTimeout(_uzSaveTimers[id]);
+  _uzSaveTimers[id]=setTimeout(async()=>{
+    const ta=document.getElementById("tts-uz-"+id);
+    if(!ta)return;
+    const v=ta.value.trim();
+    if(!v)return;
+    const ind=document.getElementById("autosave-tts-uz-"+id);
+    try{
+      await api("PATCH",`/api/news/${id}/tts-uz`,{tts_script_uz:v});
+      if(ind){ind.textContent="сохранено";ind.style.opacity="1";setTimeout(()=>{ind.style.opacity="0";},1500);}
+    }catch{}
+  },1500);
+}
+
+/* ── Publish All ──────────────────────────────────────────────────────────── */
+async function publishAll(id){
+  const n=news.find(x=>x.id===id);
+  // For now, prompt for video path (UI will improve with file picker)
+  const videoPath=prompt("Путь к видео файлу (на сервере):");
+  if(!videoPath)return;
+  const title=n?n.title:"";
+  const desc=n?(n.description||n.tts_script||""):"";
+  toast("⟳ Публикую на всех платформах…");
+  try{
+    const r=await api("POST",`/api/news/${id}/publish-all`,{
+      video_path:videoPath,title,description:desc,
+      tags:["узбекистан","новости"],language:"ru"
+    });
+    const res=r.results||{};
+    const lines=Object.entries(res).map(([k,v])=>`${k}: ${v.status}${v.url?` → ${v.url}`:v.error?` ❌ ${v.error}`:""}`);
+    toast(lines.join(" | "));
+  }catch(e){toast(e.message,true);}
+}
 /* ────────────────────────────────────────────────────────────────────────── */
+
+let detailLang = "ru"; // "ru" | "uz"
+function setDetailLang(lang, newsId) {
+  detailLang = lang;
+  document.querySelectorAll(".lang-btn").forEach(b=>b.classList.toggle("active",b.dataset.lang===lang));
+  const ruBlock  = document.getElementById("tts-block-ru-"+newsId);
+  const uzBlock  = document.getElementById("tts-block-uz-"+newsId);
+  if(ruBlock) ruBlock.style.display = lang==="ru" ? "" : "none";
+  if(uzBlock) uzBlock.style.display = lang==="uz" ? "" : "none";
+}
 
 function renderDetail(n){
   document.getElementById("detailEmpty").style.display="none";
@@ -1033,16 +1071,49 @@ function renderDetail(n){
   const p=n.priority||"reserve";
   const previews=Array.isArray(n.preview_titles)?n.preview_titles:[];
   const hasTTS=!!n.tts_script;
+  const hasTTSuz=!!n.tts_script_uz;
   const hasDesc=!!n.description;
   const isPublished=!!n.published_at;
   const charCount=n.tts_script?(n.tts_script.length):0;
+  const mergedMeta=_mergedMeta(n);
+  const isMerged=mergedMeta.length>0;
 
-  // TTS block — always visible, editable manually or via Claude
+  // ── Merged sources block ──
+  const mergedBlock = isMerged ? `
+    <div style="background:rgba(153,102,255,.08);border:1px solid rgba(153,102,255,.2);border-radius:8px;padding:10px 12px;margin-bottom:4px">
+      <div style="font-size:11px;color:var(--purple);font-weight:600;margin-bottom:6px">⊕ Объединено из ${mergedMeta.length+1} источников</div>
+      <div style="font-size:12px;color:var(--text);margin-bottom:4px">
+        📌 <a href="${esc(n.url||'#')}" target="_blank" rel="noopener" style="color:var(--text);text-decoration:none"
+           onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'"
+        >${esc(n.title)}</a>
+      </div>
+      ${mergedMeta.map(m=>`
+        <div style="font-size:11px;color:var(--text2);padding:2px 0 2px 16px;border-left:2px solid rgba(153,102,255,.25)">
+          <a href="${esc(m.url||'#')}" target="_blank" rel="noopener"
+             style="color:var(--text2);text-decoration:none"
+             onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--text2)'"
+          >${esc(m.title)}</a>
+          ${m.source?`<span style="color:var(--text3)"> · ${esc(m.source)}</span>`:""}
+        </div>`).join("")}
+    </div>` : "";
+
+  // ── RU/УЗ language toggle ──
+  const langToggle=`
+    <div style="display:flex;gap:3px;background:var(--bg4);border-radius:6px;padding:2px;width:fit-content;margin-bottom:8px">
+      <button class="lang-btn active" data-lang="ru" onclick="setDetailLang('ru',${n.id})"
+        style="padding:3px 10px;border:none;border-radius:4px;font-size:11px;font-family:inherit;cursor:pointer;
+               background:var(--bg3);color:var(--text);transition:all .12s">RU</button>
+      <button class="lang-btn" data-lang="uz" onclick="setDetailLang('uz',${n.id})"
+        style="padding:3px 10px;border:none;border-radius:4px;font-size:11px;font-family:inherit;cursor:pointer;
+               background:transparent;color:var(--text2);transition:all .12s">УЗ</button>
+    </div>`;
+
+  // ── TTS RU block ──
   const ttsLabel = hasTTS
-    ? `▶ TTS <span style="font-size:.6rem;color:var(--text3)">Claude</span>`
+    ? `▶ TTS <span style="font-size:.6rem;color:var(--text3)">Claude · RU</span>`
     : `▶ TTS <span style="font-size:.6rem;color:var(--accent)">← напиши сам</span>`;
   const ttsBlock=`
-    <div>
+    <div id="tts-block-ru-${n.id}">
       <div class="section-header">
         <div class="section-label">${ttsLabel}
           <span class="char-count">Символов: <span id="char-count-${n.id}">${charCount}</span></span>
@@ -1056,6 +1127,28 @@ function renderDetail(n){
         placeholder="Напиши TTS скрипт вручную или нажми ✨ Генерировать..."
         oninput="scheduleAutoSave('tts',${n.id});document.getElementById('char-count-${n.id}').textContent=this.value.length"
       >${esc(n.tts_script||'')}</textarea>
+    </div>`;
+
+  // ── TTS УЗ block ──
+  const ttsUzLabel = hasTTSuz
+    ? `▶ TTS <span style="font-size:.6rem;color:var(--text3)">Claude · УЗ</span>`
+    : `▶ TTS <span style="font-size:.6rem;color:var(--accent)">← нажми Перевести</span>`;
+  const ttsUzBlock=`
+    <div id="tts-block-uz-${n.id}" style="display:none">
+      <div class="section-header">
+        <div class="section-label">${ttsUzLabel}
+          <span class="char-count">Символов: <span id="char-count-uz-${n.id}">${(n.tts_script_uz||"").length}</span></span>
+        </div>
+        <div class="section-actions">
+          <span id="autosave-tts-uz-${n.id}" style="font-size:.65rem;color:var(--text3);opacity:0;transition:opacity .3s"></span>
+          <button class="copy-btn" onclick="copyTA('tts-uz-${n.id}')">Copy</button>
+        </div>
+      </div>
+      <textarea class="d-ta" id="tts-uz-${n.id}" rows="9"
+        placeholder="Нажми «Перевести → УЗ» чтобы автоматически перевести из RU..."
+        oninput="scheduleAutoSaveUz(${n.id});document.getElementById('char-count-uz-${n.id}').textContent=this.value.length"
+      >${esc(n.tts_script_uz||'')}</textarea>
+      ${!hasTTS?`<div style="font-size:11px;color:var(--text3);margin-top:6px">⚠ Сначала сгенерируй RU скрипт</div>`:""}
     </div>`;
 
   // Description block — always visible
@@ -1128,6 +1221,7 @@ function renderDetail(n){
           ?`<span class="priority-badge badge-pub">⬡ Опубликовано</span>`
           :`<span class="priority-badge ${priBadge(p)}">${priLabel(p)}</span>`}
         ${n.approved&&!isPublished?`<span class="priority-badge badge-ok">✓ Одобрено</span>`:""}
+        ${isMerged?`<span class="priority-badge" style="background:rgba(153,102,255,.15);color:var(--purple);border:1px solid rgba(153,102,255,.25)">⊕ ${mergedMeta.length+1} источника</span>`:""}
       </div>
       <div class="d-title"><a href="${esc(n.url)}" target="_blank" rel="noopener">${esc(n.title)}</a></div>
       <div class="d-meta">
@@ -1136,25 +1230,31 @@ function renderDetail(n){
         ${pubDate}
       </div>
     </div>
-    <div class="d-body">${ttsBlock}${descBlock}${prevBlock}${statsBlock}</div>
+    <div class="d-body">
+      ${mergedBlock}
+      ${langToggle}
+      ${ttsBlock}${ttsUzBlock}
+      ${descBlock}${prevBlock}${statsBlock}
+    </div>
     <div class="d-footer">
       ${isPublished?`
         <button class="btn-act ba-regen" onclick="regenNews(${n.id})">↺ Заново</button>
       `:`
         <button class="btn-act ba-approve" id="apr-${n.id}" onclick="approveNews(${n.id})" ${n.approved?"disabled":""}>
           ${n.approved?"✓ Одобрено":"✓ Одобрить"}</button>
-        <button class="btn-act ba-gen" onclick="generateCard(${n.id})" title="Сгенерировать TTS + описание через Claude">✨</button>
+        <button class="btn-act ba-gen" onclick="detailLang==='uz'?translateUz(${n.id}):generateCard(${n.id})"
+          title="${isMerged?'Генерировать из всех источников':'Генерировать TTS + описание'}">✨${detailLang==='uz'?' → УЗ':''}</button>
         ${hasTTS?`<button class="btn-act ba-gpt" onclick="gptReview(${n.id})" title="GPT проверит TTS">✦</button>`:""}
         ${n.approved?`
-          <button class="btn-act ba-ig" onclick="openPublishModal(${n.id})">📹 Рилс</button>
-          <button class="btn-act ba-tg" onclick="publishToTG(${n.id})">📢 Telegram</button>
           <button class="btn-act ba-publish" onclick="markPublished(${n.id})">⬡ Опубл.</button>
+          <button class="btn-act" style="background:rgba(153,102,255,.15);color:var(--purple);border:1px solid rgba(153,102,255,.2);font-size:11px"
+            onclick="publishAll(${n.id})" title="Опубликовать в Instagram + YouTube + TikTok">📤 Везде</button>
         `:""}
         ${hasTTS?`
           <select class="el-sel" id="el-${n.id}">
             <option value="0">🤖 Авто</option><option value="1">Акк 1</option><option value="2">Акк 2</option>
           </select>
-          <button class="btn-act ba-speak" onclick="speakNews(${n.id})">🎙</button>
+          <button class="btn-act ba-speak" onclick="speakNews(${n.id}${detailLang==='uz'?',"uz"':''})">🎙</button>
           <button class="btn-act ba-regen" onclick="regenNews(${n.id})">↺</button>
         `:""}
       `}

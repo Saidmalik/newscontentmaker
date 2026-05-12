@@ -99,8 +99,9 @@ def run_migrations(conn: sqlite3.Connection):
         "ALTER TABLE news ADD COLUMN tg_short_post TEXT",
         "ALTER TABLE news ADD COLUMN tg_long_post TEXT",
         "ALTER TABLE news ADD COLUMN tg_topic_hash TEXT",
-        "ALTER TABLE news ADD COLUMN merged_ids TEXT",      # JSON list of merged news IDs
+        "ALTER TABLE news ADD COLUMN merged_ids TEXT",      # JSON: [{id,title,url,source},...] of merged items
         "ALTER TABLE news ADD COLUMN merged_into INTEGER",  # primary news_id this was merged into
+        "ALTER TABLE news ADD COLUMN tts_script_uz TEXT",   # Uzbek Latin translation of TTS
     ]:
         try:
             conn.execute(sql)
@@ -445,7 +446,8 @@ async def api_news(
                    published_at,
                    stats_views, stats_likes, stats_comments, stats_shares, stats_saves,
                    stats_reach, stats_watch_time, stats_platform,
-                   instagram_media_id, instagram_permalink, starred, preselected
+                   instagram_media_id, instagram_permalink, starred, preselected,
+                   merged_ids, merged_into, tts_script_uz
             FROM news
             WHERE {' AND '.join(where)}
             ORDER BY {order}
@@ -1452,13 +1454,33 @@ async def _do_generate(news_id: int) -> dict:
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     row = conn.execute("SELECT * FROM news WHERE id=?", (news_id,)).fetchone()
-    conn.close()
     if not row:
+        conn.close()
         raise HTTPException(status_code=404, detail="Новость не найдена")
     item = dict(row)
 
-    system = _load_system_prompt()
+    # Check if this is a merged item — fetch data from all sources
+    merged_meta = []
+    raw_merged = item.get("merged_ids") or ""
+    if raw_merged:
+        try:
+            merged_meta = json.loads(raw_merged)
+        except Exception:
+            merged_meta = []
 
+    # Collect extra summaries from merged items stored in DB
+    merged_rows = []
+    if merged_meta:
+        m_ids = [m["id"] for m in merged_meta if m.get("id")]
+        if m_ids:
+            merged_rows = conn.execute(
+                f"SELECT id,title,summary,tts_script FROM news WHERE id IN ({','.join('?'*len(m_ids))})",
+                m_ids,
+            ).fetchall()
+            merged_rows = [dict(r) for r in merged_rows]
+    conn.close()
+
+    system = _load_system_prompt()
     api_key = os.environ.get("ANTHROPIC_API_KEY", "")
     if not api_key:
         raise HTTPException(status_code=500, detail="ANTHROPIC_API_KEY не задан.")
@@ -1466,23 +1488,47 @@ async def _do_generate(news_id: int) -> dict:
     import anthropic
     client = anthropic.AsyncAnthropic(api_key=api_key)
 
+    # Build news content block — primary + all merged sources
+    if merged_rows:
+        def _item_block(it: dict, label: str) -> str:
+            body = (it.get("tts_script") or it.get("summary") or "")[:400]
+            return f"{label} {it['title']}\n   Источник: {it.get('source','')}\n   Суть: {body}"
+
+        news_block = _item_block(item, "[1]")
+        for i, mr in enumerate(merged_rows, 2):
+            news_block += "\n\n" + _item_block(mr, f"[{i}]")
+
+        tts_target = (
+            f"TTS скрипт — ЦЕЛЬ 20-30 секунд (~45-65 слов). "
+            f"Объедини все {1+len(merged_rows)} источника в одну историю. "
+            f"Начни с главного факта. Без перечисления «Во-первых/Во-вторых»."
+        )
+        news_intro = f"Это объединённая новость из {1+len(merged_rows)} источников:\n\n{news_block}"
+    else:
+        news_block = (
+            f"Заголовок: {item['title']}\n"
+            f"Источник: {item.get('source', '')}\n"
+            f"Описание: {item.get('summary', '') or ''}"
+        )
+        tts_target = (
+            "TTS скрипт — ЦЕЛЬ 20-25 секунд (~45-55 слов). "
+            "18 сек — отлично. Короче = лучше если всё сказано. "
+            "Макс 30 сек только для сложных новостей."
+        )
+        news_intro = f"НОВОСТЬ:\n{news_block}"
+
     prompt = (
-        "Напиши для этой новости три части строго по инструкции выше.\n\n"
-        "НОВОСТЬ:\n"
-        f"Заголовок: {item['title']}\n"
-        f"Источник: {item.get('source', '')}\n"
-        f"Описание: {item.get('summary', '') or ''}\n\n"
+        f"Напиши для этой новости три части строго по инструкции выше.\n\n"
+        f"{news_intro}\n\n"
         "Ответь ТОЛЬКО в этом формате (без пояснений):\n\n"
-        "===TTS===\n"
-        "[TTS скрипт — ЦЕЛЬ 20-25 секунд (~45-55 слов). 18 сек — отлично. "
-        "Короче = лучше если всё сказано. Макс 35-45 сек только для сложных новостей.]\n\n"
+        f"===TTS===\n[{tts_target}]\n\n"
         "===ОПИСАНИЕ===\n"
         "[Описание для поста — 150-250 слов. Строго соблюдай структуру:\n"
         "1. Суть: кто, что, где, когда — конкретные цифры и факты. НЕ повторяй первое предложение TTS. Сразу детали. (2-3 абзаца)\n"
         "2. Почему это важно для обычного человека — личное последствие (1 абзац)\n"
         "3. Контекст которого нет в TTS: история вопроса, сравнения, как это работает (1-2 абзаца)\n"
         "4. Дополнительная деталь или факт из источника которого нет выше (1 абзац)\n"
-        "Абзацы разделяй пустой строкой. БЕЗ эмодзи. БЕЗ заголовков. БЕЗ вопросов. Пиши как живой информативный текст, не как СМИ.]\n\n"
+        "Абзацы разделяй пустой строкой. БЕЗ эмодзи. БЕЗ заголовков. БЕЗ вопросов.]\n\n"
         "===ПРЕВЬЮ===\n"
         "1. [3-5 слов КАПСОМ — вариант 1]\n"
         "2. [3-5 слов КАПСОМ — вариант 2]\n"
@@ -1520,14 +1566,15 @@ async def _do_generate(news_id: int) -> dict:
 @app.post("/api/news/merge")
 async def api_merge_news(request: Request):
     """
-    Merge 2-5 news items into a single unified TTS + description.
-    The first ID in the list becomes the primary item — others get marked merged_into.
+    Group 2-5 news items under one primary item — NO Claude call.
+    Primary item (first ID) stores merged metadata; others get hidden.
+    TTS is generated later via the normal /generate endpoint.
     Body: {"ids": [1, 2, 3]}
-    Returns: {primary_id, tts_script, description, preview_titles}
+    Returns: {primary_id, merged_count, titles}
     """
     require_auth(request)
-    body  = await request.json()
-    ids   = body.get("ids", [])
+    body = await request.json()
+    ids  = body.get("ids", [])
 
     if not ids or len(ids) < 2:
         raise HTTPException(status_code=400, detail="Нужно минимум 2 новости")
@@ -1537,9 +1584,9 @@ async def api_merge_news(request: Request):
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     rows = conn.execute(
-        f"SELECT id,title,summary,source,url,tts_script,description "
+        f"SELECT id, title, url, source, summary, tts_script "
         f"FROM news WHERE id IN ({','.join('?'*len(ids))}) AND hidden=0",
-        ids
+        ids,
     ).fetchall()
     conn.row_factory = None
 
@@ -1547,87 +1594,153 @@ async def api_merge_news(request: Request):
         conn.close()
         raise HTTPException(status_code=404, detail="Новости не найдены")
 
-    # Sort rows to match the requested order (primary = first requested ID)
+    # Sort to preserve requested order (primary = first requested ID)
     id_order = {v: i for i, v in enumerate(ids)}
     rows = sorted(rows, key=lambda r: id_order.get(r[0], 99))
     primary_id = rows[0][0]
 
-    # Build Claude prompt
-    news_blocks = []
-    for i, r in enumerate(rows, 1):
-        item = dict(r)
-        body_text = (item.get("tts_script") or item.get("summary") or "")[:500]
-        news_blocks.append(
-            f"[{i}] Источник: {item.get('source','')}\n"
-            f"    Заголовок: {item['title']}\n"
-            f"    Суть: {body_text}"
-        )
-    news_text = "\n\n".join(news_blocks)
+    # Build merged_ids: JSON array with full metadata for display
+    merged_meta = [
+        {"id": dict(r)["id"], "title": dict(r)["title"],
+         "url": dict(r)["url"] or "", "source": dict(r)["source"] or ""}
+        for r in rows[1:]
+    ]
 
-    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
-    if not api_key:
-        conn.close()
-        raise HTTPException(status_code=500, detail="ANTHROPIC_API_KEY не задан.")
-
-    system = _load_system_prompt()
-    import anthropic
-    client = anthropic.AsyncAnthropic(api_key=api_key)
-
-    prompt = (
-        f"Тебе даны {len(rows)} новости — это одно событие из разных источников "
-        f"или последовательные события одной темы.\n\n"
-        f"НОВОСТИ:\n{news_text}\n\n"
-        "Создай ОДИН объединённый контент. Правила:\n"
-        "- TTS: 30-40 секунд (~65-85 слов). Начни с самого важного факта. "
-        "Все ключевые детали из всех источников — как одна связная история. "
-        "Без «Во-первых / Во-вторых», без перечисления источников.\n"
-        "- Описание: 150-250 слов. Объедини контекст и детали всех новостей.\n\n"
-        "Ответь СТРОГО в этом формате:\n\n"
-        "===TTS===\n"
-        "[единый TTS скрипт]\n\n"
-        "===ОПИСАНИЕ===\n"
-        "[объединённое описание]\n\n"
-        "===ПРЕВЬЮ===\n"
-        "1. [3-5 слов КАПСОМ]\n"
-        "2. [3-5 слов КАПСОМ]\n"
-        "3. [3-5 слов КАПСОМ]"
-    )
-
-    msg = await client.messages.create(
-        model="claude-sonnet-4-5",
-        max_tokens=1400,
-        system=system,
-        messages=[{"role": "user", "content": prompt}],
-    )
-    raw = msg.content[0].text.strip()
-    tts_script, description, previews = _parse_generate_response(raw)
-
-    now_str = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    merged_ids_json = json.dumps([r[0] for r in rows[1:]], ensure_ascii=False)
-
-    # Update primary item with merged result
     conn.execute(
-        "UPDATE news SET tts_script=?, description=?, preview_titles=?, "
-        "generated_at=?, merged_ids=?, reviewed_script=NULL, gpt_comment=NULL WHERE id=?",
-        (tts_script, description, json.dumps(previews, ensure_ascii=False),
-         now_str, merged_ids_json, primary_id),
+        "UPDATE news SET merged_ids=? WHERE id=?",
+        (json.dumps(merged_meta, ensure_ascii=False), primary_id),
     )
-    # Hide merged-away items (mark them as merged_into primary)
     for r in rows[1:]:
         conn.execute(
             "UPDATE news SET hidden=1, merged_into=? WHERE id=?",
-            (primary_id, r[0])
+            (primary_id, r[0]),
         )
     conn.commit()
     conn.close()
 
     return {
-        "primary_id":     primary_id,
-        "tts_script":     tts_script,
-        "description":    description,
-        "preview_titles": previews,
-        "merged_count":   len(rows),
+        "primary_id":   primary_id,
+        "merged_count": len(rows),
+        "titles":       [dict(r)["title"] for r in rows],
     }
+
+
+@app.post("/api/news/{news_id}/translate-uz")
+async def api_translate_uz(news_id: int, request: Request):
+    """Translate the Russian TTS script to Uzbek Latin.
+    Takes tts_script, sends to Claude, saves as tts_script_uz."""
+    require_auth(request)
+    conn = sqlite3.connect(DB_PATH)
+    row = conn.execute(
+        "SELECT tts_script FROM news WHERE id=?", (news_id,)
+    ).fetchone()
+    if not row or not row[0]:
+        conn.close()
+        raise HTTPException(status_code=404, detail="TTS скрипт не найден — сначала сгенерируй на русском")
+
+    ru_script = row[0].strip()
+    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+    if not api_key:
+        conn.close()
+        raise HTTPException(status_code=500, detail="ANTHROPIC_API_KEY не задан.")
+
+    import anthropic
+    client = anthropic.AsyncAnthropic(api_key=api_key)
+    msg = await client.messages.create(
+        model="claude-haiku-4-5",
+        max_tokens=600,
+        messages=[{"role": "user", "content":
+            f"Переведи этот текст на узбекский язык (латиница, современная орфография).\n"
+            f"Требования: только перевод без пояснений, сохрани разбивку на абзацы, "
+            f"язык живой разговорный.\n\n{ru_script}"
+        }],
+    )
+    uz_script = msg.content[0].text.strip()
+
+    conn.execute("UPDATE news SET tts_script_uz=? WHERE id=?", (uz_script, news_id))
+    conn.commit()
+    conn.close()
+    return {"id": news_id, "tts_script_uz": uz_script}
+
+
+@app.patch("/api/news/{news_id}/tts-uz")
+async def api_update_tts_uz(news_id: int, request: Request):
+    """Save manually edited Uzbek TTS script."""
+    require_auth(request)
+    body   = await request.json()
+    script = (body.get("tts_script_uz") or "").strip()
+    if not script:
+        raise HTTPException(status_code=400, detail="tts_script_uz is empty")
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute("UPDATE news SET tts_script_uz=? WHERE id=?", (script, news_id))
+    conn.commit()
+    conn.close()
+    return {"id": news_id, "saved": True}
+
+
+@app.post("/api/news/{news_id}/publish-all")
+async def api_publish_all(news_id: int, request: Request):
+    """
+    Publish video to all configured platforms (Instagram, YouTube, TikTok).
+    Body: {video_path, title, description, tags, language}
+    Returns per-platform results.
+    """
+    require_auth(request)
+    body = await request.json()
+    video_path = body.get("video_path", "")
+    if not video_path:
+        raise HTTPException(status_code=400, detail="video_path required")
+
+    title       = body.get("title", "")
+    description = body.get("description", "")
+    tags        = body.get("tags", [])
+    language    = body.get("language", "ru")
+
+    results: dict = {}
+
+    # ── Instagram ──
+    try:
+        from src.instagram_worker import publish_reel
+        conn = sqlite3.connect(DB_PATH)
+        media_id = await publish_reel(news_id, video_path, description, db_conn=conn)
+        conn.close()
+        results["instagram"] = {"status": "published", "media_id": media_id}
+    except Exception as e:
+        results["instagram"] = {"status": "error", "error": str(e)}
+
+    # ── YouTube ──
+    try:
+        from src.youtube_worker import upload_video
+        video_id = await asyncio.to_thread(
+            upload_video, video_path, title, description, tags, language, "25", news_id
+        )
+        results["youtube"] = {"status": "published", "video_id": video_id,
+                              "url": f"https://youtu.be/{video_id}"}
+    except Exception as e:
+        results["youtube"] = {"status": "error", "error": str(e)}
+
+    # ── TikTok ──
+    try:
+        from src.tiktok_worker import upload_video as tt_upload
+        publish_id = await asyncio.to_thread(
+            tt_upload, video_path, title, language, news_id
+        )
+        results["tiktok"] = {"status": "processing", "publish_id": publish_id}
+    except Exception as e:
+        results["tiktok"] = {"status": "error", "error": str(e)}
+
+    # Mark as published if at least one succeeded
+    any_ok = any(v.get("status") in ("published", "processing") for v in results.values())
+    if any_ok:
+        conn = sqlite3.connect(DB_PATH)
+        conn.execute(
+            "UPDATE news SET published_at=? WHERE id=?",
+            (datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), news_id),
+        )
+        conn.commit()
+        conn.close()
+
+    return {"news_id": news_id, "results": results}
 
 
 # ── META / INSTAGRAM OAUTH ────────────────────────────────────────────────────

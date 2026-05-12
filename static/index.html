@@ -645,6 +645,8 @@ body::before {
           <div class="el-badges-row" id="elBadges"></div>
         </div>
       </div>
+      <!-- Platform status row -->
+      <div id="platformStatus" style="display:flex;gap:4px;flex-wrap:wrap;margin-top:8px;font-size:.65rem"></div>
     </div>
   </div>
 
@@ -1710,6 +1712,21 @@ async function speakNews(id){
   finally{if(btn){btn.disabled=false;btn.innerHTML="🎙 Озвучить";}}
 }
 
+/* Platform status pills */
+async function loadPlatformStatus(){
+  try{
+    const d=await api("GET","/api/platforms/status");if(!d)return;
+    const el=document.getElementById("platformStatus");if(!el)return;
+    const icons={telegram:"✈",instagram:"📸",youtube:"▶",tiktok:"♪"};
+    el.innerHTML=Object.entries(d).map(([k,v])=>{
+      const color=v.ok?"var(--green)":"var(--text3)";
+      const border=v.ok?"rgba(70,196,100,.3)":"rgba(255,255,255,.1)";
+      return`<span style="padding:2px 6px;border:1px solid ${border};border-radius:4px;
+             color:${color};white-space:nowrap">${icons[k]||""} ${v.label}</span>`;
+    }).join("");
+  }catch(_){}
+}
+
 /* ElevenLabs credits */
 async function loadCredits(){
   try{
@@ -2304,7 +2321,7 @@ async function igPublish(){
   }
 }
 
-load();loadCredits();
+load();loadCredits();loadPlatformStatus();
 // RSS status: load once at startup, then every 60s
 loadRssStatus();
 setInterval(loadRssStatus, 60000);

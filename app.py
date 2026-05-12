@@ -1352,6 +1352,28 @@ async def api_el_credits(request: Request):
     return result
 
 
+@app.get("/api/platforms/status")
+async def api_platforms_status(request: Request):
+    """Quick check which platforms have credentials configured.
+    Does NOT make external API calls — only checks env vars / local token files."""
+    require_auth(request)
+
+    def _has(key: str) -> bool:
+        return bool((os.environ.get(key) or "").strip())
+
+    tg_ok  = _has("TELEGRAM_BOT_TOKEN") and _has("TG_MY_CHANNEL")
+    ig_ok  = _has("META_ACCESS_TOKEN") and _has("INSTAGRAM_ACCOUNT_ID")
+    yt_ok  = _has("YOUTUBE_REFRESH_TOKEN") or (BASE_DIR / "data" / "youtube_token.json").exists()
+    tt_ok  = _has("TIKTOK_ACCESS_TOKEN") or (BASE_DIR / "data" / "tiktok_token.json").exists()
+
+    return {
+        "telegram":  {"ok": tg_ok,  "label": "TG"},
+        "instagram": {"ok": ig_ok,  "label": "IG"},
+        "youtube":   {"ok": yt_ok,  "label": "YT"},
+        "tiktok":    {"ok": tt_ok,  "label": "TT"},
+    }
+
+
 # ── API: ELEVENLABS SPEAK ─────────────────────────────────────────────────
 
 @app.get("/api/news/{news_id}/speak")

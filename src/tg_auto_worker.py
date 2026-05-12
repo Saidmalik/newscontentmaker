@@ -81,6 +81,20 @@ def _settings() -> dict:
 
 # ── ЭМОДЗИ ───────────────────────────────────────────────────────────────────
 
+# Новости про курс валют — не публиковать в канал
+CURRENCY_BLACKLIST = [
+    "курс доллара", "курс валют", "курс сума", "курс узс",
+    "официальный курс", "курс нацвалюты", "курс цб",
+    "usd/uzs", "uzs/usd", "курс на сегодня", "курс на завтра",
+    "биржевой курс", "обменный курс",
+]
+
+
+def _is_currency_news(title: str, summary: str = "") -> bool:
+    text = (title + " " + (summary or "")).lower()
+    return any(kw in text for kw in CURRENCY_BLACKLIST)
+
+
 TOPIC_EMOJI = [
     (["штраф", "мошенни", "взятк", "арест", "задержа", "тюрьм", "уголовн"],    "🚨"),
     (["погиб", "жертв", "пожар", "авари", "трагед", "землетряс"],               "⚠️"),
@@ -247,6 +261,8 @@ def _pick_best_news(conn: sqlite3.Connection, min_score: int,
 
     for row in rows:
         d = dict(row)
+        if _is_currency_news(d["title"], d.get("summary", "")):
+            continue  # пропускаем новости про курс валют
         th = _topic_hash(d["title"])
         if not _is_topic_duplicate(conn, th):
             d["topic_hash"] = th

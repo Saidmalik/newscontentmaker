@@ -1072,24 +1072,122 @@ function scheduleAutoSaveDescUz(id){
   },1500);
 }
 
-/* ── Publish All ──────────────────────────────────────────────────────────── */
-async function publishAll(id){
+/* ── Publish All Modal ──────────────────────────────────────────────────── */
+let _paNewsId=null, _paFile=null;
+
+function publishAll(id){
+  _paNewsId=id; _paFile=null;
   const n=news.find(x=>x.id===id);
-  // For now, prompt for video path (UI will improve with file picker)
-  const videoPath=prompt("Путь к видео файлу (на сервере):");
-  if(!videoPath)return;
-  const title=n?n.title:"";
-  const desc=n?(n.description||n.tts_script||""):"";
-  toast("⟳ Публикую на всех платформах…");
+  // Pre-fill caption
+  const lang=detailLang||"ru";
+  const caption = lang==="uz"
+    ? (n&&n.description_uz)||(n&&n.tts_script_uz)||""
+    : (n&&n.description)||(n&&n.tts_script)||"";
+  document.getElementById("paCaption").value=caption;
+  document.getElementById("paLang").value=lang;
+  // Reset UI
+  document.getElementById("paDropZone").style.display="";
+  document.getElementById("paFileOk").style.display="none";
+  document.getElementById("paProgress").style.display="none";
+  document.getElementById("paResult").style.display="none";
+  document.getElementById("paResult").innerHTML="";
+  document.getElementById("paPublishBtn").disabled=true;
+  document.getElementById("paPublishBtn").textContent="📤 Опубликовать";
+  document.getElementById("paFileInput").value="";
+  // Pre-tick YT + TikTok by default
+  document.getElementById("paCbYt").checked=true;
+  document.getElementById("paCbTt").checked=true;
+  document.getElementById("paCbIg").checked=false;
+  document.getElementById("paOverlay").style.display="flex";
+}
+function closePaModal(){
+  document.getElementById("paOverlay").style.display="none";
+  _paNewsId=null; _paFile=null;
+}
+function _setPaFile(file){
+  if(!file)return;
+  _paFile=file;
+  const mb=(file.size/1024/1024).toFixed(1);
+  document.getElementById("paDropZone").style.display="none";
+  document.getElementById("paFileOk").style.display="flex";
+  document.getElementById("paFileName").textContent=file.name;
+  document.getElementById("paFileSize").textContent=mb+" MB";
+  document.getElementById("paPublishBtn").disabled=false;
+}
+function paHandleDrop(e){
+  e.preventDefault();
+  const f=e.dataTransfer.files[0];
+  if(f)_setPaFile(f);
+}
+
+async function doPublishAll(){
+  if(!_paNewsId||!_paFile)return;
+  const btn=document.getElementById("paPublishBtn");
+  const prog=document.getElementById("paProgress");
+  const fill=document.getElementById("paProgressFill");
+  const txt=document.getElementById("paProgressText");
+  btn.disabled=true; btn.textContent="…";
+  prog.style.display=""; fill.style.width="5%"; txt.textContent="Загружаю видео…";
+
   try{
-    const r=await api("POST",`/api/news/${id}/publish-all`,{
-      video_path:videoPath,title,description:desc,
-      tags:["узбекистан","новости"],language:"ru"
+    // Step 1: Upload video to server
+    const fd=new FormData(); fd.append("file",_paFile);
+    const r1=await fetch(`/api/news/${_paNewsId}/upload-video`,{method:"POST",body:fd});
+    if(r1.status===401){location.href="/login";return;}
+    if(!r1.ok)throw new Error(await r1.text());
+    fill.style.width="30%"; txt.textContent="Видео загружено. Публикую…";
+
+    // Step 2: Collect platforms
+    const platforms=[];
+    if(document.getElementById("paCbYt").checked)platforms.push("youtube");
+    if(document.getElementById("paCbTt").checked)platforms.push("tiktok");
+    if(document.getElementById("paCbIg").checked)platforms.push("instagram");
+    if(!platforms.length){toast("Выбери хотя бы одну платформу",true);return;}
+
+    const n=news.find(x=>x.id===_paNewsId);
+    const title=n?n.title:"";
+    const caption=document.getElementById("paCaption").value.trim();
+    const lang=document.getElementById("paLang").value;
+
+    // Step 3: Publish
+    const r2=await fetch(`/api/news/${_paNewsId}/publish-all`,{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({
+        video_path:"uploaded", title, description:caption,
+        tags:["узбекистан","новости"], language:lang, platforms
+      })
     });
-    const res=r.results||{};
-    const lines=Object.entries(res).map(([k,v])=>`${k}: ${v.status}${v.url?` → ${v.url}`:v.error?` ❌ ${v.error}`:""}`);
-    toast(lines.join(" | "));
-  }catch(e){toast(e.message,true);}
+    if(r2.status===401){location.href="/login";return;}
+    fill.style.width="100%";
+    const data=await r2.json();
+    const res=data.results||{};
+
+    // Show results
+    prog.style.display="none";
+    const resultEl=document.getElementById("paResult");
+    resultEl.style.display="";
+    resultEl.innerHTML=Object.entries(res).map(([k,v])=>{
+      const icon=k==="youtube"?"▶":k==="tiktok"?"♪":"📷";
+      const ok=v.status==="published"||v.status==="processing";
+      const color=ok?"var(--green)":"var(--hot)";
+      const detail=v.url?`<a href="${v.url}" target="_blank" style="color:var(--accent)">${v.url}</a>`
+                  :v.error?`<span style="color:var(--hot);font-size:.7rem">${esc(v.error.slice(0,100))}</span>`
+                  :v.status==="processing"?"(обрабатывается…)":"";
+      return `<div style="display:flex;gap:6px;align-items:flex-start;margin-bottom:4px">
+        <span style="color:${color};font-size:.9rem">${ok?"✓":"✗"}</span>
+        <span style="font-weight:600;width:80px">${icon} ${k}</span>
+        <span style="flex:1;font-size:.7rem">${detail}</span>
+      </div>`;
+    }).join("");
+    btn.textContent="✓ Готово";
+    // Refresh news list in background
+    setTimeout(()=>load(),500);
+  }catch(e){
+    prog.style.display="none";
+    toast("Ошибка: "+e.message,true);
+    btn.disabled=false; btn.textContent="📤 Опубликовать";
+  }
 }
 /* ────────────────────────────────────────────────────────────────────────── */
 
@@ -2269,6 +2367,85 @@ setInterval(()=>{ load(); }, 5 * 60 * 1000);
     <div class="ig-card-foot">
       <button class="ig-cancel-btn" onclick="closeIgModal()">Отмена</button>
       <button id="igPublishBtn" class="ig-publish-btn" onclick="igPublish()" disabled>🚀 Опубликовать</button>
+    </div>
+  </div>
+</div>
+
+<!-- Publish All Modal -->
+<div id="paOverlay" class="ig-overlay" style="display:none" onclick="if(event.target===this)closePaModal()">
+  <div class="ig-card" style="max-width:500px">
+    <div class="ig-card-head">
+      <span>📤 Публикация везде</span>
+      <button class="ig-close-btn" onclick="closePaModal()">✕</button>
+    </div>
+    <div class="ig-card-body">
+
+      <!-- Drop zone -->
+      <div class="ig-drop"
+           onclick="document.getElementById('paFileInput').click()"
+           ondrop="paHandleDrop(event)"
+           ondragover="event.preventDefault()"
+           ondragenter="this.classList.add('drag-over')"
+           ondragleave="this.classList.remove('drag-over')">
+        <input type="file" id="paFileInput" accept="video/mp4,video/*" style="display:none"
+               onchange="_setPaFile(this.files[0])">
+        <div id="paDropZone">
+          <div class="ig-drop-icon">🎬</div>
+          <div class="ig-drop-label">Перетащи .mp4 сюда или нажми</div>
+          <div class="ig-drop-hint">Экспортируй из CapCut → перетащи сюда</div>
+        </div>
+        <div id="paFileOk" class="ig-file-ok" style="display:none">
+          <div class="ig-file-icon">✅</div>
+          <div>
+            <div class="ig-file-name" id="paFileName"></div>
+            <div class="ig-file-size" id="paFileSize"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Platforms -->
+      <div style="display:flex;gap:16px;margin:12px 0 8px;flex-wrap:wrap">
+        <label style="display:flex;align-items:center;gap:5px;font-size:.8rem;cursor:pointer">
+          <input type="checkbox" id="paCbYt" style="accent-color:var(--hot)"> ▶ YouTube
+        </label>
+        <label style="display:flex;align-items:center;gap:5px;font-size:.8rem;cursor:pointer">
+          <input type="checkbox" id="paCbTt" style="accent-color:var(--hot)"> ♪ TikTok
+        </label>
+        <label style="display:flex;align-items:center;gap:5px;font-size:.8rem;cursor:pointer">
+          <input type="checkbox" id="paCbIg" style="accent-color:var(--hot)"> 📷 Instagram
+        </label>
+      </div>
+
+      <!-- Language -->
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+        <span style="font-size:.75rem;color:var(--text2)">Язык:</span>
+        <select id="paLang" style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;
+                padding:3px 8px;color:var(--text);font-size:.75rem;font-family:inherit">
+          <option value="ru">🇷🇺 Русский</option>
+          <option value="uz">🇺🇿 Uzbek</option>
+        </select>
+      </div>
+
+      <!-- Caption -->
+      <div>
+        <div class="ig-caption-label">Подпись / описание</div>
+        <textarea id="paCaption" class="ig-caption-ta" rows="3"
+                  placeholder="Описание для YouTube / TikTok / Instagram…"></textarea>
+      </div>
+
+      <!-- Progress -->
+      <div id="paProgress" style="display:none;margin-top:10px">
+        <div class="ig-progress-bar"><div id="paProgressFill" class="ig-progress-fill" style="width:0%"></div></div>
+        <div id="paProgressText" class="ig-progress-text"></div>
+      </div>
+
+      <!-- Result -->
+      <div id="paResult" style="display:none;margin-top:10px;font-size:.78rem;line-height:1.6"></div>
+
+    </div>
+    <div class="ig-card-foot">
+      <button class="ig-cancel-btn" onclick="closePaModal()">Отмена</button>
+      <button id="paPublishBtn" class="ig-publish-btn" onclick="doPublishAll()" disabled>📤 Опубликовать</button>
     </div>
   </div>
 </div>

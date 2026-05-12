@@ -1813,53 +1813,63 @@ async def api_update_tts_uz(news_id: int, request: Request):
 @app.post("/api/news/{news_id}/publish-all")
 async def api_publish_all(news_id: int, request: Request):
     """
-    Publish video to all configured platforms (Instagram, YouTube, TikTok).
-    Body: {video_path, title, description, tags, language}
+    Publish video to selected platforms (Instagram, YouTube, TikTok).
+    Body: {video_path, title, description, tags, language, platforms}
+      video_path: absolute path OR "uploaded" → uses /data/videos/{id}.mp4
+      platforms:  list of "instagram"|"youtube"|"tiktok"  (default: all three)
     Returns per-platform results.
     """
     require_auth(request)
     body = await request.json()
-    video_path = body.get("video_path", "")
-    if not video_path:
+    vpath = body.get("video_path", "uploaded")
+
+    # Resolve "uploaded" shorthand → pre-uploaded file for this news_id
+    if vpath == "uploaded":
+        vpath = str(VIDEOS_DIR / f"{news_id}.mp4")
+    if not vpath:
         raise HTTPException(status_code=400, detail="video_path required")
 
     title       = body.get("title", "")
     description = body.get("description", "")
     tags        = body.get("tags", [])
     language    = body.get("language", "ru")
+    platforms   = body.get("platforms", ["instagram", "youtube", "tiktok"])
 
     results: dict = {}
 
     # ── Instagram ──
-    try:
-        from src.instagram_worker import publish_reel
-        conn = sqlite3.connect(DB_PATH)
-        media_id = await publish_reel(news_id, video_path, description, db_conn=conn)
-        conn.close()
-        results["instagram"] = {"status": "published", "media_id": media_id}
-    except Exception as e:
-        results["instagram"] = {"status": "error", "error": str(e)}
+    if "instagram" in platforms:
+        try:
+            from src.instagram_worker import publish_reel
+            conn = sqlite3.connect(DB_PATH)
+            media_id = await publish_reel(news_id, vpath, description, db_conn=conn)
+            conn.close()
+            results["instagram"] = {"status": "published", "media_id": media_id}
+        except Exception as e:
+            results["instagram"] = {"status": "error", "error": str(e)}
 
     # ── YouTube ──
-    try:
-        from src.youtube_worker import upload_video
-        video_id = await asyncio.to_thread(
-            upload_video, video_path, title, description, tags, language, "25", news_id
-        )
-        results["youtube"] = {"status": "published", "video_id": video_id,
-                              "url": f"https://youtu.be/{video_id}"}
-    except Exception as e:
-        results["youtube"] = {"status": "error", "error": str(e)}
+    if "youtube" in platforms:
+        try:
+            from src.youtube_worker import upload_video
+            video_id = await asyncio.to_thread(
+                upload_video, vpath, title, description, tags, language, "25", news_id
+            )
+            results["youtube"] = {"status": "published", "video_id": video_id,
+                                  "url": f"https://youtu.be/{video_id}"}
+        except Exception as e:
+            results["youtube"] = {"status": "error", "error": str(e)}
 
     # ── TikTok ──
-    try:
-        from src.tiktok_worker import upload_video as tt_upload
-        publish_id = await asyncio.to_thread(
-            tt_upload, video_path, title, language, news_id
-        )
-        results["tiktok"] = {"status": "processing", "publish_id": publish_id}
-    except Exception as e:
-        results["tiktok"] = {"status": "error", "error": str(e)}
+    if "tiktok" in platforms:
+        try:
+            from src.tiktok_worker import upload_video as tt_upload
+            publish_id = await asyncio.to_thread(
+                tt_upload, vpath, title, language, news_id
+            )
+            results["tiktok"] = {"status": "processing", "publish_id": publish_id}
+        except Exception as e:
+            results["tiktok"] = {"status": "error", "error": str(e)}
 
     # Mark as published if at least one succeeded
     any_ok = any(v.get("status") in ("published", "processing") for v in results.values())

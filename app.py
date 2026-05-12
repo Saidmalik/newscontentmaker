@@ -589,6 +589,85 @@ async def api_tg_status(request: Request):
     }
 
 
+
+# ── YOUTUBE API ───────────────────────────────────────────────────────────────
+
+@app.get("/api/youtube/diagnose")
+async def api_yt_diagnose(request: Request):
+    """Check YouTube API config."""
+    require_auth(request)
+    try:
+        from src.youtube_worker import diagnose
+        return await asyncio.to_thread(diagnose)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/youtube/upload")
+async def api_yt_upload(request: Request):
+    """Upload a video to YouTube.
+    Body: {video_path, title, description, tags, language, news_id}"""
+    require_auth(request)
+    body = await request.json()
+    video_path = body.get("video_path", "")
+    if not video_path:
+        raise HTTPException(status_code=400, detail="video_path required")
+    try:
+        from src.youtube_worker import upload_video
+        video_id = await asyncio.to_thread(
+            upload_video,
+            video_path,
+            body.get("title", ""),
+            body.get("description", ""),
+            body.get("tags", []),
+            body.get("language", "ru"),
+            body.get("category_id", "25"),
+            body.get("news_id", 0),
+        )
+        return {"status": "published", "video_id": video_id,
+                "url": f"https://youtu.be/{video_id}"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── TIKTOK API ────────────────────────────────────────────────────────────────
+
+@app.get("/api/tiktok/diagnose")
+async def api_tt_diagnose(request: Request):
+    """Check TikTok API config."""
+    require_auth(request)
+    try:
+        from src.tiktok_worker import diagnose
+        return await asyncio.to_thread(diagnose)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/tiktok/upload")
+async def api_tt_upload(request: Request):
+    """Upload video to TikTok.
+    Body: {video_path, title, language, news_id, privacy}"""
+    require_auth(request)
+    body = await request.json()
+    video_path = body.get("video_path", "")
+    if not video_path:
+        raise HTTPException(status_code=400, detail="video_path required")
+    try:
+        from src.tiktok_worker import upload_video
+        publish_id = await asyncio.to_thread(
+            upload_video,
+            video_path,
+            body.get("title", ""),
+            body.get("language", "ru"),
+            body.get("news_id", 0),
+            None,
+            body.get("privacy", "PUBLIC_TO_EVERYONE"),
+        )
+        return {"status": "processing", "publish_id": publish_id}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.patch("/api/news/{news_id}/tts")
 async def api_update_tts(news_id: int, request: Request):
     """Save manually edited TTS script."""

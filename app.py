@@ -101,7 +101,9 @@ def run_migrations(conn: sqlite3.Connection):
         "ALTER TABLE news ADD COLUMN tg_topic_hash TEXT",
         "ALTER TABLE news ADD COLUMN merged_ids TEXT",      # JSON: [{id,title,url,source},...] of merged items
         "ALTER TABLE news ADD COLUMN merged_into INTEGER",  # primary news_id this was merged into
-        "ALTER TABLE news ADD COLUMN tts_script_uz TEXT",   # Uzbek Latin translation of TTS
+        "ALTER TABLE news ADD COLUMN tts_script_uz TEXT",    # Uzbek Latin translation of TTS
+        "ALTER TABLE news ADD COLUMN description_uz TEXT",  # Uzbek Latin translation of description
+        "ALTER TABLE news ADD COLUMN preview_titles_uz TEXT", # Uzbek Latin preview titles (JSON)
     ]:
         try:
             conn.execute(sql)
@@ -447,7 +449,8 @@ async def api_news(
                    stats_views, stats_likes, stats_comments, stats_shares, stats_saves,
                    stats_reach, stats_watch_time, stats_platform,
                    instagram_media_id, instagram_permalink, starred, preselected,
-                   merged_ids, merged_into, tts_script_uz
+                   merged_ids, merged_into, tts_script_uz,
+                   description_uz, preview_titles_uz
             FROM news
             WHERE {' AND '.join(where)}
             ORDER BY {order}
@@ -1627,18 +1630,31 @@ async def api_merge_news(request: Request):
 
 @app.post("/api/news/{news_id}/translate-uz")
 async def api_translate_uz(news_id: int, request: Request):
-    """Translate the Russian TTS script to Uzbek Latin.
-    Takes tts_script, sends to Claude, saves as tts_script_uz."""
+    """Translate TTS + Description + Previews to Uzbek Latin in one call.
+    Saves results to tts_script_uz, description_uz, preview_titles_uz."""
     require_auth(request)
     conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
     row = conn.execute(
-        "SELECT tts_script FROM news WHERE id=?", (news_id,)
+        "SELECT tts_script, description, preview_titles FROM news WHERE id=?",
+        (news_id,)
     ).fetchone()
+    conn.row_factory = None
     if not row or not row[0]:
         conn.close()
-        raise HTTPException(status_code=404, detail="TTS скрипт не найден — сначала сгенерируй на русском")
+        raise HTTPException(
+            status_code=404,
+            detail="TTS скрипт не найден — сначала сгенерируй на русском"
+        )
 
-    ru_script = row[0].strip()
+    ru_tts   = (row[0] or "").strip()
+    ru_desc  = (row[1] or "").strip()
+    ru_prevs: list[str] = []
+    try:
+        ru_prevs = json.loads(row[2] or "[]")
+    except Exception:
+        ru_prevs = []
+
     api_key = os.environ.get("ANTHROPIC_API_KEY", "")
     if not api_key:
         conn.close()
@@ -1646,21 +1662,81 @@ async def api_translate_uz(news_id: int, request: Request):
 
     import anthropic
     client = anthropic.AsyncAnthropic(api_key=api_key)
+
+    # Build single prompt — translate all 3 sections
+    previews_block = "\n".join(f"{i+1}. {p}" for i, p in enumerate(ru_prevs)) if ru_prevs else ""
+    prompt = (
+        "Переведи следующие три блока с русского на узбекский язык (латиница, современная орфография).\n"
+        "Правила: только перевод, без пояснений; живой разговорный язык; сохрани структуру.\n\n"
+        "===TTS===\n" + ru_tts + "\n\n"
+        + (f"===ОПИСАНИЕ===\n{ru_desc}\n\n" if ru_desc else "===ОПИСАНИЕ===\n(пусто)\n\n")
+        + (f"===ПРЕВЬЮ===\n{previews_block}\n\n" if previews_block else "===ПРЕВЬЮ===\n(пусто)\n\n")
+        + "Ответь СТРОГО в том же формате — три раздела с теми же заголовками."
+    )
+
     msg = await client.messages.create(
         model="claude-haiku-4-5",
-        max_tokens=600,
-        messages=[{"role": "user", "content":
-            f"Переведи этот текст на узбекский язык (латиница, современная орфография).\n"
-            f"Требования: только перевод без пояснений, сохрани разбивку на абзацы, "
-            f"язык живой разговорный.\n\n{ru_script}"
-        }],
+        max_tokens=1400,
+        messages=[{"role": "user", "content": prompt}],
     )
-    uz_script = msg.content[0].text.strip()
+    raw = msg.content[0].text.strip()
 
-    conn.execute("UPDATE news SET tts_script_uz=? WHERE id=?", (uz_script, news_id))
+    # Parse response
+    def _extract(section: str, next_section: str) -> str:
+        import re as _re
+        m = _re.search(
+            rf"==={section}===(.*?)(?:==={next_section}===|$)",
+            raw, _re.DOTALL | _re.IGNORECASE
+        )
+        return m.group(1).strip() if m else ""
+
+    uz_tts  = _extract("TTS", "ОПИСАНИЕ")
+    uz_desc = _extract("ОПИСАНИЕ", "ПРЕВЬЮ")
+    uz_prev_raw = _extract("ПРЕВЬЮ", "END")
+
+    # Parse UZ previews into list
+    uz_prevs: list[str] = []
+    for line in uz_prev_raw.splitlines():
+        line = re.sub(r"^\d+[\.\)]\s*", "", line.strip()).strip()
+        if line and line.lower() != "(пусто)":
+            uz_prevs.append(line)
+
+    # Fallback: if section empty, keep Russian original
+    if not uz_tts:
+        uz_tts = ru_tts
+    if not uz_desc:
+        uz_desc = ru_desc
+
+    conn.execute(
+        "UPDATE news SET tts_script_uz=?, description_uz=?, preview_titles_uz=? WHERE id=?",
+        (uz_tts, uz_desc,
+         json.dumps(uz_prevs, ensure_ascii=False) if uz_prevs else None,
+         news_id)
+    )
     conn.commit()
     conn.close()
-    return {"id": news_id, "tts_script_uz": uz_script}
+
+    return {
+        "id":              news_id,
+        "tts_script_uz":   uz_tts,
+        "description_uz":  uz_desc,
+        "preview_titles_uz": uz_prevs,
+    }
+
+
+@app.patch("/api/news/{news_id}/description-uz")
+async def api_update_description_uz(news_id: int, request: Request):
+    """Save manually edited Uzbek description."""
+    require_auth(request)
+    body = await request.json()
+    desc = (body.get("description_uz") or "").strip()
+    if not desc:
+        raise HTTPException(status_code=400, detail="description_uz is empty")
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute("UPDATE news SET description_uz=? WHERE id=?", (desc, news_id))
+    conn.commit()
+    conn.close()
+    return {"id": news_id, "saved": True}
 
 
 @app.patch("/api/news/{news_id}/tts-uz")

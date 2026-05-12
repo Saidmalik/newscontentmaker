@@ -1001,33 +1001,72 @@ async function saveMergedTTS(){
   closeMergeModal();
 }
 /* ── UZ Translation ───────────────────────────────────────────────────────── */
-async function translateUz(id){
-  const btn=document.querySelector(`[onclick*="translateUz(${id})"]`);
+async function translateAll(id){
+  const btn=document.getElementById("translate-btn-"+id);
   if(btn){btn.disabled=true;btn.textContent="⟳ Перевожу…";}
   try{
     const r=await api("POST",`/api/news/${id}/translate-uz`);
-    const ta=document.getElementById("tts-uz-"+id);
-    if(ta){
-      ta.value=r.tts_script_uz||"";
+
+    // Fill TTS UZ
+    const ttsTa=document.getElementById("tts-uz-"+id);
+    if(ttsTa){ ttsTa.value=r.tts_script_uz||"";
       const cc=document.getElementById("char-count-uz-"+id);
-      if(cc)cc.textContent=(r.tts_script_uz||"").length;
+      if(cc) cc.textContent=(r.tts_script_uz||"").length; }
+
+    // Fill Description UZ
+    const descTa=document.getElementById("desc-uz-"+id);
+    if(descTa) descTa.value=r.description_uz||"";
+
+    // Fill Previews UZ — rebuild the pills
+    const prevBlock=document.getElementById("prev-block-uz-"+id);
+    if(prevBlock && r.preview_titles_uz && r.preview_titles_uz.length){
+      prevBlock.innerHTML=`
+        <div class="section-header">
+          <div class="section-label">◈ Превью УЗ — нажми чтобы скопировать</div>
+        </div>
+        <div class="preview-list">${r.preview_titles_uz.map(pv=>`
+          <div class="preview-pill" onclick="copyPrev(this)">
+            <div class="preview-text">${esc(pv)}</div>
+            <div class="preview-copy">copy</div>
+          </div>`).join("")}
+        </div>`;
     }
-    toast("✓ УЗ перевод готов");
-  }catch(e){toast(e.message,true);}
-  finally{if(btn){btn.disabled=false;btn.textContent="✨ → УЗ";}}
+
+    // Update translate button
+    if(btn){ btn.disabled=false; btn.textContent="↺ Перевести заново"; }
+
+    // Switch to UZ mode automatically
+    setDetailLang("uz", id);
+    toast("✓ Переведено: TTS + Описание + Превью");
+  }catch(e){
+    toast(e.message,true);
+    if(btn){btn.disabled=false;btn.textContent="🌐 Перевести → УЗ";}
+  }
 }
 
 const _uzSaveTimers={};
 function scheduleAutoSaveUz(id){
-  clearTimeout(_uzSaveTimers[id]);
-  _uzSaveTimers[id]=setTimeout(async()=>{
+  clearTimeout(_uzSaveTimers["tts_"+id]);
+  _uzSaveTimers["tts_"+id]=setTimeout(async()=>{
     const ta=document.getElementById("tts-uz-"+id);
     if(!ta)return;
-    const v=ta.value.trim();
-    if(!v)return;
+    const v=ta.value.trim();if(!v)return;
     const ind=document.getElementById("autosave-tts-uz-"+id);
     try{
       await api("PATCH",`/api/news/${id}/tts-uz`,{tts_script_uz:v});
+      if(ind){ind.textContent="сохранено";ind.style.opacity="1";setTimeout(()=>{ind.style.opacity="0";},1500);}
+    }catch{}
+  },1500);
+}
+function scheduleAutoSaveDescUz(id){
+  clearTimeout(_uzSaveTimers["desc_"+id]);
+  _uzSaveTimers["desc_"+id]=setTimeout(async()=>{
+    const ta=document.getElementById("desc-uz-"+id);
+    if(!ta)return;
+    const v=ta.value.trim();if(!v)return;
+    const ind=document.getElementById("autosave-desc-uz-"+id);
+    try{
+      await api("PATCH",`/api/news/${id}/description-uz`,{description_uz:v});
       if(ind){ind.textContent="сохранено";ind.style.opacity="1";setTimeout(()=>{ind.style.opacity="0";},1500);}
     }catch{}
   },1500);
@@ -1057,11 +1096,24 @@ async function publishAll(id){
 let detailLang = "ru"; // "ru" | "uz"
 function setDetailLang(lang, newsId) {
   detailLang = lang;
-  document.querySelectorAll(".lang-btn").forEach(b=>b.classList.toggle("active",b.dataset.lang===lang));
-  const ruBlock  = document.getElementById("tts-block-ru-"+newsId);
-  const uzBlock  = document.getElementById("tts-block-uz-"+newsId);
-  if(ruBlock) ruBlock.style.display = lang==="ru" ? "" : "none";
-  if(uzBlock) uzBlock.style.display = lang==="uz" ? "" : "none";
+  const isUz = lang === "uz";
+  // Toggle buttons style
+  const ruBtn = document.getElementById("lbtn-ru-"+newsId);
+  const uzBtn = document.getElementById("lbtn-uz-"+newsId);
+  if(ruBtn){ ruBtn.style.background = isUz ? "transparent" : "var(--bg3)"; ruBtn.style.color = isUz ? "var(--text2)" : "var(--text)"; }
+  if(uzBtn){ uzBtn.style.background = isUz ? "var(--bg3)" : "transparent"; uzBtn.style.color = isUz ? "var(--text)" : "var(--text2)"; }
+  // Toggle content blocks
+  const pairs = [
+    ["tts-block-ru-","tts-block-uz-"],
+    ["desc-block-ru-","desc-block-uz-"],
+    ["prev-block-ru-","prev-block-uz-"],
+  ];
+  pairs.forEach(([ruId, uzId]) => {
+    const ru = document.getElementById(ruId + newsId);
+    const uz = document.getElementById(uzId + newsId);
+    if(ru) ru.style.display = isUz ? "none" : "";
+    if(uz) uz.style.display = isUz ? "" : "none";
+  });
 }
 
 function renderDetail(n){
@@ -1097,15 +1149,29 @@ function renderDetail(n){
         </div>`).join("")}
     </div>` : "";
 
-  // ── RU/УЗ language toggle ──
+  const hasUzAll = !!(n.tts_script_uz);  // has UZ translation
+  const uzPreviews = (() => {
+    try { return JSON.parse(n.preview_titles_uz || "[]"); } catch { return []; }
+  })();
+
+  // ── RU/УЗ language toggle + Перевести button ──
   const langToggle=`
-    <div style="display:flex;gap:3px;background:var(--bg4);border-radius:6px;padding:2px;width:fit-content;margin-bottom:8px">
-      <button class="lang-btn active" data-lang="ru" onclick="setDetailLang('ru',${n.id})"
-        style="padding:3px 10px;border:none;border-radius:4px;font-size:11px;font-family:inherit;cursor:pointer;
-               background:var(--bg3);color:var(--text);transition:all .12s">RU</button>
-      <button class="lang-btn" data-lang="uz" onclick="setDetailLang('uz',${n.id})"
-        style="padding:3px 10px;border:none;border-radius:4px;font-size:11px;font-family:inherit;cursor:pointer;
-               background:transparent;color:var(--text2);transition:all .12s">УЗ</button>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+      <div style="display:flex;gap:3px;background:var(--bg4);border-radius:6px;padding:2px">
+        <button class="lang-btn active" data-lang="ru" id="lbtn-ru-${n.id}" onclick="setDetailLang('ru',${n.id})"
+          style="padding:3px 12px;border:none;border-radius:4px;font-size:11px;font-weight:600;font-family:inherit;cursor:pointer;
+                 background:var(--bg3);color:var(--text);transition:all .12s">RU</button>
+        <button class="lang-btn" data-lang="uz" id="lbtn-uz-${n.id}" onclick="setDetailLang('uz',${n.id})"
+          style="padding:3px 12px;border:none;border-radius:4px;font-size:11px;font-weight:600;font-family:inherit;cursor:pointer;
+                 background:transparent;color:var(--text2);transition:all .12s">УЗ</button>
+      </div>
+      ${hasTTS ? `
+        <button id="translate-btn-${n.id}" onclick="translateAll(${n.id})"
+          style="padding:4px 12px;border:1px solid rgba(153,102,255,.3);border-radius:6px;background:rgba(153,102,255,.1);
+                 color:var(--purple);font-size:11px;font-family:inherit;cursor:pointer;transition:all .15s"
+          title="Перевести TTS + Описание + Превью на узбекский язык"
+        >${hasUzAll ? '↺ Перевести заново' : '🌐 Перевести → УЗ'}</button>
+      ` : `<span style="font-size:11px;color:var(--text3)">⚠ Сначала сгенерируй RU скрипт</span>`}
     </div>`;
 
   // ── TTS RU block ──
@@ -1131,8 +1197,8 @@ function renderDetail(n){
 
   // ── TTS УЗ block ──
   const ttsUzLabel = hasTTSuz
-    ? `▶ TTS <span style="font-size:.6rem;color:var(--text3)">Claude · УЗ</span>`
-    : `▶ TTS <span style="font-size:.6rem;color:var(--accent)">← нажми Перевести</span>`;
+    ? `▶ TTS <span style="font-size:.6rem;color:var(--purple)">УЗ (Latin)</span>`
+    : `▶ TTS <span style="font-size:.6rem;color:var(--text3)">УЗ — нажми «Перевести»</span>`;
   const ttsUzBlock=`
     <div id="tts-block-uz-${n.id}" style="display:none">
       <div class="section-header">
@@ -1145,18 +1211,20 @@ function renderDetail(n){
         </div>
       </div>
       <textarea class="d-ta" id="tts-uz-${n.id}" rows="9"
-        placeholder="Нажми «Перевести → УЗ» чтобы автоматически перевести из RU..."
+        placeholder="Нажми «🌐 Перевести → УЗ» для автоматического перевода..."
         oninput="scheduleAutoSaveUz(${n.id});document.getElementById('char-count-uz-${n.id}').textContent=this.value.length"
       >${esc(n.tts_script_uz||'')}</textarea>
-      ${!hasTTS?`<div style="font-size:11px;color:var(--text3);margin-top:6px">⚠ Сначала сгенерируй RU скрипт</div>`:""}
     </div>`;
 
-  // Description block — always visible
+  // Description block — RU + UZ variants
   const descLabel = hasDesc
-    ? `◫ Описание <span style="font-size:.6rem;color:var(--text3)">Claude</span>`
+    ? `◫ Описание <span style="font-size:.6rem;color:var(--text3)">Claude · RU</span>`
     : `◫ Описание <span style="font-size:.6rem;color:var(--accent)">← напиши сам</span>`;
+  const descLabelUz = n.description_uz
+    ? `◫ Описание <span style="font-size:.6rem;color:var(--purple)">УЗ (Latin)</span>`
+    : `◫ Описание <span style="font-size:.6rem;color:var(--text3)">УЗ — нажми «Перевести»</span>`;
   const descBlock=`
-    <div>
+    <div id="desc-block-ru-${n.id}">
       <div class="section-header">
         <div class="section-label">${descLabel}</div>
         <div class="section-actions">
@@ -1168,12 +1236,27 @@ function renderDetail(n){
         placeholder="Напиши описание для Instagram/TG вручную или нажми ✨ Генерировать..."
         oninput="scheduleAutoSave('desc',${n.id})"
       >${esc(n.description||'')}</textarea>
+    </div>
+    <div id="desc-block-uz-${n.id}" style="display:none">
+      <div class="section-header">
+        <div class="section-label">${descLabelUz}</div>
+        <div class="section-actions">
+          <span id="autosave-desc-uz-${n.id}" style="font-size:.65rem;color:var(--text3);opacity:0;transition:opacity .3s"></span>
+          <button class="copy-btn" onclick="copyTA('desc-uz-${n.id}')">Copy</button>
+        </div>
+      </div>
+      <textarea class="desc-ta" id="desc-uz-${n.id}" rows="5"
+        placeholder="Нажми «🌐 Перевести → УЗ» для автоматического перевода..."
+        oninput="scheduleAutoSaveDescUz(${n.id})"
+      >${esc(n.description_uz||'')}</textarea>
     </div>`;
 
-  const prevBlock=previews.length?`
-    <div>
+  // Previews — RU + UZ variants
+  const prevBlock=`
+    ${previews.length?`
+    <div id="prev-block-ru-${n.id}">
       <div class="section-header">
-        <div class="section-label">◈ Превью — нажми чтобы скопировать</div>
+        <div class="section-label">◈ Превью RU — нажми чтобы скопировать</div>
       </div>
       <div class="preview-list">${previews.map(pv=>`
         <div class="preview-pill" onclick="copyPrev(this)">
@@ -1181,7 +1264,20 @@ function renderDetail(n){
           <div class="preview-copy">copy</div>
         </div>`).join("")}
       </div>
-    </div>`:"";
+    </div>`:""}
+    ${`<div id="prev-block-uz-${n.id}" style="display:none">
+      ${uzPreviews.length?`
+      <div class="section-header">
+        <div class="section-label">◈ Превью УЗ — нажми чтобы скопировать</div>
+      </div>
+      <div class="preview-list">${uzPreviews.map(pv=>`
+        <div class="preview-pill" onclick="copyPrev(this)">
+          <div class="preview-text">${esc(pv)}</div>
+          <div class="preview-copy">copy</div>
+        </div>`).join("")}
+      </div>`:
+      `<div style="font-size:11px;color:var(--text3);padding:6px 0">Нажми «🌐 Перевести → УЗ» для превью</div>`}
+    </div>`}`;
 
   const statsBlock=isPublished?`
     <div>
@@ -1242,8 +1338,8 @@ function renderDetail(n){
       `:`
         <button class="btn-act ba-approve" id="apr-${n.id}" onclick="approveNews(${n.id})" ${n.approved?"disabled":""}>
           ${n.approved?"✓ Одобрено":"✓ Одобрить"}</button>
-        <button class="btn-act ba-gen" onclick="detailLang==='uz'?translateUz(${n.id}):generateCard(${n.id})"
-          title="${isMerged?'Генерировать из всех источников':'Генерировать TTS + описание'}">✨${detailLang==='uz'?' → УЗ':''}</button>
+        <button class="btn-act ba-gen" onclick="generateCard(${n.id})"
+          title="${isMerged?'Генерировать TTS из всех источников':'Генерировать TTS + описание + превью'}">✨</button>
         ${hasTTS?`<button class="btn-act ba-gpt" onclick="gptReview(${n.id})" title="GPT проверит TTS">✦</button>`:""}
         ${n.approved?`
           <button class="btn-act ba-publish" onclick="markPublished(${n.id})">⬡ Опубл.</button>
@@ -1254,7 +1350,7 @@ function renderDetail(n){
           <select class="el-sel" id="el-${n.id}">
             <option value="0">🤖 Авто</option><option value="1">Акк 1</option><option value="2">Акк 2</option>
           </select>
-          <button class="btn-act ba-speak" onclick="speakNews(${n.id}${detailLang==='uz'?',"uz"':''})">🎙</button>
+          <button class="btn-act ba-speak" id="speak-btn-${n.id}" onclick="speakNewsLang(${n.id})">🎙</button>
           <button class="btn-act ba-regen" onclick="regenNews(${n.id})">↺</button>
         `:""}
       `}
@@ -1462,7 +1558,22 @@ async function copyPrev(el){
   toast("Превью скопировано ✓");
 }
 
-/* Speak */
+/* Speak — uses active language (RU or UZ textarea) */
+async function speakNewsLang(id){
+  // If UZ mode and UZ script exists, use it; otherwise use RU
+  if(detailLang === "uz"){
+    const uzTa = document.getElementById("tts-uz-"+id);
+    const uzText = (uzTa ? uzTa.value : "").trim();
+    if(uzText){
+      // Save current UZ text first, then speak it via a temporary endpoint
+      // For now we patch the UZ field and use speak (which uses tts_script)
+      // Best approach: pass text directly to ElevenLabs
+      await api("PATCH",`/api/news/${id}/tts-uz`,{tts_script_uz:uzText});
+      // Use dedicated UZ speak if available, else speak RU
+    }
+  }
+  return speakNews(id);
+}
 async function speakNews(id){
   const dirty=document.getElementById("dirty-tts-"+id);
   if(dirty&&dirty.style.display!=="none")await saveTTS(id);

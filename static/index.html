@@ -794,7 +794,7 @@ function fmtDate(str){
 function priLabel(p){return p==="hot"?"🔥 Горящая":p==="good"?"⚡ Хорошая":"◫ Резерв";}
 function priBadge(p){return p==="hot"?"badge-hot":p==="good"?"badge-good":"badge-res";}
 function fmtNum(n){if(!n||n===0)return"—";return n>=1000?Math.round(n/1000)+"k":String(n);}
-function fmtCr(n){return n<0?"Err":n>=1000?Math.round(n/1000)+"k":n+" chr";}
+function fmtCr(n){return n===-2?"✓ ~":n<0?"~":n>=1000?Math.round(n/1000)+"k":n+" chr";}
 function periodDates(p){
   const t=new Date(),fmt=d=>d.toISOString().slice(0,10);
   if(p==="today")    return{date_from:fmt(t),date_to:fmt(t)};
@@ -1602,8 +1602,9 @@ async function loadCredits(){
     const el=document.getElementById("elBadges");el.innerHTML="";
     let anyOk=false;
     for(const[acc,chars]of Object.entries(d)){
-      const color=chars>5000?"var(--green)":chars>0?"var(--gold)":"var(--hot)";
-      if(chars>0)anyOk=true;
+      // <0 = unknown/no-permission (key works) → green; 0 = empty → red; >0 → by amount
+      const color=chars<0?"var(--green)":chars>5000?"var(--green)":chars>0?"var(--gold)":"var(--hot)";
+      if(chars!==0)anyOk=true;  // negative = key ok but can't read credits
       el.innerHTML+=`<span class="el-badge" style="color:${color};border-color:${color}">🎙${acc} ${fmtCr(chars)}</span>`;
     }
     document.getElementById("elDot").style.background=anyOk?"var(--green)":"var(--hot)";

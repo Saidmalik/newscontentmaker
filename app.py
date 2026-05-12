@@ -1267,7 +1267,9 @@ async def api_preselect(news_id: int, request: Request):
 
 def _get_el_credits_sync(api_key: str) -> int:
     """Returns remaining characters for an ElevenLabs account.
-    Returns -1 if credits can't be fetched (treat as 'unknown, assume available')."""
+    Returns -1  = network/unknown error (assume available).
+    Returns -2  = key valid for TTS but missing user_read permission.
+    Returns >=0 = actual chars remaining."""
     try:
         r = req_lib.get(
             "https://api.elevenlabs.io/v1/user",
@@ -1282,6 +1284,11 @@ def _get_el_credits_sync(api_key: str) -> int:
             if limit == 0:
                 return -1
             return max(0, limit - count)
+        # 401 with missing_permissions means key IS valid for TTS but can't read user
+        if r.status_code == 401:
+            detail = r.json().get("detail", {})
+            if isinstance(detail, dict) and detail.get("status") == "missing_permissions":
+                return -2  # key works for TTS, just no user_read scope
     except Exception:
         pass
     return -1  # network error — assume available, let EL API decide

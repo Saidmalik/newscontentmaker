@@ -1455,8 +1455,9 @@ function renderDetail(n){
         `:""}
       `}
     </div>`;
-  // Restore active language (persists across card switches)
-  if(detailLang === "uz") setDetailLang("uz", n.id);
+  // Restore active language — stay in UZ only if card has UZ content, else reset to RU
+  if(detailLang === "uz" && n.tts_script_uz) setDetailLang("uz", n.id);
+  else if(detailLang === "uz") setDetailLang("ru", n.id);  // no UZ content — show RU
 }
 
 /* RSS status */

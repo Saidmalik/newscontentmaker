@@ -51,6 +51,10 @@ TG_SOURCES = [
     "podrobnosti_uz",   # Podrobnosti.uz
     "anhor_uz",         # Anhor.uz
     "nuz_uz",           # Nuz.uz
+    "xavfsizlik_uz",    # Хавфсизлик — безопасность / силовые новости
+    "Department_uz",    # Департамент — госорганы
+    "iibbuz",           # ИИББ — МВД Узбекистана
+    "MCHSUzbek",        # МЧС Узбекистана — ЧС, стихийные бедствия
 ]
 
 log = logging.getLogger("tg_reader")

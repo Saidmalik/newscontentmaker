@@ -13,8 +13,8 @@ Railway env vars needed:
   ELEVENLABS_API_KEY_2=...      (второй аккаунт, опционально)
   ELEVENLABS_VOICE_ID_2=...
 
-Schedule UTC: 01:00, 05:00, 09:00, 13:00, 16:00
-= Узбекистан: 06:00, 10:00, 14:00, 18:00, 21:00
+Collect UTC: 01:00, 05:00, 09:00, 13:00, 16:00  = Ташкент: 06:00, 10:00, 14:00, 18:00, 21:00
+TG posts UTC: 02:04, 04:37, 07:11, 09:53, 12:26, 15:44 = Ташкент: 07:04, 09:37, 12:11, 14:53, 17:26, 20:44
 """
 
 import os
@@ -269,8 +269,10 @@ async def lifespan(app: FastAPI):
     scheduler.add_job(_scheduled_ig_snapshots, "cron", minute=15)
     # Daily cleanup of old unreviewed news at 00:30 UTC (05:30 UZT)
     scheduler.add_job(_scheduled_cleanup, "cron", hour=0, minute=30)
-    # TG auto-post: 09:00, 12:00, 17:00, 20:00 UZT = 04:00, 07:00, 12:00, 15:00 UTC
-    scheduler.add_job(_scheduled_tg_auto, "cron", hour="4,7,12,15", minute=0)
+    # TG auto-post: 6 постов в день 07:04–20:44 UZT (UTC+5)
+    # UZT → UTC: 07:04→02:04 | 09:37→04:37 | 12:11→07:11 | 14:53→09:53 | 17:26→12:26 | 20:44→15:44
+    for _h, _m in [(2, 4), (4, 37), (7, 11), (9, 53), (12, 26), (15, 44)]:
+        scheduler.add_job(_scheduled_tg_auto, "cron", hour=_h, minute=_m)
     scheduler.start()
     log(f"Scheduler started. DB: {DB_PATH}")
 

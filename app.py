@@ -104,6 +104,7 @@ def run_migrations(conn: sqlite3.Connection):
         "ALTER TABLE news ADD COLUMN tts_script_uz TEXT",    # Uzbek Latin translation of TTS
         "ALTER TABLE news ADD COLUMN description_uz TEXT",  # Uzbek Latin translation of description
         "ALTER TABLE news ADD COLUMN preview_titles_uz TEXT", # Uzbek Latin preview titles (JSON)
+        "ALTER TABLE news ADD COLUMN user_notes TEXT",         # Авторские заметки → учитываются при генерации
     ]:
         try:
             conn.execute(sql)
@@ -452,7 +453,7 @@ async def api_news(
                    stats_reach, stats_watch_time, stats_platform,
                    instagram_media_id, instagram_permalink, starred, preselected,
                    merged_ids, merged_into, tts_script_uz,
-                   description_uz, preview_titles_uz
+                   description_uz, preview_titles_uz, user_notes
             FROM news
             WHERE {' AND '.join(where)}
             ORDER BY {order}
@@ -1600,9 +1601,16 @@ async def _do_generate(news_id: int) -> dict:
         )
         news_intro = f"НОВОСТЬ:\n{news_block}"
 
+    # Author notes — appended to prompt if present
+    user_notes = (item.get("user_notes") or "").strip()
+    notes_block = (
+        f"\n\n⚠️ ИНСТРУКЦИИ АВТОРА (обязательно учесть при написании):\n{user_notes}"
+        if user_notes else ""
+    )
+
     prompt = (
         f"Напиши для этой новости три части строго по инструкции выше.\n\n"
-        f"{news_intro}\n\n"
+        f"{news_intro}{notes_block}\n\n"
         "Ответь ТОЛЬКО в этом формате (без пояснений):\n\n"
         f"===TTS===\n[{tts_target}]\n\n"
         "===ОПИСАНИЕ===\n"
@@ -1814,6 +1822,19 @@ async def api_update_description_uz(news_id: int, request: Request):
         raise HTTPException(status_code=400, detail="description_uz is empty")
     conn = sqlite3.connect(DB_PATH)
     conn.execute("UPDATE news SET description_uz=? WHERE id=?", (desc, news_id))
+    conn.commit()
+    conn.close()
+    return {"id": news_id, "saved": True}
+
+
+@app.patch("/api/news/{news_id}/notes")
+async def api_update_notes(news_id: int, request: Request):
+    """Save author notes — included in next Claude generation."""
+    require_auth(request)
+    body  = await request.json()
+    notes = (body.get("user_notes") or "").strip()
+    conn  = sqlite3.connect(DB_PATH)
+    conn.execute("UPDATE news SET user_notes=? WHERE id=?", (notes, news_id))
     conn.commit()
     conn.close()
     return {"id": news_id, "saved": True}

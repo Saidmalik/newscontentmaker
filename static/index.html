@@ -1046,6 +1046,30 @@ async function translateAll(id){
   }
 }
 
+/* Notes auto-save */
+const _notesSaveTimers={};
+function scheduleAutoSaveNotes(id){
+  clearTimeout(_notesSaveTimers[id]);
+  _notesSaveTimers[id]=setTimeout(async()=>{
+    const ta=document.getElementById("notes-"+id);
+    if(!ta)return;
+    const v=ta.value;  // allow empty to clear notes
+    const ind=document.getElementById("autosave-notes-"+id);
+    try{
+      await api("PATCH",`/api/news/${id}/notes`,{user_notes:v});
+      if(ind){ind.textContent="сохранено";ind.style.opacity="1";setTimeout(()=>{ind.style.opacity="0";},1800);}
+      // Update border/bg to reflect notes presence
+      if(v.trim()){
+        ta.style.borderColor="rgba(255,200,0,.4)";ta.style.background="rgba(255,200,0,.06)";
+      } else {
+        ta.style.borderColor="var(--border)";ta.style.background="var(--bg3)";
+      }
+      // Update the news object in memory so re-renders preserve value
+      const n=news.find(x=>x.id===id);if(n)n.user_notes=v;
+    }catch(e){if(ind){ind.textContent="ошибка";ind.style.opacity="1";}}
+  },900);
+}
+
 const _uzSaveTimers={};
 function scheduleAutoSaveUz(id){
   clearTimeout(_uzSaveTimers["tts_"+id]);
@@ -1274,6 +1298,29 @@ function renderDetail(n){
       ` : `<span style="font-size:11px;color:var(--text3)">⚠ Сначала сгенерируй RU скрипт</span>`}
     </div>`;
 
+  // ── Author notes block ──
+  const hasNotes = !!(n.user_notes && n.user_notes.trim());
+  const notesBlock=`
+    <div id="notes-block-${n.id}" style="margin-bottom:2px">
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">
+        <span style="font-size:.7rem;font-weight:600;color:${hasNotes?'var(--gold)':'var(--text3)'};user-select:none">
+          📝 Заметки для Клода
+        </span>
+        <span id="autosave-notes-${n.id}" style="font-size:.6rem;color:var(--text3);opacity:0;transition:opacity .3s">сохранено</span>
+        ${hasNotes?`<span style="font-size:.6rem;color:var(--gold);padding:1px 5px;border:1px solid rgba(255,200,0,.3);border-radius:3px">учтены при ✨</span>`:''}
+      </div>
+      <textarea id="notes-${n.id}" rows="2"
+        style="width:100%;background:${hasNotes?'rgba(255,200,0,.06)':'var(--bg3)'};border:1px solid ${hasNotes?'rgba(255,200,0,.25)':'var(--border)'};
+               border-radius:6px;padding:7px 10px;color:var(--text);font-size:.75rem;font-family:inherit;
+               resize:vertical;line-height:1.5;outline:none;transition:border .15s,background .15s"
+        placeholder="Добавь сюда что учесть при генерации: детали, акценты, стиль, что добавить / убрать…
+Клод прочитает это перед написанием TTS и описания."
+        oninput="scheduleAutoSaveNotes(${n.id})"
+        onfocus="this.style.borderColor='rgba(255,200,0,.5)';this.style.background='rgba(255,200,0,.06)'"
+        onfocusout="if(!this.value.trim()){this.style.borderColor='var(--border)';this.style.background='var(--bg3)'}"
+      >${esc(n.user_notes||'')}</textarea>
+    </div>`;
+
   // ── TTS RU block ──
   const ttsLabel = hasTTS
     ? `▶ TTS <span style="font-size:.6rem;color:var(--text3)">Claude · RU</span>`
@@ -1429,6 +1476,7 @@ function renderDetail(n){
     <div class="d-body">
       ${mergedBlock}
       ${langToggle}
+      ${notesBlock}
       ${ttsBlock}${ttsUzBlock}
       ${descBlock}${prevBlock}${statsBlock}
     </div>
@@ -1439,7 +1487,10 @@ function renderDetail(n){
         <button class="btn-act ba-approve" id="apr-${n.id}" onclick="approveNews(${n.id})" ${n.approved?"disabled":""}>
           ${n.approved?"✓ Одобрено":"✓ Одобрить"}</button>
         <button class="btn-act ba-gen" onclick="generateCard(${n.id})"
-          title="${isMerged?'Генерировать TTS из всех источников':'Генерировать TTS + описание + превью'}">✨</button>
+          style="${hasNotes?'box-shadow:0 0 0 1.5px rgba(255,200,0,.5);':''}"
+          title="${hasNotes?'📝 Заметки учтены · ':''
+          }${isMerged?'Генерировать TTS из всех источников':'Генерировать TTS + описание + превью'
+          }">✨${hasNotes?' 📝':''}</button>
         ${hasTTS?`<button class="btn-act ba-gpt" onclick="gptReview(${n.id})" title="GPT проверит TTS">✦</button>`:""}
         ${n.approved?`
           <button class="btn-act ba-publish" onclick="markPublished(${n.id})">⬡ Опубл.</button>

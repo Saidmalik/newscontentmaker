@@ -1234,6 +1234,14 @@ async def api_delete(news_id: int, request: Request):
     return {"id": news_id, "deleted": True}
 
 
+@app.post("/api/admin/cleanup")
+async def api_manual_cleanup(request: Request):
+    """Run the cleanup job immediately (manual trigger)."""
+    require_auth(request)
+    await _scheduled_cleanup()
+    return {"ok": True}
+
+
 @app.post("/api/news/{news_id}/star")
 async def api_star(news_id: int, request: Request):
     """Toggle starred status for a news item."""
@@ -2528,19 +2536,28 @@ async def api_ig_posts(request: Request):
 
 
 async def _scheduled_cleanup():
-    """Daily job: hard-delete old hidden/expired news from DB.
-    - hidden=1 AND older than 3 days → permanently remove (URL freed only after 3d)
-    - unpublished/unapproved AND older than NEWS_RETENTION_DAYS (default 3) → remove
-    Starred and published posts are never deleted."""
+    """Daily job: hard-delete old news from DB.
+    - Starred and published posts are never deleted.
+    - Deletes if EITHER the article pub date OR the collect date is older than NEWS_RETENTION_DAYS.
+      (covers the case where collected > published due to server restart / late RSS pickup)
+    - Extra guard: collected must be at least 1 day old so freshly added old articles aren't
+      immediately wiped before the user sees them."""
     days = int(os.environ.get("NEWS_RETENTION_DAYS", "3"))
     try:
         conn = sqlite3.connect(DB_PATH)
         result = conn.execute(
             """DELETE FROM news
                WHERE approved = 0
+                 AND (starred IS NULL OR starred = 0)
                  AND published_at IS NULL
-                 AND date(collected) <= date('now', ? || ' days')""",
-            (f"-{days}",),
+                 AND (
+                   date(collected) <= date('now', ? || ' days')
+                   OR (
+                     date(COALESCE(published, collected)) <= date('now', ? || ' days')
+                     AND date(collected) <= date('now', '-1 days')
+                   )
+                 )""",
+            (f"-{days}", f"-{days}"),
         )
         deleted = result.rowcount
         conn.commit()

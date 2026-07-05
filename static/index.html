@@ -660,6 +660,7 @@ body::before {
         <div class="feed-time" id="updatedAt"></div>
         <div class="rss-status" id="rssStatus"></div>
         <button class="collect-btn" id="collectBtn" onclick="collectNow()">⬇ Собрать</button>
+        <button class="collect-btn" id="cleanupBtn" onclick="runCleanup()" title="Удалить старые необработанные новости" style="background:rgba(255,80,80,.15);border-color:rgba(255,80,80,.3);color:#ff5050;margin-left:4px;">🗑 Очистить</button>
       </div>
 
       <div class="filters-bar">
@@ -1575,6 +1576,18 @@ async function collectNow(){
   }
   catch(e){toast("Ошибка: "+e.message,true);}
   finally{setTimeout(()=>{btn.disabled=false;btn.textContent="⬇ Собрать";},60000);}
+}
+
+async function runCleanup(){
+  const btn=document.getElementById("cleanupBtn");
+  if(!confirm("Удалить все старые необработанные новости (approved=0, не опубликованы, старше лимита)?"))return;
+  btn.disabled=true;btn.innerHTML=`<span class="spin"></span> Удаляю…`;
+  try{
+    await api("POST","/api/admin/cleanup");
+    toast("Очистка выполнена ✓");
+    await load();
+  }catch(e){toast("Ошибка очистки: "+e.message,true);}
+  finally{btn.disabled=false;btn.textContent="🗑 Очистить";}
 }
 
 async function generateCard(id){

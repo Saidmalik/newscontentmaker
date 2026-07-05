@@ -1542,6 +1542,31 @@ def _parse_generate_response(text: str) -> tuple[str, str, list[str]]:
     return tts, description, previews[:3]
 
 
+# Словарь обязательных замен слов в генерируемом контенте.
+# Применяется к TTS, описанию и превью после каждой генерации.
+_WORD_REPLACEMENTS = [
+    # (pattern, replacement) — case-sensitive pairs; handled with re for word boundaries
+    (r"[Пп]олиции",      lambda m: "Милиции"    if m.group()[0].isupper() else "милиции"),
+    (r"[Пп]олицию",      lambda m: "Милицию"    if m.group()[0].isupper() else "милицию"),
+    (r"[Пп]олицией",     lambda m: "Милицией"   if m.group()[0].isupper() else "милицией"),
+    (r"[Пп]олиция",      lambda m: "Милиция"    if m.group()[0].isupper() else "милиция"),
+    (r"[Пп]олицейских",  lambda m: "Милиционеров" if m.group()[0].isupper() else "милиционеров"),
+    (r"[Пп]олицейскому", lambda m: "Милиционеру" if m.group()[0].isupper() else "милиционеру"),
+    (r"[Пп]олицейского", lambda m: "Милиционера" if m.group()[0].isupper() else "милиционера"),
+    (r"[Пп]олицейским",  lambda m: "Милиционером" if m.group()[0].isupper() else "милиционером"),
+    (r"[Пп]олицейские",  lambda m: "Милиционеры" if m.group()[0].isupper() else "милиционеры"),
+    (r"[Пп]олицейский",  lambda m: "Милиционер"  if m.group()[0].isupper() else "милиционер"),
+]
+
+def _apply_word_replacements(text: str) -> str:
+    if not text:
+        return text
+    import re as _re
+    for pattern, repl in _WORD_REPLACEMENTS:
+        text = _re.sub(pattern, repl, text)
+    return text
+
+
 async def _do_generate(news_id: int) -> dict:
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
@@ -1642,6 +1667,10 @@ async def _do_generate(news_id: int) -> dict:
     )
     raw = msg.content[0].text.strip()
     script, description, previews = _parse_generate_response(raw)
+
+    script = _apply_word_replacements(script)
+    description = _apply_word_replacements(description)
+    previews = [_apply_word_replacements(p) for p in previews]
 
     conn = sqlite3.connect(DB_PATH)
     conn.execute(

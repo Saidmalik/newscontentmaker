@@ -1010,6 +1010,20 @@ async function translateAll(id){
   try{
     const r=await api("POST",`/api/news/${id}/translate-uz`);
 
+    // Update in-memory news object so renderDetail stays in sync
+    const item=news.find(x=>x.id===id);
+    if(item){
+      item.title_uz=r.title_uz||item.title;
+      item.tts_script_uz=r.tts_script_uz||"";
+      item.description_uz=r.description_uz||"";
+      item.preview_titles_uz=r.preview_titles_uz&&r.preview_titles_uz.length
+        ? JSON.stringify(r.preview_titles_uz) : item.preview_titles_uz;
+    }
+
+    // Fill title UZ
+    const titleUzEl=document.getElementById("title-uz-"+id);
+    if(titleUzEl) titleUzEl.textContent=r.title_uz||"";
+
     // Fill TTS UZ
     const ttsTa=document.getElementById("tts-uz-"+id);
     if(ttsTa){ ttsTa.value=r.tts_script_uz||"";
@@ -1022,17 +1036,19 @@ async function translateAll(id){
 
     // Fill Previews UZ — rebuild the pills
     const prevBlock=document.getElementById("prev-block-uz-"+id);
-    if(prevBlock && r.preview_titles_uz && r.preview_titles_uz.length){
-      prevBlock.innerHTML=`
-        <div class="section-header">
-          <div class="section-label">◈ Превью УЗ — нажми чтобы скопировать</div>
-        </div>
-        <div class="preview-list">${r.preview_titles_uz.map(pv=>`
-          <div class="preview-pill" onclick="copyPrev(this)">
-            <div class="preview-text">${esc(pv)}</div>
-            <div class="preview-copy">copy</div>
-          </div>`).join("")}
-        </div>`;
+    if(prevBlock){
+      if(r.preview_titles_uz && r.preview_titles_uz.length){
+        prevBlock.innerHTML=`
+          <div class="section-header">
+            <div class="section-label">◈ Превью УЗ — нажми чтобы скопировать</div>
+          </div>
+          <div class="preview-list">${r.preview_titles_uz.map(pv=>`
+            <div class="preview-pill" onclick="copyPrev(this)">
+              <div class="preview-text">${esc(pv)}</div>
+              <div class="preview-copy">copy</div>
+            </div>`).join("")}
+          </div>`;
+      }
     }
 
     // Update translate button
@@ -1040,9 +1056,9 @@ async function translateAll(id){
 
     // Switch to UZ mode automatically
     setDetailLang("uz", id);
-    toast("✓ Переведено: TTS + Описание + Превью");
+    toast("✓ Переведено: заголовок + TTS + Описание + Превью");
   }catch(e){
-    toast(e.message,true);
+    toast("Ошибка перевода: "+e.message, true);
     if(btn){btn.disabled=false;btn.textContent="🌐 Перевести → УЗ";}
   }
 }
@@ -1229,6 +1245,7 @@ function setDetailLang(lang, newsId) {
   if(uzBtn){ uzBtn.style.background = isUz ? "var(--bg3)" : "transparent"; uzBtn.style.color = isUz ? "var(--text)" : "var(--text2)"; }
   // Toggle content blocks
   const pairs = [
+    ["title-ru-","title-uz-"],
     ["tts-block-ru-","tts-block-uz-"],
     ["desc-block-ru-","desc-block-uz-"],
     ["prev-block-ru-","prev-block-uz-"],
@@ -1467,7 +1484,8 @@ function renderDetail(n){
         ${n.approved&&!isPublished?`<span class="priority-badge badge-ok">✓ Одобрено</span>`:""}
         ${isMerged?`<span class="priority-badge" style="background:rgba(153,102,255,.15);color:var(--purple);border:1px solid rgba(153,102,255,.25)">⊕ ${mergedMeta.length+1} источника</span>`:""}
       </div>
-      <div class="d-title"><a href="${esc(n.url)}" target="_blank" rel="noopener">${esc(n.title)}</a></div>
+      <div id="title-ru-${n.id}" class="d-title"><a href="${esc(n.url)}" target="_blank" rel="noopener">${esc(n.title)}</a></div>
+      <div id="title-uz-${n.id}" class="d-title" style="display:none">${esc(n.title_uz||n.title)}</div>
       <div class="d-meta">
         Score: <span class="d-score-val">${n.score}</span>
         · ${fmtDate(n.published||n.collected)}
@@ -1731,7 +1749,7 @@ async function speakNewsLang(id){
   const sel=document.getElementById("el-"+id);
   const account=sel?parseInt(sel.value):0;
 
-  // If UZ mode and UZ script exists, speak the UZ version
+  // If UZ mode and UZ script exists → use AISHA TTS
   if(detailLang === "uz"){
     const uzTa = document.getElementById("tts-uz-"+id);
     const uzText = (uzTa ? uzTa.value : "").trim();
@@ -1740,19 +1758,20 @@ async function speakNewsLang(id){
       await api("PATCH",`/api/news/${id}/tts-uz`,{tts_script_uz:uzText});
       if(btn){btn.disabled=true;btn.innerHTML="⏳";}
       try{
-        const r=await fetch(`/api/news/${id}/speak-uz?account=${account}`);
+        const r=await fetch(`/api/news/${id}/speak-uz`);
         if(r.status===401){location.href="/login";return;}
-        if(!r.ok)throw new Error(await r.text());
-        const usedAcc=r.headers.get("X-EL-Account")||account;
+        if(!r.ok){
+          let msg="";try{const j=await r.json();msg=j.detail||JSON.stringify(j);}catch(_){msg=await r.text();}
+          throw new Error(msg);
+        }
         const blob=await r.blob();const a=document.createElement("a");
-        a.href=URL.createObjectURL(blob);a.download=`tts_${id}_uz_acc${usedAcc}.mp3`;
+        a.href=URL.createObjectURL(blob);a.download=`tts_${id}_uz.mp3`;
         a.click();URL.revokeObjectURL(a.href);
-        toast(`MP3 УЗ скачан (Акк ${usedAcc}) ✓`);loadCredits();
-      }catch(e){toast("ElevenLabs УЗ: "+e.message,true);}
+        toast("MP3 УЗ (AISHA) скачан ✓");
+      }catch(e){toast("AISHA TTS: "+e.message,true);}
       finally{if(btn){btn.disabled=false;btn.innerHTML="🎙";}}
       return;
     }
-    // No UZ text yet → fall through to RU speak
     toast("Сначала переведи текст на УЗ (нажми «🌐 Перевести»)",true);
     return;
   }

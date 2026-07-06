@@ -104,6 +104,7 @@ def run_migrations(conn: sqlite3.Connection):
         "ALTER TABLE news ADD COLUMN tts_script_uz TEXT",    # Uzbek Latin translation of TTS
         "ALTER TABLE news ADD COLUMN description_uz TEXT",  # Uzbek Latin translation of description
         "ALTER TABLE news ADD COLUMN preview_titles_uz TEXT", # Uzbek Latin preview titles (JSON)
+        "ALTER TABLE news ADD COLUMN title_uz TEXT",           # Uzbek Latin translation of article title
         "ALTER TABLE news ADD COLUMN user_notes TEXT",         # Авторские заметки → учитываются при генерации
     ]:
         try:
@@ -453,7 +454,7 @@ async def api_news(
                    stats_reach, stats_watch_time, stats_platform,
                    instagram_media_id, instagram_permalink, starred, preselected,
                    merged_ids, merged_into, tts_script_uz,
-                   description_uz, preview_titles_uz, user_notes
+                   description_uz, preview_titles_uz, title_uz, user_notes
             FROM news
             WHERE {' AND '.join(where)}
             ORDER BY {order}
@@ -1441,9 +1442,36 @@ async def api_speak(news_id: int, request: Request, account: int = 0):
     )
 
 
+def _aisha_tts_sync(text: str, speed: float = 0.8) -> bytes:
+    """Call AISHA TTS API and return MP3 bytes.
+    Docs: https://space.aisha.group/documentation
+    """
+    import requests as _req
+    api_key = os.environ.get("AISHA_API_KEY", "")
+    if not api_key:
+        raise ValueError("AISHA_API_KEY не задан в Railway Variables.")
+
+    r = _req.post(
+        "https://space.aisha.group/generate/",
+        headers={
+            "Authorization": f"{api_key}",
+            "Content-Type": "application/json",
+        },
+        json={
+            "text":   text,
+            "speed":  speed,
+            "format": "mp3",
+        },
+        timeout=60,
+    )
+    if not r.ok:
+        raise ValueError(f"AISHA API error {r.status_code}: {r.text[:200]}")
+    return r.content
+
+
 @app.get("/api/news/{news_id}/speak-uz")
-async def api_speak_uz(news_id: int, request: Request, account: int = 0):
-    """Generate MP3 from the Uzbek TTS script via ElevenLabs (same voice for now)."""
+async def api_speak_uz(news_id: int, request: Request):
+    """Generate MP3 from the Uzbek TTS script via AISHA API."""
     require_auth(request)
 
     conn = sqlite3.connect(DB_PATH)
@@ -1456,36 +1484,16 @@ async def api_speak_uz(news_id: int, request: Request, account: int = 0):
 
     script = row["tts_script_uz"]
 
-    if account == 0:
-        api_key, voice_id, used_acc = await _pick_el_account()
-    else:
-        api_key  = os.environ.get(f"ELEVENLABS_API_KEY_{account}", "")
-        voice_id = os.environ.get(f"ELEVENLABS_VOICE_ID_{account}", "")
-        used_acc = account
-        if not api_key or not voice_id:
-            raise HTTPException(
-                status_code=500,
-                detail=f"ELEVENLABS_API_KEY_{account} или ELEVENLABS_VOICE_ID_{account} не заданы."
-            )
+    try:
+        audio = await asyncio.to_thread(_aisha_tts_sync, script, 0.8)
+    except ValueError as e:
+        raise HTTPException(status_code=502, detail=str(e))
 
-    with open(PREFS_PATH, encoding="utf-8") as f:
-        prefs = yaml.safe_load(f)
-    el = prefs.get("elevenlabs", {})
-    voice_settings = el.get("voice_settings", {
-        "stability": 0.45, "similarity_boost": 0.80,
-        "style": 0.35, "speed": 1.05, "use_speaker_boost": True,
-    })
-    model_id = el.get("model_id", "eleven_multilingual_v2")
-
-    audio = await asyncio.to_thread(
-        _elevenlabs_sync, script, api_key, voice_id, voice_settings, model_id
-    )
     return Response(
         content=audio,
         media_type="audio/mpeg",
         headers={
-            "Content-Disposition": f'attachment; filename="tts_{news_id}_uz_acc{used_acc}.mp3"',
-            "X-EL-Account": str(used_acc),
+            "Content-Disposition": f'attachment; filename="tts_{news_id}_uz.mp3"',
         },
     )
 
@@ -1755,96 +1763,99 @@ async def api_merge_news(request: Request):
 
 @app.post("/api/news/{news_id}/translate-uz")
 async def api_translate_uz(news_id: int, request: Request):
-    """Translate TTS + Description + Previews to Uzbek Latin in one call.
-    Saves results to tts_script_uz, description_uz, preview_titles_uz."""
+    """Translate title + TTS + Description + Previews to Uzbek Latin in one call."""
     require_auth(request)
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     row = conn.execute(
-        "SELECT tts_script, description, preview_titles FROM news WHERE id=?",
+        "SELECT title, tts_script, description, preview_titles FROM news WHERE id=?",
         (news_id,)
     ).fetchone()
-    conn.row_factory = None
-    if not row or not row[0]:
+    if not row or not row["tts_script"]:
         conn.close()
         raise HTTPException(
             status_code=404,
             detail="TTS скрипт не найден — сначала сгенерируй на русском"
         )
 
-    ru_tts   = (row[0] or "").strip()
-    ru_desc  = (row[1] or "").strip()
+    ru_title = (row["title"] or "").strip()
+    ru_tts   = (row["tts_script"] or "").strip()
+    ru_desc  = (row["description"] or "").strip()
     ru_prevs: list[str] = []
     try:
-        ru_prevs = json.loads(row[2] or "[]")
+        ru_prevs = json.loads(row["preview_titles"] or "[]")
     except Exception:
         ru_prevs = []
+    conn.close()
 
     api_key = os.environ.get("ANTHROPIC_API_KEY", "")
     if not api_key:
-        conn.close()
         raise HTTPException(status_code=500, detail="ANTHROPIC_API_KEY не задан.")
 
     import anthropic
     client = anthropic.AsyncAnthropic(api_key=api_key)
 
-    # Build single prompt — translate all 3 sections
-    previews_block = "\n".join(f"{i+1}. {p}" for i, p in enumerate(ru_prevs)) if ru_prevs else ""
+    previews_block = "\n".join(f"{i+1}. {p}" for i, p in enumerate(ru_prevs)) if ru_prevs else "(пусто)"
     prompt = (
-        "Переведи следующие три блока с русского на узбекский язык (латиница, современная орфография).\n"
-        "Правила: только перевод, без пояснений; живой разговорный язык; сохрани структуру.\n\n"
-        "===TTS===\n" + ru_tts + "\n\n"
+        "Переведи следующие четыре блока с русского на узбекский язык (латиница, современная орфография).\n"
+        "Правила: только перевод, без пояснений; живой разговорный язык; сохрани структуру и длину.\n\n"
+        f"===ЗАГОЛОВОК===\n{ru_title}\n\n"
+        f"===TTS===\n{ru_tts}\n\n"
         + (f"===ОПИСАНИЕ===\n{ru_desc}\n\n" if ru_desc else "===ОПИСАНИЕ===\n(пусто)\n\n")
-        + (f"===ПРЕВЬЮ===\n{previews_block}\n\n" if previews_block else "===ПРЕВЬЮ===\n(пусто)\n\n")
-        + "Ответь СТРОГО в том же формате — три раздела с теми же заголовками."
+        + f"===ПРЕВЬЮ===\n{previews_block}\n\n"
+        + "Ответь СТРОГО в том же формате — четыре раздела с теми же заголовками. Без пояснений."
     )
 
-    msg = await client.messages.create(
-        model="claude-haiku-4-5",
-        max_tokens=1400,
-        messages=[{"role": "user", "content": prompt}],
-    )
+    try:
+        msg = await client.messages.create(
+            model="claude-haiku-4-5",
+            max_tokens=1600,
+            messages=[{"role": "user", "content": prompt}],
+        )
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Claude API error: {e}")
+
     raw = msg.content[0].text.strip()
 
-    # Parse response
     def _extract(section: str, next_section: str) -> str:
         import re as _re
         m = _re.search(
-            rf"==={section}===(.*?)(?:==={next_section}===|$)",
+            rf"==={re.escape(section)}===(.*?)(?:==={re.escape(next_section)}===|$)",
             raw, _re.DOTALL | _re.IGNORECASE
         )
         return m.group(1).strip() if m else ""
 
-    uz_tts  = _extract("TTS", "ОПИСАНИЕ")
-    uz_desc = _extract("ОПИСАНИЕ", "ПРЕВЬЮ")
+    uz_title    = _extract("ЗАГОЛОВОК", "TTS")
+    uz_tts      = _extract("TTS", "ОПИСАНИЕ")
+    uz_desc     = _extract("ОПИСАНИЕ", "ПРЕВЬЮ")
     uz_prev_raw = _extract("ПРЕВЬЮ", "END")
 
-    # Parse UZ previews into list
     uz_prevs: list[str] = []
     for line in uz_prev_raw.splitlines():
         line = re.sub(r"^\d+[\.\)]\s*", "", line.strip()).strip()
-        if line and line.lower() != "(пусто)":
+        if line and line.lower() not in ("(пусто)", "(empty)"):
             uz_prevs.append(line)
 
-    # Fallback: if section empty, keep Russian original
-    if not uz_tts:
-        uz_tts = ru_tts
-    if not uz_desc:
-        uz_desc = ru_desc
+    # Fallback to Russian if section came back empty
+    if not uz_title: uz_title = ru_title
+    if not uz_tts:   uz_tts   = ru_tts
+    if not uz_desc:  uz_desc  = ru_desc
 
-    conn.execute(
-        "UPDATE news SET tts_script_uz=?, description_uz=?, preview_titles_uz=? WHERE id=?",
-        (uz_tts, uz_desc,
+    conn2 = sqlite3.connect(DB_PATH)
+    conn2.execute(
+        "UPDATE news SET title_uz=?, tts_script_uz=?, description_uz=?, preview_titles_uz=? WHERE id=?",
+        (uz_title, uz_tts, uz_desc,
          json.dumps(uz_prevs, ensure_ascii=False) if uz_prevs else None,
          news_id)
     )
-    conn.commit()
-    conn.close()
+    conn2.commit()
+    conn2.close()
 
     return {
-        "id":              news_id,
-        "tts_script_uz":   uz_tts,
-        "description_uz":  uz_desc,
+        "id":                news_id,
+        "title_uz":          uz_title,
+        "tts_script_uz":     uz_tts,
+        "description_uz":    uz_desc,
         "preview_titles_uz": uz_prevs,
     }
 

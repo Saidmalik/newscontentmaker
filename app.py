@@ -262,21 +262,28 @@ async def lifespan(app: FastAPI):
     conn.close()
 
     for hour in [1, 5, 9, 13, 16]:
-        scheduler.add_job(scheduled_collect, "cron", hour=hour, minute=0)
+        scheduler.add_job(scheduled_collect, "cron", hour=hour, minute=0, misfire_grace_time=3600)
     # Every 6h: auto-link new IG reels to news posts by timestamp
-    scheduler.add_job(_scheduled_auto_sync, "cron", hour="*/6", minute=45)
+    scheduler.add_job(_scheduled_auto_sync, "cron", hour="*/6", minute=45, misfire_grace_time=3600)
     # Daily Instagram live-stats refresh at 02:00 UTC (07:00 UZT)
     scheduler.add_job(_scheduled_ig_refresh, "cron", hour=2, minute=0)
     # Hourly 24/48/72h snapshot check (at :15 to avoid overlap with other jobs)
     scheduler.add_job(_scheduled_ig_snapshots, "cron", minute=15)
-    # Daily cleanup of old unreviewed news at 00:30 UTC (05:30 UZT)
-    scheduler.add_job(_scheduled_cleanup, "cron", hour=0, minute=30)
+    # Cleanup every 6h (not once daily — Railway restarts lose missed cron jobs)
+    scheduler.add_job(_scheduled_cleanup, "interval", hours=6, misfire_grace_time=3600)
     # TG auto-post: 6 постов в день 07:04–20:44 UZT (UTC+5)
     # UZT → UTC: 07:04→02:04 | 09:37→04:37 | 12:11→07:11 | 14:53→09:53 | 17:26→12:26 | 20:44→15:44
     for _h, _m in [(2, 4), (4, 37), (7, 11), (9, 53), (12, 26), (15, 44)]:
         scheduler.add_job(_scheduled_tg_auto, "cron", hour=_h, minute=_m)
     scheduler.start()
     log(f"Scheduler started. DB: {DB_PATH}")
+
+    # Run cleanup once at startup (Railway restarts lose interval progress)
+    async def _startup_cleanup():
+        import asyncio as _aio
+        await _aio.sleep(5)
+        await _scheduled_cleanup()
+    asyncio.create_task(_startup_cleanup())
 
     # Telegram auto-channel scheduler (запускается если TG_API_ID задан)
     tg_sched = None

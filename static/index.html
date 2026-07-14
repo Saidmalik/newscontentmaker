@@ -161,6 +161,32 @@ body::before {
 }
 .sort-btn.active { background:var(--bg4); color:var(--text); border-color:var(--border2); }
 
+/* Search bar */
+.search-bar {
+  padding:8px 16px; border-bottom:1px solid var(--border); flex-shrink:0; position:relative;
+}
+.search-input {
+  width:100%; background:var(--bg3); border:1px solid var(--border2);
+  color:var(--text); font-size:12px; font-family:inherit;
+  padding:6px 32px 6px 30px; border-radius:7px; outline:none; box-sizing:border-box;
+  transition:border-color .15s;
+}
+.search-input:focus { border-color:var(--accent2); }
+.search-icon {
+  position:absolute; left:25px; top:50%; transform:translateY(-50%);
+  font-size:12px; color:var(--text3); pointer-events:none;
+}
+.search-clear {
+  position:absolute; right:25px; top:50%; transform:translateY(-50%);
+  background:none; border:none; color:var(--text3); cursor:pointer;
+  font-size:13px; line-height:1; padding:2px; display:none;
+}
+.search-clear:hover { color:var(--text); }
+.search-count {
+  position:absolute; right:42px; top:50%; transform:translateY(-50%);
+  font-size:10px; color:var(--text3); font-family:'JetBrains Mono',monospace; pointer-events:none;
+}
+
 /* Tabs */
 .tabs { display:flex; gap:0; border-bottom:1px solid var(--border); padding:0 16px; overflow-x:auto; flex-shrink:0; }
 .tab {
@@ -682,6 +708,16 @@ body::before {
         </div>
       </div>
 
+      <div class="search-bar">
+        <span class="search-icon">🔍</span>
+        <input class="search-input" id="searchInput" type="text"
+          placeholder="Поиск по заголовку…"
+          oninput="onSearchInput(this.value)"
+          onkeydown="if(event.key==='Escape'){clearSearch();}">
+        <span class="search-count" id="searchCount"></span>
+        <button class="search-clear" id="searchClear" onclick="clearSearch()" title="Очистить">✕</button>
+      </div>
+
       <div class="tabs">
         <div class="tab active" data-tab="all" onclick="setTab('all')">Все <span class="tab-count" id="cnt-all">—</span></div>
         <div class="tab" data-tab="hot" onclick="setTab('hot')">🔥 Горящие <span class="tab-count" id="cnt-hot">—</span></div>
@@ -754,6 +790,7 @@ body::before {
 "use strict";
 let news=[], curTab="all", curSort="score", curPeriod="all", selectedId=null;
 let mergeMode=false, mergeSelected=new Set(), mergeResult=null;
+let searchQuery="";
 const MONTHS=["янв","фев","мар","апр","май","июн","июл","авг","сен","окт","ноя","дек"];
 
 /* HTTP */
@@ -855,6 +892,21 @@ function updateCounts(){
   document.getElementById("navBadgeCount").textContent=all;
 }
 
+/* Search */
+function onSearchInput(val){
+  searchQuery=val.trim().toLowerCase();
+  document.getElementById("searchClear").style.display=searchQuery?"":"none";
+  renderFeed();
+}
+function clearSearch(){
+  searchQuery="";
+  const inp=document.getElementById("searchInput");
+  if(inp)inp.value="";
+  document.getElementById("searchClear").style.display="none";
+  document.getElementById("searchCount").textContent="";
+  renderFeed();
+}
+
 /* Render feed */
 function renderFeed(){
   let filtered=news;
@@ -869,9 +921,21 @@ function renderFeed(){
   }
   else filtered=news.filter(n=>!n.published_at);
 
+  // Apply search filter
+  if(searchQuery){
+    filtered=filtered.filter(n=>(n.title||"").toLowerCase().includes(searchQuery)
+      ||(n.source||"").toLowerCase().includes(searchQuery));
+    document.getElementById("searchCount").textContent=filtered.length+" найдено";
+  } else {
+    document.getElementById("searchCount").textContent="";
+  }
+
   const list=document.getElementById("feedList");
   list.classList.toggle("merge-mode", mergeMode);
-  if(!filtered.length){list.innerHTML=`<div class="empty-state">Нет новостей в этой категории</div>`;return;}
+  if(!filtered.length){
+    list.innerHTML=`<div class="empty-state">${searchQuery?`По запросу «${esc(searchQuery)}» ничего не найдено`:"Нет новостей в этой категории"}</div>`;
+    return;
+  }
 
   list.innerHTML=filtered.map(n=>cardHtml(n,curTab==="published")).join("");
 }
